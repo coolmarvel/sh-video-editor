@@ -1,0 +1,49 @@
+/* 스플리터 (DESIGN.md 4.16). 값은 --sh-* 토큰만. 배치(어느 칸에 놓이는지)는 shell/layout.css 가 정한다 */
+.ve-splitter {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+.ve-splitter--vertical {
+  width: var(--sh-size-splitter);
+  min-height: 0;
+  cursor: col-resize;
+}
+.ve-splitter--horizontal {
+  height: var(--sh-size-splitter);
+  min-width: 0;
+  cursor: row-resize;
+}
+.ve-splitter__line {
+  display: block;
+  background: var(--sh-color-chrome-frame);
+  pointer-events: none;
+}
+.ve-splitter--vertical .ve-splitter__line {
+  width: var(--sh-border-width);
+  height: 100%;
+}
+.ve-splitter--horizontal .ve-splitter__line {
+  height: var(--sh-border-width);
+  width: 100%;
+}
+.ve-splitter:hover .ve-splitter__line,
+.ve-splitter:focus-visible .ve-splitter__line,
+.ve-root[data-resizing='col'] .ve-splitter--vertical .ve-splitter__line,
+.ve-root[data-resizing='row'] .ve-splitter--horizontal .ve-splitter__line {
+  background: var(--sh-color-accent);
+}
+.ve-splitter:focus-visible {
+  outline: var(--sh-border-width) dotted var(--sh-color-text);
+  outline-offset: calc(var(--sh-border-width) * -1);
+}
+.ve-splitter[aria-disabled='true'] {
+  cursor: default;
+}

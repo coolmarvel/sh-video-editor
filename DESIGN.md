@@ -858,6 +858,23 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 - 미디어 패널에서 끌어오기: `dataTransfer` 의 `application/x-sh-media-item` 에 미디어 항목 id(`project.inspect` 의 `item`).
   계약 파일 `features/timeline/dnd.ts`.
 
+### 4.16 스플리터 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/layout/` (`Splitter.tsx`, `splitter.css`, `store.ts`). 배치는 `shell/layout.css`.
+4.12 의 "폭 조절 핸들 5px" 을 편집기 세 패널(미디어, 미리보기, 타임라인) 사이에 적용한 것이다.
+
+- 모양: 히트 영역 5 (`size.splitter`), 면은 바탕 그대로(투명). 가운데 1px 선(`--sh-color-chrome-frame`)만 보인다.
+  hover, 포커스, 드래그 중에는 선이 `--sh-color-accent`. 포커스 링은 공통 점선(1px dotted text, 안쪽 1px). 둥근 모양·그림자 없음.
+- 자리: 미디어와 미리보기 사이(세로 선, 커서 col-resize), 본문과 타임라인 사이(가로 선, 커서 row-resize). 한 열 배치(900 이하)에서는
+  숨기고 세로로 쌓는다.
+- 한계(px, 뷰포트 기준): 미디어 너비 200 이상 60% 이하, 미리보기에는 320 을 남긴다. 타임라인 높이 120 이상 70% 이하, 위 본문에는
+  200 을 남긴다. 기본값은 미디어 본문의 1/4, 타임라인은 4.15 의 6트랙 합. 창 크기가 바뀌면 저장값을 다시 한계 안으로 자른다.
+- 동작: 포인터 캡처로 끌기(드래그 중 루트에 `data-resizing`, 글자 선택 금지, 커서 고정). 더블클릭과 Enter 는 기본값 복귀. 키보드 화살표
+  (세로 선은 좌우, 가로 선은 상하) 8px, Home/End 는 최소/최대.
+- 접근성: `role="separator"`, `aria-orientation`, `aria-valuemin/max/now`(px), 한국어 `aria-label`("미디어와 미리보기 너비 조절",
+  "미리보기와 타임라인 높이 조절"). 툴팁 title 에 "더블클릭하면 기본 크기".
+- 저장: `localStorage` 키 `sh-video-editor.layout.v1` 에 `{ mediaWidth, timelineHeight }`(px, null 은 기본값). 읽기·쓰기는 try/catch.
+
 ## 5. Elevation
 
 그림자는 세 가지뿐이고 짧고 옅다. 다른 곳에는 그림자가 없다.

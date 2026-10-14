@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import type { EngineBridge } from './engine/bridge';
 import { useEditor } from './store';
 import { MenuBar } from './shell/MenuBar';
@@ -9,6 +9,7 @@ import { MonitorStatusPane } from './features/monitor';
 import { ExportDialog } from './features/export/ExportDialog';
 import { ProjectHost } from './features/project/ProjectHost';
 import { ProjectStatus } from './features/project/ProjectStatus';
+import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';
@@ -30,6 +31,33 @@ export function App({ bridge, host }: AppProps) {
     void init(bridge);
   }, [bridge, init]);
 
+  // 패널 크기 조절: 저장값(null 은 CSS 기본값)을 루트의 커스텀 속성으로 내려 주고, 실제 크기는 화면에서 잰다
+  const rootRef = useRef<HTMLDivElement>(null);
+  const mediaWidth = useLayoutStore((s) => s.mediaWidth);
+  const timelineHeight = useLayoutStore((s) => s.timelineHeight);
+  const resizing = useLayoutStore((s) => s.resizing);
+  const setMediaWidth = useLayoutStore((s) => s.setMediaWidth);
+  const setTimelineHeight = useLayoutStore((s) => s.setTimelineHeight);
+  const metrics = useLayoutMetrics(rootRef);
+
+  // 창 크기가 바뀌면 저장값을 다시 한계 안으로
+  useEffect(() => {
+    if (!metrics.ready) return;
+    if (mediaWidth !== null) {
+      const next = clamp(mediaWidth, metrics.mediaMin, metrics.mediaMax);
+      if (next !== mediaWidth) setMediaWidth(next);
+    }
+    if (timelineHeight !== null) {
+      const next = clamp(timelineHeight, metrics.timelineMin, metrics.timelineMax);
+      if (next !== timelineHeight) setTimelineHeight(next);
+    }
+  }, [metrics, mediaWidth, timelineHeight, setMediaWidth, setTimelineHeight]);
+
+  const layoutStyle = {
+    '--ve-media-w': mediaWidth !== null ? `${mediaWidth}px` : undefined,
+    '--ve-timeline-h': timelineHeight !== null ? `${timelineHeight}px` : undefined,
+  } as CSSProperties;
+
   const menus = useMemo(() => {
     const byMenu = new Map<string, typeof commands>();
     for (const c of commands) {
@@ -43,12 +71,39 @@ export function App({ bridge, host }: AppProps) {
   }, [commands]);
 
   return (
-    <div className="sh-root ve-root" data-host={host}>
+    <div
+      ref={rootRef}
+      className="sh-root ve-root"
+      data-host={host}
+      data-resizing={resizing ?? undefined}
+      style={layoutStyle}
+    >
       <MenuBar menus={menus} />
       <div className="ve-body">
         <MediaPanel />
+        <Splitter
+          orientation="vertical"
+          label="미디어와 미리보기 너비 조절"
+          value={metrics.mediaWidth}
+          min={metrics.mediaMin}
+          max={metrics.mediaMax}
+          disabled={!metrics.ready}
+          onChange={setMediaWidth}
+          onReset={() => setMediaWidth(null)}
+        />
         <Monitor />
       </div>
+      <Splitter
+        orientation="horizontal"
+        label="미리보기와 타임라인 높이 조절"
+        value={metrics.timelineHeight}
+        min={metrics.timelineMin}
+        max={metrics.timelineMax}
+        reverse
+        disabled={!metrics.ready}
+        onChange={setTimelineHeight}
+        onReset={() => setTimelineHeight(null)}
+      />
       <Timeline />
       <div className="sh-statusbar ve-status">
         <span className="sh-pane sh-pane--grow">{error ? `오류: ${error}` : status}</span>

@@ -672,3 +672,93 @@ fn shorter_head_closes_the_stretch_after_the_cut_on_sync_locked_tracks() {
         assert_eq!(fx.spans(v1), vec![(0, 10), (10, 10), (20, 10)], "unchanged on failure");
     }
 }
+
+// ---- sh-video-editor: transitions on cuts that open, removal and resizing in place ----
+
+fn cross(id: u64, start: i64, dur: i64, from: Option<ClipId>, to: Option<ClipId>) -> Transition {
+    Transition {
+        id: TransitionId(id),
+        effect: filmcraft_project::find_effect("cross_dissolve").unwrap().instance(),
+        start: f(start),
+        duration: f(dur),
+        from,
+        to,
+        align: Default::default(),
+        reverse: false,
+    }
+}
+
+#[test]
+fn a_regular_trim_that_opens_a_gap_drops_the_transition_on_it_and_a_ripple_trim_keeps_it() {
+    let mut fx = Fx::new();
+    let v1 = fx.v(0);
+    let a = fx.put(v1, 0, 10, 10);
+    let b = fx.put(v1, 10, 10, 10);
+    fx.seq.track_mut(v1).unwrap().transitions = vec![cross(1, 8, 4, Some(a), Some(b))];
+    let mut n = fx.next;
+    // a ripple trim moves b with a's end: still a cut, the transition follows
+    trim(&mut fx.seq, a, Edge::Out, TrimMode::Ripple, -f(2), &mut Fx::ctx(&mut n)).unwrap();
+    assert_eq!(fx.seq.track(v1).unwrap().transitions.len(), 1);
+    assert_eq!(fx.seq.track(v1).unwrap().transitions[0].start, f(6));
+    // a regular trim leaves b where it is: a gap, nothing to dissolve across
+    trim(&mut fx.seq, a, Edge::Out, TrimMode::Regular, -f(2), &mut Fx::ctx(&mut n)).unwrap();
+    assert_eq!(fx.spans(v1), vec![(0, 6), (8, 10)]);
+    assert!(fx.seq.track(v1).unwrap().transitions.is_empty(), "transition across a gap");
+    // a fade out (one-sided) survives a regular trim of its clip
+    fx.seq.track_mut(v1).unwrap().transitions = vec![cross(2, 16, 2, Some(b), None)];
+    trim(&mut fx.seq, b, Edge::In, TrimMode::Regular, f(1), &mut Fx::ctx(&mut n)).unwrap();
+    assert_eq!(fx.seq.track(v1).unwrap().transitions.len(), 1);
+}
+
+#[test]
+fn orphan_cleanup_drops_a_transition_whose_clips_no_longer_meet() {
+    let mut fx = Fx::new();
+    let v1 = fx.v(0);
+    let a = fx.put(v1, 0, 10, 10);
+    let b = fx.put(v1, 10, 10, 10);
+    let t = fx.seq.track_mut(v1).unwrap();
+    t.transitions = vec![cross(1, 8, 4, Some(a), Some(b)), cross(2, 0, 2, None, Some(a)), cross(3, 0, 0, None, None)];
+    remove_orphan_transitions(t);
+    assert_eq!(t.transitions.iter().map(|x| x.id.0).collect::<Vec<_>>(), vec![1, 2], "the empty one is gone");
+    t.item_mut(b).unwrap().start = f(12);
+    remove_orphan_transitions(t);
+    assert_eq!(t.transitions.iter().map(|x| x.id.0).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
+fn remove_transition_and_set_transition_span_keep_ids_and_respect_locks() {
+    let mut fx = Fx::new();
+    let v1 = fx.v(0);
+    let a = fx.put(v1, 0, 10, 10);
+    let b = fx.put(v1, 10, 10, 10);
+    let c = fx.put(v1, 20, 10, 10);
+    fx.seq.track_mut(v1).unwrap().transitions = vec![cross(1, 8, 4, Some(a), Some(b)), cross(2, 20, 2, None, Some(b)), cross(3, 28, 2, Some(c), None)];
+    let mut n = fx.next;
+    let ctx = Fx::ctx(&mut n);
+    let span = |fx: &Fx, id: u64| {
+        let tr = fx.seq.track(v1).unwrap().transitions.iter().find(|t| t.id.0 == id).unwrap();
+        (R.frame_at(tr.start), R.frame_at(tr.duration), tr.align)
+    };
+    set_transition_span(&mut fx.seq, TransitionId(1), f(6), None, &ctx).unwrap();
+    assert_eq!(span(&fx, 1), (7, 6, TransitionAlign::CenterAtCut));
+    set_transition_span(&mut fx.seq, TransitionId(1), f(6), Some(TransitionAlign::StartAtCut), &ctx).unwrap();
+    assert_eq!(span(&fx, 1), (10, 6, TransitionAlign::StartAtCut));
+    set_transition_span(&mut fx.seq, TransitionId(1), f(3), Some(TransitionAlign::EndAtCut), &ctx).unwrap();
+    assert_eq!(span(&fx, 1), (7, 3, TransitionAlign::EndAtCut));
+    // an odd centred length snaps its start down to a frame
+    set_transition_span(&mut fx.seq, TransitionId(1), f(3), Some(TransitionAlign::CenterAtCut), &ctx).unwrap();
+    assert_eq!(span(&fx, 1), (8, 3, TransitionAlign::CenterAtCut));
+    // one-sided: a fade in starts at its clip, a fade out ends at its clip, whatever is asked
+    set_transition_span(&mut fx.seq, TransitionId(2), f(4), Some(TransitionAlign::EndAtCut), &ctx).unwrap();
+    assert_eq!(span(&fx, 2), (10, 4, TransitionAlign::StartAtCut));
+    set_transition_span(&mut fx.seq, TransitionId(3), f(4), Some(TransitionAlign::StartAtCut), &ctx).unwrap();
+    assert_eq!(span(&fx, 3), (26, 4, TransitionAlign::EndAtCut));
+    assert!(set_transition_span(&mut fx.seq, TransitionId(3), Tick::ZERO, None, &ctx).is_err(), "zero length");
+    assert!(set_transition_span(&mut fx.seq, TransitionId(99), f(4), None, &ctx).is_err(), "unknown id");
+    assert_eq!(remove_transition(&mut fx.seq, TransitionId(2)).unwrap(), v1);
+    assert!(remove_transition(&mut fx.seq, TransitionId(2)).is_err());
+    assert_eq!(fx.seq.track(v1).unwrap().transitions.len(), 2);
+    fx.seq.track_mut(v1).unwrap().locked = true;
+    assert_eq!(remove_transition(&mut fx.seq, TransitionId(1)), Err(EditError::Locked));
+    assert_eq!(set_transition_span(&mut fx.seq, TransitionId(1), f(4), None, &ctx), Err(EditError::Locked));
+}

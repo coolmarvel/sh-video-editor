@@ -132,6 +132,11 @@ pub trait MediaSource: Send + Sync {
     fn video_frame(&self, req: FrameRequest) -> Result<Arc<VideoFrame>>;
     /// `frames` audio frames starting at sample index `start` (at `sample_rate`, media time).
     fn audio(&self, start: i64, frames: usize, sample_rate: u32) -> Result<AudioBuffer>;
+    /// What is wrong with a file that still opened (sample data cut off): shown at import so
+    /// the damage is not discovered as black frames later.
+    fn warnings(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 pub type SharedSource = Arc<dyn MediaSource>;

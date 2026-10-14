@@ -152,6 +152,7 @@ test.describe('효과 탭', () => {
         };
         return seq.video[0]!.items[0]!.effects.find((e) => e.effect === 'motion')!.params['position']!.value;
       })
+      // inspect 의 파라미터는 {kind, value} JSON (docs/guides/engine-commands.md). point 는 [x, y]
       .toEqual([100, 540]);
   });
 });

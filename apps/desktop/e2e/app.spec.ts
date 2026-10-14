@@ -1,6 +1,6 @@
 /**
  * 데스크톱 앱 e2e. 앱마다 새 userData 디렉토리를 써서 실제 사용자 데이터(자동 저장·복구 저널)를 건드리지 않는다.
- * 엔진은 utility process 에 살므로 `app.getAppMetrics()` 로 pid 를 찾아 SIGKILL 하고 복구를 본다.
+ * 엔진 프로세스 강제 종료 뒤 복구는 recovery.spec.ts(`recovery` 프로젝트, 모든 스펙 뒤에 혼자 돈다).
  */
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -155,55 +155,6 @@ test('데모 영상을 넣고 자르기·삭제·실행 취소', async () => {
     await expect(page.locator('.ve-status')).toContainText('수정됨');
     await expect.poll(() => page.title()).toMatch(/^(Untitled|제목 없음) \(수정됨\) - SH Video Editor$/);
     expect(ctx.errors).toEqual([]);
-  } finally {
-    await close(ctx);
-  }
-});
-
-test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 재시작된 엔진이 다시 응답한다', async () => {
-  const ctx = await launch();
-  try {
-    const { app, page } = ctx;
-    await makeDemoSequence(page);
-    const before = await app.evaluate(({ app: a }) =>
-      a
-        .getAppMetrics()
-        .filter((m) => m.type === 'Utility' && (m.name ?? '').includes('engine'))
-        .map((m) => m.pid),
-    );
-    expect(before).toHaveLength(1);
-    const crashed = page.evaluate(
-      () =>
-        new Promise<number>((resolve) => {
-          (window as unknown as { shEngine: { onCrashed(cb: (i: { code: number }) => void): () => void } }).shEngine.onCrashed((i) => resolve(i.code));
-        }),
-    );
-    process.kill(before[0]!, 'SIGKILL');
-    const code = await crashed;
-    expect(typeof code).toBe('number');
-    // 재시작된 엔진이 다른 pid 로 응답한다
-    await expect
-      .poll(
-        () =>
-          app.evaluate(({ app: a }) =>
-            a
-              .getAppMetrics()
-              .filter((m) => m.type === 'Utility' && (m.name ?? '').includes('engine'))
-              .map((m) => m.pid),
-          ),
-        { timeout: 20_000 },
-      )
-      .not.toEqual(before);
-    const version = await page.evaluate(() => (window as unknown as { shEngine: { version(): Promise<string> } }).shEngine.version());
-    expect(version).toContain('sh-video-engine');
-    // 화면은 살아 있고(새 엔진은 빈 세션) 다시 편집할 수 있다
-    await expect(page.getByRole('menubar')).toBeVisible();
-    await expect(page.getByText('타임라인이 비어 있습니다. 미디어를 타임라인에 넣으면 여기에 보입니다.')).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(page.locator('.ve-status')).not.toContainText('오류:', { timeout: 20_000 });
-    await makeDemoSequence(page);
-    await expect(page.locator('.mon-canvas')).toBeVisible();
   } finally {
     await close(ctx);
   }

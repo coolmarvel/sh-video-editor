@@ -28,6 +28,7 @@
     "test:e2e:web": "playwright test -c apps/web/playwright.config.ts",
     "test:e2e:desktop": "npm run build -w apps/desktop && xvfb-run -a playwright test -c apps/desktop/playwright.config.ts",
     "test:all": "npm run test && npm run test:e2e:web && npm run test:e2e:desktop",
+    "test:report": "node scripts/test-report.mjs",
     "build": "npm run build -w apps/web -w apps/desktop",
     "verify": "npm run lint && npm run build:engine && npm run typecheck && npm run test && npm run build",
     "dev:desktop": "npm run dev -w apps/desktop",

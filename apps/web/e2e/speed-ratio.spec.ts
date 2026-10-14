@@ -90,6 +90,7 @@ test.describe('비율', () => {
     await dialog.getByRole('radio', { name: /^채우기/ }).check();
     await dialog.getByRole('button', { name: '적용' }).click();
     await expect(dialog).toHaveCount(0);
+    // 설정 변경 + 클립 맞춤은 트랜잭션 한 단계(features/ratio/store.ts withTransaction)
     await expect(ui.status(app)).toHaveText('화면 비율 세로 9:16 (1080 x 1920), 클립 1개 채우기. 되돌리려면 실행 취소 한 번');
     await expect.poll(async () => (await canvasBox(app)).h).toBeGreaterThan(before.h / 2);
     const after = await canvasBox(app);
@@ -101,7 +102,6 @@ test.describe('비율', () => {
     });
     expect(settings).toMatchObject({ width: 1080, height: 1920 });
     await expect(ui.total(app)).toHaveText('00:00:16:00');
-    // 설정 변경과 채우기는 트랜잭션 하나라 실행 취소 한 번에 되돌아간다
     await ui.tool(app, '실행 취소').click();
     await expect(ui.status(app)).toHaveText('실행 취소: 화면 비율 세로 9:16');
     await expect.poll(async () => (await canvasBox(app)).w).toBeGreaterThan(before.h);

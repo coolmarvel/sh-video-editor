@@ -1,6 +1,6 @@
 {
   "name": "@sh-video-editor/web",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "SH Video Editor 웹(브라우저). packages/editor 화면 + WASM 엔진(packages/engine/bindings/wasm/pkg). 파일은 올리지 않는다",
   "author": "이성현",

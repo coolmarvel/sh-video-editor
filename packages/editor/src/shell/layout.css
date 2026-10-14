@@ -199,4 +199,9 @@ body {
     grid-template-rows: auto max-content auto;
     overflow-y: auto;
   }
+  /* 미디어 패널은 높이를 정해 둔다(max-height 만 있으면 auto 행에서 flex:1 인 미디어 목록이 0 높이가 되어 항목을 누를 수 없다) */
+  .ve-root .ve-media {
+    height: 32vh;
+    max-height: none;
+  }
 }

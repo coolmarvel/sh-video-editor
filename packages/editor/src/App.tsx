@@ -17,6 +17,7 @@ import { RatioDialog } from './features/ratio';
 import './features/effects';
 import './features/transitions/register';
 import { useEnginePolling } from './features/events';
+import './features/text';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';

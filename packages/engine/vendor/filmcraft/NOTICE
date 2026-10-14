@@ -15,6 +15,7 @@ list (author, source, license) is in ATTRIBUTION.md.
 Inter font (assets/fonts/Inter-*.ttf) — OFL-1.1. See assets/fonts/OFL-Inter.txt.
 Noto Serif font (assets/fonts/NotoSerif-Regular.ttf) — OFL-1.1. See assets/fonts/OFL-NotoSerif.txt.
 JetBrains Mono font (assets/fonts/JetBrainsMono-Regular.ttf) — OFL-1.1. See assets/fonts/OFL-JetBrainsMono.txt.
+Pretendard font (assets/fonts/Pretendard-Regular.otf, Pretendard-Bold.otf) — OFL-1.1. See assets/fonts/OFL-Pretendard.txt.
 Builds made with craft-fonts (CRAFT_FONTS_DIR; all official releases) also embed the fonts listed in
 https://github.com/storytold/craft-fonts/blob/main/ATTRIBUTION.md (BIZ UDPGothic, Shippori Mincho,
 BIZ UDMincho) — OFL-1.1. Their licence texts ship with the packages as OFL-<family>.txt.

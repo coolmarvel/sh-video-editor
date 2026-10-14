@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useEditor } from '../../store';
 import { formatTimecode } from '../../engine/time';
 import { MonitorController } from './controller';
-import { setMonitorController } from './registry';
+import { setMonitorController, useMonitorOverlays } from './registry';
 import { Scrubber } from './Scrubber';
 import { PLAYBACK_RATES, useMonitor } from './store';
 import './monitor.css';
@@ -36,6 +36,7 @@ export function MonitorPanel() {
   const playing = useMonitor((s) => s.playing);
   const rate = useMonitor((s) => s.rate);
   const error = useMonitor((s) => s.error);
+  const overlays = useMonitorOverlays((s) => s.overlays);
 
   const controllerRef = useRef<MonitorController | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -111,6 +112,7 @@ export function MonitorPanel() {
         ) : (
           <p className="mon-empty">{error ? `엔진 오류: ${error}` : '열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.'}</p>
         )}
+        {sequence ? overlays.map((Overlay, i) => <Overlay key={i} />) : null}
       </div>
       <div className="mon-scrub-row">
         <Scrubber

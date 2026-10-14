@@ -126,7 +126,7 @@ domain: development
 
 ### 마일스톤 2 - 자막·음악·전환 (성공 기준 완성)
 
-- [ ] **M2-1 텍스트·제목 클립**
+- [x] **M2-1 텍스트·제목 클립** (2026-10-14 feat/text-captions: Pretendard Regular·Bold 번들, features/text 텍스트 탭·자막 탭·모니터 끌기, SRT 가져오기·내보내기)
   - (a) `graphics.newText`, `graphics.set`, `graphics.setCharStyle`, `fonts.list`. 한글 글꼴 번들(Pretendard 또는 Noto Sans KR, OFL)을 `crates/text` 의 `include_bytes!` 목록에 추가하고 `.attribution` 사이드카
   - (b) features/text: 모니터 위 드래그로 위치, 인스펙터(글꼴·크기·색·외곽선·배경), 타임라인 그래픽 클립
   - (c) 한글·영문 혼합 문장을 1080p 로 내보내 ffmpeg 로 프레임 추출, 글리프 누락(네모) 없음

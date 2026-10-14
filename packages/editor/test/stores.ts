@@ -13,6 +13,9 @@ import { useEffects } from '../src/features/effects/store';
 import { useMediaPanelTabs } from '../src/features/media/panel-tabs';
 import { useEngineEvents } from '../src/features/events/store';
 import { resetThumbnailLoader } from '../src/features/media/thumbs';
+import { useText } from '../src/features/text/store';
+import { useCaptions } from '../src/features/text/captions-store';
+import { useInspectorRegistry } from '../src/features/inspector/registry';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -30,6 +33,9 @@ export function resetStores(): void {
   useMediaPanelTabs.setState({ active: 'media' });
   useEngineEvents.setState(useEngineEvents.getInitialState(), true);
   resetThumbnailLoader();
+  useText.setState(useText.getInitialState(), true);
+  useCaptions.setState(useCaptions.getInitialState(), true);
+  useInspectorRegistry.setState({ active: null });
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

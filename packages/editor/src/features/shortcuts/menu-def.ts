@@ -93,6 +93,7 @@ export const MENUS: MenuDef[] = [
     items: [
       item('플레이헤드에서 자르기', 'clip.razor', { enabledBy: 'sequence.inspect' }),
       item('속도, 길이...', 'clip.speed', { enabledBy: 'clip.speedDuration' }),
+      item('텍스트 추가', 'text.add', { enabledBy: 'graphics.newText' }),
       sep,
       item('켜기, 끄기', 'clip.enable', { enabledBy: 'clip.enable' }),
       item('영상, 소리 연결, 연결 해제', 'clip.link', { enabledBy: 'clip.link' }),

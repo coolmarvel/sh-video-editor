@@ -1,0 +1,8 @@
+asset:        Pretendard-Bold.otf
+title:        Pretendard Bold (Korean face of the text engine / graphics)
+author:       Kil Hyung-jin (orioncactus), with Reserved Font Name Pretendard
+source:       https://github.com/orioncactus/pretendard (release v1.3.9, public/static)
+license:      OFL-1.1
+license-file: assets/fonts/OFL-Pretendard.txt
+added:        2026-10-14 by Claude (agent) for SeongHyun Lee (sh-video-editor)
+notes:        Unmodified font file, bundled via include_bytes! in the text engine (crates/text/src/fonts.rs) so Korean (Hangul) text in titles, captions and burn-ins renders without system fonts, also on the web.

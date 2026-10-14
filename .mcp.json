@@ -7,6 +7,10 @@
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest", "--browser", "chromium"]
+    },
+    "filmcraft": {
+      "command": "node",
+      "args": ["scripts/filmcraft-mcp.mjs"]
     }
   }
 }

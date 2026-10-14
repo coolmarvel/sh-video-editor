@@ -1,0 +1,91 @@
+/* 모니터(미리보기) 전용 배치. 색·크기 값은 --sh-* 토큰만 쓴다. 바탕 검정은 영상 레터박스이므로 토큰이 아니다. */
+.mon-stage {
+  flex: 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: #000;
+  outline: none;
+}
+.mon-canvas {
+  display: block;
+  background: #000;
+}
+.mon-empty {
+  color: var(--sh-color-text-muted);
+  font-size: var(--sh-font-size-caption);
+  margin: 0;
+  padding: var(--sh-space-8);
+  text-align: center;
+}
+.mon-scrub-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  padding: var(--sh-space-4) var(--sh-space-8);
+  background: var(--sh-color-canvas);
+  border-top: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+}
+.mon-scrub {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--sh-size-control-sm);
+  display: flex;
+  align-items: center;
+  cursor: default;
+  touch-action: none;
+}
+.mon-scrub[aria-disabled='true'] {
+  opacity: 0.5;
+}
+.mon-scrub__track {
+  position: relative;
+  width: 100%;
+  height: var(--sh-space-6);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-color-sunken);
+  overflow: hidden;
+}
+.mon-scrub__fill {
+  height: 100%;
+  background: var(--sh-color-accent);
+}
+.mon-scrub__thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--sh-space-8);
+  margin-left: calc(var(--sh-space-8) / -2);
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  background: var(--sh-gradient-bevel);
+  pointer-events: none;
+}
+.mon-scrub:hover:not([aria-disabled='true']) .mon-scrub__thumb {
+  border-color: var(--sh-color-hover-edge);
+}
+.mon-transport {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: var(--sh-size-toolbar);
+  border-top: var(--sh-border-width) solid var(--sh-color-chrome-toolbar-hairline);
+}
+.mon-timecode {
+  margin-left: auto;
+  color: var(--sh-color-text-secondary);
+}
+.mon-timecode b {
+  color: var(--sh-color-text);
+  font-weight: var(--sh-font-weight-regular);
+}
+.mon-status {
+  flex: none;
+}
+@media (max-width: 900px) {
+  .mon-stage {
+    min-height: 160px;
+  }
+}

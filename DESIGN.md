@@ -832,6 +832,32 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 - 폭 12, 트랙 sunken + 안쪽 1px border, 엄지 `--sh-gradient-bevel` + 1px border-strong, hover 엄지 흰 면. 화살표 버튼 없음.
 - WPF·Avalonia 는 같은 규격의 ScrollBar 스타일을 프로젝트에서 만든다.
 
+### 4.15 타임라인 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/timeline/` (`timeline.css`). 값은 전부 `--sh-*` 토큰과 그 `calc` 조합이다.
+
+- 골격: 패널(4.12) 안에 툴바(4.2) 한 줄, 그 아래 스크롤 영역(4.14 `.sh-scroll`). 스크롤 영역의 첫 줄은 눈금자, 왼쪽 열은 트랙
+  머리이며 둘 다 sticky 로 붙어 있다. 트랙 순서는 위에서 V3 V2 V1, 그 아래 A1 A2 A3.
+- 치수: 트랙 머리 폭 112 (`space.48 * 2 + space.16`), 눈금자 높이 22 (`size.row`), 영상 트랙 44 (`size.row * 2`),
+  음성 트랙 30 (`size.row + space.8`), 트림 핸들 폭 6 (`space.6`). 데스크톱 패널 높이는 이 합(6트랙이 다 보이게).
+  모바일(900 이하)은 머리 48 (`space.48`), 영상 30, 음성 22 로 줄이고 머리의 토글을 숨긴다. 세로 스크롤 허용.
+- 트랙 머리: `--sh-gradient-bevel` 면 + 오른쪽 1px control-border + 아래 1px border. 짧은 이름(V1·A1) 12px bold,
+  옆에 도구 버튼(4.2) 높이 22, 11px 라벨 "잠금" 과 "음소거"(음성) 또는 "숨김"(영상). 켜짐은 `aria-pressed` 로 4.2 와 같은 눌림 면.
+- 눈금자: `--sh-gradient-status` 면, 아래 1px frame. 작은 눈금 1x4 border-strong, 큰 눈금 1x8 + 11px muted 타임코드
+  (00:00:00:00, 프레임 경계에 맞춘 정수 프레임 단위). 플레이헤드 머리는 8x8 `--sh-color-accent` 사각(둥근 모양 없음).
+- 레인: 영상 `--sh-color-sunken`, 음성 `--sh-color-stage-image`, 아래 1px border. 잠긴 트랙은 sunken 과 canvas 의
+  135도 줄무늬(6/2). 끌어다 놓을 때 대상 레인은 `--sh-color-hover` 면, 놓일 자리는 2px accent 세로선.
+- 클립 블록: 위아래 2px 띄우고 1px control-border + `--sh-gradient-bevel`(영상) / `--sh-color-hover` 면 + border-strong
+  (음성, 글자 secondary). 이름 12px 한 줄 말줄임. hover = 테두리 hover-edge. 선택 = `--sh-color-accent-subtle` 면 +
+  1px accent-pressed(4.7 선택과 같음, 글자 그대로). 비활성(클립 꺼짐·트랙 숨김·음소거) = 글자 text-disabled. 드래그 중
+  고스트 = 점선 accent 테두리. 양 끝 6px 트림 핸들은 hover·선택 때 accent-pressed 로 채운다.
+- 플레이헤드 선: 1px accent, 눈금자·트랙 머리 아래로 지나간다. 눈금자나 빈 레인을 누르고 끌면 스크럽.
+- 동작과 단축키(패널에 포커스가 있을 때): 자르기 Ctrl+K, 삭제 Delete, 실행 취소 Ctrl+Z, 다시 실행 Ctrl+Shift+Z, 줌 +/-
+  와 Ctrl+휠(커서 아래 시간 고정), 스냅 S, 프레임 이동 좌우 화살표(Shift 는 5프레임), Home/End. 툴바 토글 리플·삽입·스냅은
+  `aria-pressed`. 모든 편집은 엔진 커맨드로 보내고 `sequence.inspect` 를 다시 읽어 그린다.
+- 미디어 패널에서 끌어오기: `dataTransfer` 의 `application/x-sh-media-item` 에 미디어 항목 id(`project.inspect` 의 `item`).
+  계약 파일 `features/timeline/dnd.ts`.
+
 ## 5. Elevation
 
 그림자는 세 가지뿐이고 짧고 옅다. 다른 곳에는 그림자가 없다.

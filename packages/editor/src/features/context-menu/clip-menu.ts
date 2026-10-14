@@ -5,7 +5,7 @@ import { runAction } from '../shortcuts/actions';
 import { shortcutLabel } from '../shortcuts/keymap';
 import { useTimeline } from '../timeline/store';
 import { findClip, type ClipInfo } from '../timeline/types';
-import { duplicateClip, linkGroups, renameClip, selectedClips, synchronizeByAudio, toggleEnabled, toggleLink } from './clip-actions';
+import { detectScenes, duplicateClip, linkGroups, renameClip, selectedClips, synchronizeByAudio, toggleEnabled, toggleLink } from './clip-actions';
 import { item, sep, type ContextMenuEntry } from './store';
 
 export function clipMenu(clip: ClipInfo): ContextMenuEntry[] {
@@ -20,6 +20,7 @@ export function clipMenu(clip: ClipInfo): ContextMenuEntry[] {
   const linked = clip.link !== null;
   const busy = state.busy;
   const groups = linkGroups(clips);
+  const hasVideo = clips.some((c) => findClip(seq, c.clip)?.kind === 'video');
   return [
     item('자르기', () => state.razorAtPlayhead(), { disabled: busy || !under, key: shortcutLabel('clip.razor') }),
     item(n > 1 ? `삭제 (${n}개)` : '삭제', () => state.deleteSelection(), { disabled: busy, danger: true, key: shortcutLabel('clip.delete') }),
@@ -27,6 +28,7 @@ export function clipMenu(clip: ClipInfo): ContextMenuEntry[] {
     item('복제', () => duplicateClip(clip), { disabled: busy }),
     sep,
     item('속도, 길이...', () => runAction('clip.speed'), { disabled: busy, key: shortcutLabel('clip.speed') }),
+    item('장면마다 자르기', () => detectScenes(clips), { disabled: busy || !hasVideo }),
     sep,
     item(linked ? '소리 분리(연결 해제)' : '다시 연결', () => toggleLink(clips), {
       disabled: busy || (!linked && groups < 2),

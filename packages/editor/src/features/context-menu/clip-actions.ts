@@ -128,3 +128,46 @@ export async function synchronizeByAudio(clips: ClipInfo[]): Promise<void> {
     await refreshAll();
   }
 }
+
+export interface SceneResult {
+  /** 분석한 영상 클립 수 */
+  clips: number;
+  /** 잘린 곳 수(모든 클립 합) */
+  cuts: number;
+}
+
+/**
+ * 장면마다 자르기: 선택한 영상 클립의 프레임을 비교해 장면이 바뀌는 곳마다 자른다(연결된 소리도 함께).
+ * 엔진 `clip.sceneEditDetection {clips, applyCuts: true, wait: true}`: 분석이 끝날 때까지 기다려 자르기 수를 돌려받는다
+ * (wasm 은 항상 동기). 결과는 실행 취소 한 단계 "Scene Edit Detection".
+ */
+export async function detectScenes(selected: ClipInfo[]): Promise<SceneResult | null> {
+  const bridge = useEditor.getState().bridge;
+  const seq = useTimeline.getState().sequence;
+  if (!bridge || !seq) return null;
+  const videos = selected.filter((c) => findClip(seq, c.clip)?.kind === 'video');
+  if (videos.length === 0) {
+    useProject.getState().notify('warning', '장면을 찾으려면 영상 클립을 선택하세요.');
+    return null;
+  }
+  useEditor.setState({ status: `장면을 찾는 중... (클립 ${videos.length}개)`, error: null });
+  useTimeline.setState({ busy: true });
+  try {
+    const r = (await bridge.execute('clip.sceneEditDetection', { clips: videos.map((c) => c.clip), applyCuts: true, wait: true })) as {
+      clips?: Array<{ clip: number; cuts?: number[] }>;
+    };
+    const cuts = (r.clips ?? []).reduce((n, c) => n + (c.cuts?.length ?? 0), 0);
+    const status = cuts > 0 ? `장면 ${cuts}곳에서 잘랐습니다 (클립 ${videos.length}개)` : '장면이 바뀌는 곳을 찾지 못했습니다';
+    await refreshAll(status);
+    useProject
+      .getState()
+      .notify(cuts > 0 ? 'success' : 'info', cuts > 0 ? `${status}.` : '장면이 바뀌는 곳을 찾지 못했습니다. 한 장면으로 이어진 영상이거나 변화가 작습니다.');
+    return { clips: videos.length, cuts };
+  } catch (e) {
+    useProject.getState().notify('danger', `장면을 찾지 못했습니다. ${message(e)}`);
+    await refreshAll();
+    return null;
+  } finally {
+    useTimeline.setState({ busy: false });
+  }
+}

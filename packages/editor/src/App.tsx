@@ -22,6 +22,8 @@ import { useEnginePolling } from './features/events';
 import './features/text';
 // 오디오 탭·음악 탭 등록(레지스트리 방식). 재생기는 모니터 툴바의 AudioToolbar 가 띄운다
 import './features/audio';
+// 전사 탭(텍스트 기반 편집) 등록
+import './features/transcript';
 // 키프레임 모션(모션 탭·변형 상자), 스티커 탭, 템플릿 탭 등록(레지스트리 방식)
 import './features/keyframes';
 import './features/stickers';

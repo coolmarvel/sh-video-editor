@@ -21,6 +21,8 @@ import { useOnboarding } from '../src/features/onboarding/store';
 import { useKeyframes } from '../src/features/keyframes/store';
 import { useStickers } from '../src/features/stickers/store';
 import { useTemplates } from '../src/features/templates/store';
+import { useTranscript } from '../src/features/transcript/store';
+import { useStt } from '../src/features/stt/store';
 import { focusArea } from '../src/features/shortcuts/keymap';
 import { useWebFiles } from '../src/features/project/web-store';
 import { resetRecentMemory, useRecent } from '../src/features/project/recent';
@@ -51,6 +53,8 @@ export function resetStores(): void {
   useKeyframes.setState(useKeyframes.getInitialState(), true);
   useStickers.setState(useStickers.getInitialState(), true);
   useTemplates.setState(useTemplates.getInitialState(), true);
+  useTranscript.setState(useTranscript.getInitialState(), true);
+  useStt.setState(useStt.getInitialState(), true);
   focusArea.current = 'timeline';
   useWebFiles.setState(useWebFiles.getInitialState(), true);
   useRecent.setState(useRecent.getInitialState(), true);

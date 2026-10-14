@@ -29,7 +29,59 @@ export interface FakeClip {
   scale?: number;
   /** 적용된 효과. 영상 클립은 고정 효과(motion, opacity, time_remap)로 시작한다 */
   effects?: FakeEffect[];
+  /** 클립 게인(dB, clip.audioGain). 없으면 0 이고 inspect 에도 나가지 않는다 */
+  gainDb?: number;
+  /** Essential Sound 유형·설정(essentialSound.*). 소리 클립만 */
+  essential?: FakeEssential;
 }
+
+/** 전사 단어(엔진 Transcript.words 의 한 항목). 시각은 미디어 tick */
+export interface FakeWord {
+  text: string;
+  start: number;
+  end: number;
+  speaker?: number | null;
+}
+
+/** 엔진 `EssentialSound` 의 JSON 모양(snake_case). `essentialSound.set` 의 점 표기 키로 고친다 */
+export interface FakeEssential {
+  kind: string;
+  settings: Record<string, unknown>;
+}
+
+/** 엔진 `EssentialSound::new(kind)` 흉내: 모든 슬롯은 꺼진 채 5 */
+export function fakeEssential(kind: string): FakeEssential {
+  const slot = (amount = 5) => ({ on: false, amount });
+  return {
+    kind,
+    settings: {
+      preset: '(Default)',
+      repair: { enabled: true, noise: slot(), rumble: slot(), dehum: slot(), hum_hz: 60, deess: slot(), reverb: slot() },
+      clarity: { enabled: true, dynamics: slot(), eq: slot(), eq_preset: 'Balanced Voice', enhance: slot(), enhance_tone: 0 },
+      creative: { enabled: true, reverb: slot(), reverb_preset: 'Small Room', width: slot() },
+      loudness: { enabled: true, measured_lufs: null, target_lufs: null, gain_db: 0 },
+      ducking: { enabled: false, sensitivity: 6, reduce_db: -15, fade_s: 0.8, against: ['Dialogue'] },
+      volume: { level_db: 0 },
+      mute: false,
+    },
+  };
+}
+
+/** 설정 슬롯이 켜지면 붙는 Essential 효과(엔진 `essential::apply` 의 순서 일부) */
+const ESSENTIAL_EFFECTS: Array<[string, string]> = [
+  ['repair.noise', 'denoise'],
+  ['repair.rumble', 'highpass'],
+  ['repair.dehum', 'dehummer'],
+  ['repair.deess', 'deesser'],
+  ['repair.reverb', 'dereverb'],
+  ['clarity.dynamics', 'dynamics'],
+  ['clarity.eq', 'parametric_eq'],
+  ['clarity.enhance', 'speech_enhance'],
+  ['creative.reverb', 'studio_reverb'],
+  ['creative.width', 'stereo_width'],
+];
+
+const snake = (k: string) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 
 /** 트랙의 전환(엔진 inspect 의 transitions[] 와 같은 모양). 두 클립 사이는 컷을 가운데 둔다 */
 export interface FakeTransition {
@@ -173,6 +225,10 @@ export interface FakeItem {
   path?: string;
   /** 찾을 수 없는 파일(media.findMissing) */
   missing?: boolean;
+  /** 통합 라우드니스(LUFS, essentialSound.autoMatch 가 "잰" 값). 없으면 -20 */
+  lufs?: number;
+  /** 장면이 바뀌는 미디어 시각(tick, clip.sceneEditDetection 이 "찾는" 곳). 없으면 장면 전환 없음 */
+  sceneCuts?: number[];
 }
 
 export interface FakeBin {
@@ -266,6 +322,13 @@ interface State {
   captionSelection: number[];
   /** 연결 선택(엔진 sequence.linkedSelection). 꺼지면 trim 이 연결 상대를 두고 간다 */
   linkedSelection: boolean;
+  /** 미디어 항목 id -> 전사 단어(transcript.set) */
+  transcripts: Record<number, FakeWord[]>;
+  /** 인·아웃 점(transcript.select 가 찍는다) */
+  markIn: number | null;
+  markOut: number | null;
+  /** 마스터(Mix) 페이더(dB, sequence.normalizeMixTrack) */
+  masterDb: number;
 }
 
 export interface FakeBridgeOptions {
@@ -285,6 +348,8 @@ export interface FakeBridgeOptions {
   web?: boolean;
   /** 호스트 캐시(bridge.cache) */
   cache?: CacheStore;
+  /** 믹스 정점(dBFS, 마스터 0 dB 기준). sequence.normalizeMixTrack 이 "잰다". 기본 -6 */
+  mixPeakDb?: number;
 }
 
 export const FAKE_COMMANDS: CommandSpec[] = [
@@ -431,7 +496,7 @@ export class FakeEngine {
       version: async () => 'sh-video-engine 0.0.0-fake (base filmcraft test)',
       commands: async () => clone(FAKE_COMMANDS),
       execute: async (id, params) => this.execute(id, params),
-      isEnabled: async (id) => id !== 'nope.disabled',
+      isEnabled: async (id) => this.isEnabled(id),
       undo: async () => this.undo(),
       redo: async () => this.redo(),
       playhead: async () => this.state.playhead,
@@ -558,6 +623,10 @@ export class FakeEngine {
       captionTracks: [],
       captionSelection: [],
       linkedSelection: true,
+      transcripts: {},
+      markIn: null,
+      markOut: null,
+      masterDb: 0,
     };
   }
 
@@ -798,6 +867,193 @@ export class FakeEngine {
     this.events.push(ev);
   }
 
+  /** 활성 여부(엔진 is_enabled 의 일부). 전사 커맨드는 편집본에 전사 단어가 있을 때, 장면 찾기는 영상 클립을 골랐을 때 */
+  isEnabled(id: string): boolean {
+    if (id === 'nope.disabled') return false;
+    if (/^transcript\.(select|extract|lift|removePauses|removeFillers|createCaptions|renameSpeaker)$/.test(id)) {
+      return this.state.sequence !== null && this.sequenceWords().length > 0;
+    }
+    if (id === 'transcript.delete') return Object.keys(this.state.transcripts).length > 0;
+    if (id === 'clip.sceneEditDetection') {
+      const seq = this.state.sequence;
+      return seq !== null && seq.selection.some((c) => seq.video.some((t) => t.items.some((x) => x.clip === c)));
+    }
+    if (id === 'sequence.normalizeMixTrack') return this.state.sequence !== null && this.state.sequence.audio.some((t) => t.items.length > 0);
+    return true;
+  }
+
+  /** `time` 에서 클립을 자른다(only 를 주면 그 클립과 연결 상대만). 잘린 수를 돌려준다. 스냅샷·touch 는 호출자가 */
+  private razorAt(seq: FakeSequence, time: number, only?: number): number {
+    let cuts = 0;
+    const splitLinks = new Map<number, number>();
+    for (const t of [...seq.video, ...seq.audio]) {
+      const next: FakeClip[] = [];
+      for (const c of t.items) {
+        const target = only === undefined ? true : only === c.clip || (c.link !== null && this.linkedOf(seq, c).some((x) => x.clip === only));
+        if (target && c.start < time && time < c.end) {
+          let link: number | null = null;
+          if (c.link !== null) {
+            link = splitLinks.get(c.link) ?? this.nextLink++;
+            splitLinks.set(c.link, link);
+          }
+          next.push({ ...c, end: time });
+          next.push({ ...c, clip: this.nextId++, start: time, sourceIn: c.sourceIn + (time - c.start), link });
+          cuts += 1;
+        } else next.push(c);
+      }
+      t.items = next;
+    }
+    return cuts;
+  }
+
+  /** 시간 구간 [a, b) 를 모든 트랙에서 지운다. ripple 이면 뒤 클립을 당긴다(엔진 edit::extract / lift) */
+  private removeRange(seq: FakeSequence, a: number, b: number, ripple: boolean): void {
+    if (b <= a) return;
+    this.razorAt(seq, a);
+    this.razorAt(seq, b);
+    const removed = new Set<number>();
+    for (const t of [...seq.video, ...seq.audio]) {
+      for (const c of t.items) if (c.start >= a && c.end <= b) removed.add(c.clip);
+      t.items = t.items.filter((c) => !removed.has(c.clip));
+      if (ripple) {
+        for (const c of t.items) {
+          if (c.start >= b) {
+            c.start -= b - a;
+            c.end -= b - a;
+          }
+        }
+      }
+    }
+    seq.selection = seq.selection.filter((id) => !removed.has(id));
+    this.cleanTransitions(seq);
+  }
+
+  // ----- 전사(transcript.*) ------------------------------------------------
+
+  /** 편집본의 전사 단어(엔진 tx::sequence_words): 소리 트랙의 켜진 클립이 보이는 미디어 구간의 단어를 타임라인 시각으로 */
+  sequenceWords(): Array<{ i: number; text: string; start: number; end: number; speaker: string | null; clip: number; item: number }> {
+    const seq = this.state.sequence;
+    if (!seq) return [];
+    const out: Array<{ i: number; text: string; start: number; end: number; speaker: string | null; clip: number; item: number }> = [];
+    const clips = seq.audio
+      .flatMap((t) => t.items)
+      .filter((c) => c.enabled)
+      .sort((x, y) => x.start - y.start);
+    for (const c of clips) {
+      const words = this.state.transcripts[c.item];
+      if (!words) continue;
+      const len = c.end - c.start;
+      for (const w of words) {
+        if (w.start < c.sourceIn || w.start >= c.sourceIn + len) continue;
+        const speaker = typeof w.speaker === 'number' ? `Speaker ${w.speaker + 1}` : null;
+        out.push({
+          i: 0,
+          text: w.text,
+          start: c.start + (w.start - c.sourceIn),
+          end: Math.min(c.end, c.start + (w.end - c.sourceIn)),
+          speaker,
+          clip: c.clip,
+          item: c.item,
+        });
+      }
+    }
+    out.sort((x, y) => x.start - y.start);
+    out.forEach((w, i) => (w.i = i));
+    return out;
+  }
+
+  private wordRange(p: Record<string, unknown>, cmd: string): { from: number; to: number; start: number; end: number } {
+    const words = this.sequenceWords();
+    const from = p['from'] as number | undefined;
+    if (typeof from !== 'number') throw new FakeEngineError(`invalid parameters for \`${cmd}\`: \`from\` (word index) is required`);
+    const to = typeof p['to'] === 'number' ? (p['to'] as number) : from;
+    const a = words[from];
+    const b = words[to];
+    if (!a || !b || to < from)
+      throw new FakeEngineError(`invalid parameters for \`${cmd}\`: word index out of range (the transcript has ${words.length} words)`);
+    const ft = frameTicksOf(this.sequence);
+    return { from, to, start: Math.floor(a.start / ft) * ft, end: Math.ceil(b.end / ft) * ft };
+  }
+
+  private removeRanges(label: string, ranges: Array<{ start: number; end: number }>): { removed: number; ticks: number; seconds: number } {
+    const seq = this.sequence;
+    if (ranges.length === 0) return { removed: 0, ticks: 0, seconds: 0 };
+    this.snapshot(label);
+    let ticks = 0;
+    for (const r of [...ranges].sort((x, y) => y.start - x.start)) {
+      this.removeRange(seq, r.start, r.end, true);
+      ticks += r.end - r.start;
+    }
+    this.touch();
+    return { removed: ranges.length, ticks, seconds: ticks / T };
+  }
+
+  // ----- Essential Sound ----------------------------------------------------
+
+  /** 커맨드 대상 소리 클립(clips, clip, 아니면 선택; 연결 상대 포함) */
+  private audioTargets(p: Record<string, unknown>): FakeClip[] {
+    const seq = this.sequence;
+    const ids = (p['clips'] as number[] | undefined) ?? (typeof p['clip'] === 'number' ? [p['clip'] as number] : seq.selection);
+    const all = new Set<number>();
+    for (const id of ids) {
+      const found = this.allClips().find((c) => c.clip === id);
+      if (!found) continue;
+      for (const c of this.linkedOf(seq, found)) all.add(c.clip);
+    }
+    return seq.audio.flatMap((t) => t.items).filter((c) => all.has(c.clip));
+  }
+
+  private essentialJson(c: FakeClip): Record<string, unknown> {
+    const seq = this.sequence;
+    const k = seq.audio.findIndex((t) => t.items.includes(c));
+    const effects: Array<{ index: number; effect: string; enabled: boolean }> = [];
+    if (c.essential) {
+      for (const [key, effect] of ESSENTIAL_EFFECTS) {
+        const [sec, name] = key.split('.') as [string, string];
+        const section = c.essential.settings[sec] as Record<string, unknown>;
+        const slot = section[name] as { on: boolean } | undefined;
+        if (slot?.on) effects.push({ index: effects.length, effect, enabled: section['enabled'] !== false });
+      }
+    }
+    return {
+      clip: c.clip,
+      name: c.name,
+      track: `A${k + 1}`,
+      type: c.essential?.kind ?? null,
+      settings: c.essential ? clone({ kind: c.essential.kind, ...c.essential.settings }) : null,
+      gainDb: c.gainDb ?? 0,
+      volumeDb: 0,
+      volumeAnimated: false,
+      effects,
+    };
+  }
+
+  private static parseAudioType(t: unknown): string {
+    const m: Record<string, string> = { dialogue: 'Dialogue', music: 'Music', sfx: 'SFX', ambience: 'Ambience' };
+    const k = m[String(t).toLowerCase()];
+    if (!k)
+      throw new FakeEngineError(`invalid parameters for \`essentialSound.setType\`: unknown audio type \`${String(t)}\` (dialogue, music, sfx, ambience)`);
+    return k;
+  }
+
+  private setEssential(e: FakeEssential, key: string, value: unknown): void {
+    const parts = key.split('.').map(snake);
+    if (parts[0] === 'kind') throw new FakeEngineError('invalid parameters for `essentialSound.set`: the audio type is changed with essentialSound.setType');
+    let cur: Record<string, unknown> = e.settings;
+    for (const part of parts.slice(0, -1)) {
+      const next = cur[part];
+      if (!next || typeof next !== 'object')
+        throw new FakeEngineError(`invalid parameters for \`essentialSound.set\`: unknown Essential Sound setting \`${key}\``);
+      cur = next as Record<string, unknown>;
+    }
+    const last = parts[parts.length - 1] as string;
+    if (!(last in cur)) throw new FakeEngineError(`invalid parameters for \`essentialSound.set\`: unknown Essential Sound setting \`${key}\``);
+    if (typeof cur[last] !== typeof value && cur[last] !== null)
+      throw new FakeEngineError(`invalid parameters for \`essentialSound.set\`: \`${key}\`: expected ${typeof cur[last]}`);
+    cur[last] = typeof value === 'number' && last === 'amount' ? Math.min(10, Math.max(0, value)) : value;
+    if (!['preset', 'volume', 'mute'].includes(parts[0] as string)) e.settings['preset'] = '';
+  }
+
   // ----- EngineBridge 구현 ----------------------------------------------------
 
   private touch(): void {
@@ -916,6 +1172,7 @@ export class FakeEngine {
       enabled: c.enabled,
       link: c.link,
       ...speedFields(c),
+      ...(c.gainDb !== undefined ? { gainDb: c.gainDb } : {}),
       effects: clone(c.effects ?? []),
       ...(this.state.graphics[c.clip]
         ? { effects: [{ effect: 'graphic_text', enabled: true, params: FakeEngine.debugParams(this.state.graphics[c.clip] as FakeGraphic) }] }
@@ -943,8 +1200,8 @@ export class FakeEngine {
       playhead: this.state.playhead,
       selection: [...seq.selection],
       settings: { frame_rate: { ...seq.fr }, width: seq.width, height: seq.height },
-      in: null,
-      out: null,
+      in: this.state.markIn,
+      out: this.state.markOut,
       markers: [],
     };
   }
@@ -1440,28 +1697,8 @@ export class FakeEngine {
       }
       case 'timeline.razor': {
         const seq = this.sequence;
-        const time = p['time'] as number;
-        const only = p['clip'] as number | undefined;
         this.snapshot('Razor');
-        let cuts = 0;
-        const splitLinks = new Map<number, number>();
-        for (const t of [...seq.video, ...seq.audio]) {
-          const next: FakeClip[] = [];
-          for (const c of t.items) {
-            const target = only === undefined ? true : only === c.clip || (c.link !== null && this.linkedOf(seq, c).some((x) => x.clip === only));
-            if (target && c.start < time && time < c.end) {
-              let link: number | null = null;
-              if (c.link !== null) {
-                link = splitLinks.get(c.link) ?? this.nextLink++;
-                splitLinks.set(c.link, link);
-              }
-              next.push({ ...c, end: time });
-              next.push({ ...c, clip: this.nextId++, start: time, sourceIn: c.sourceIn + (time - c.start), link });
-              cuts += 1;
-            } else next.push(c);
-          }
-          t.items = next;
-        }
+        const cuts = this.razorAt(seq, p['time'] as number, p['clip'] as number | undefined);
         if (cuts > 0) this.cleanTransitions(seq);
         if (cuts > 0) this.touch();
         return { cuts };
@@ -2405,6 +2642,278 @@ export class FakeEngine {
         else g.position = [g.position[0], seq.height - h + dy];
         this.touch();
         return { clip, layers: [0] };
+      }
+      case 'clip.audioGain': {
+        const clips = this.audioTargets(p);
+        if (clips.length === 0) throw new FakeEngineError('invalid parameters for `clip.audioGain`: no audio clips with audio in the selection');
+        const db = typeof p['db'] === 'number' ? (p['db'] as number) : 0;
+        const mode = (p['mode'] as string | undefined) ?? (p['relative'] === false ? 'set' : 'adjust');
+        if (!['set', 'adjust', 'normalizeMax', 'normalizeAll'].includes(mode))
+          throw new FakeEngineError(`invalid parameters for \`clip.audioGain\`: unknown mode \`${mode}\``);
+        this.snapshot('Audio Gain');
+        for (const c of clips) c.gainDb = Math.max(-96, Math.min(96, mode === 'set' ? db : mode === 'adjust' ? (c.gainDb ?? 0) + db : db));
+        this.touch();
+        return { mode, clips: clips.length, gainDb: clips.map((c) => ({ clip: c.clip, gainDb: c.gainDb })) };
+      }
+      case 'essentialSound.inspect': {
+        if (!this.state.sequence) return { clips: [], type: null, presets: {}, sections: {}, targets: {} };
+        const clips = this.audioTargets(p).map((c) => this.essentialJson(c));
+        const kinds = [...new Set(clips.map((c) => c['type']))];
+        return {
+          clips,
+          type: kinds.length === 1 ? kinds[0] : kinds.length === 0 ? null : 'mixed',
+          presets: {
+            Dialogue: [
+              { name: '(Default)', builtin: true },
+              { name: 'Podcast Voice', builtin: true },
+            ],
+            Music: [{ name: '(Default)', builtin: true }],
+          },
+          sections: { Dialogue: ['Loudness', 'Repair', 'Clarity', 'Creative'], Music: ['Loudness', 'Ducking'] },
+          targets: { Dialogue: -23, Music: -25, SFX: -21, Ambience: -29 },
+        };
+      }
+      case 'essentialSound.setType': {
+        const kind = FakeEngine.parseAudioType(p['type']);
+        const clips = this.audioTargets(p);
+        if (clips.length === 0) throw new FakeEngineError('invalid parameters for `essentialSound.setType`: select one or more audio clips');
+        this.snapshot(`Set Audio Type to ${kind}`);
+        for (const c of clips) c.essential = fakeEssential(kind);
+        this.touch();
+        return { clips: clips.length, type: kind };
+      }
+      case 'essentialSound.clearType': {
+        const clips = this.audioTargets(p);
+        if (clips.length === 0) throw new FakeEngineError('invalid parameters for `essentialSound.clearType`: select one or more audio clips');
+        this.snapshot('Clear Audio Type');
+        for (const c of clips) delete c.essential;
+        this.touch();
+        return { clips: clips.length };
+      }
+      case 'essentialSound.set': {
+        const kv: Array<[string, unknown]> = [];
+        if (typeof p['key'] === 'string') {
+          if (!('value' in p)) throw new FakeEngineError('invalid parameters for `essentialSound.set`: need `value`');
+          kv.push([p['key'] as string, p['value']]);
+        }
+        if (p['values'] && typeof p['values'] === 'object') kv.push(...Object.entries(p['values'] as Record<string, unknown>));
+        if (kv.length === 0) throw new FakeEngineError('invalid parameters for `essentialSound.set`: need `key` + `value` or `values`');
+        const clips = this.audioTargets(p);
+        if (clips.length === 0) throw new FakeEngineError('invalid parameters for `essentialSound.set`: select one or more audio clips');
+        for (const c of clips) {
+          if (!c.essential) throw new FakeEngineError(`invalid parameters for \`essentialSound.set\`: clip \`${c.name}\` has no audio type; set one first`);
+        }
+        const key = `essentialSound:${clips.map((c) => c.clip).join(',')}:${kv.map((x) => x[0]).join(',')}`;
+        if (p['begin'] === true || this.mergeKey !== key) this.snapshot('Essential Sound');
+        this.mergeKey = key;
+        for (const c of clips) for (const [k, v] of kv) this.setEssential(c.essential as FakeEssential, k, v);
+        this.touch();
+        return { clips: clips.length };
+      }
+      case 'essentialSound.applyPreset': {
+        const name = p['preset'];
+        if (typeof name !== 'string') throw new FakeEngineError('invalid parameters for `essentialSound.applyPreset`: need `preset`');
+        const forced = p['type'] !== undefined ? FakeEngine.parseAudioType(p['type']) : null;
+        const clips = this.audioTargets(p);
+        if (clips.length === 0) throw new FakeEngineError('invalid parameters for `essentialSound.applyPreset`: select one or more audio clips');
+        this.snapshot(`Apply Sound Preset ${name}`);
+        for (const c of clips) {
+          const kind = forced ?? c.essential?.kind;
+          if (!kind) throw new FakeEngineError(`invalid parameters for \`essentialSound.applyPreset\`: clip \`${c.name}\` has no audio type; pass \`type\``);
+          c.essential = fakeEssential(kind);
+          c.essential.settings['preset'] = name;
+        }
+        this.touch();
+        return { clips: clips.length, preset: name };
+      }
+      case 'essentialSound.autoMatch': {
+        const clips = this.audioTargets(p);
+        const report: unknown[] = [];
+        const matched: FakeClip[] = [];
+        for (const c of clips) {
+          if (!c.essential) {
+            report.push({ clip: c.clip, skipped: 'no audio type' });
+            continue;
+          }
+          const item = this.state.items.find((it) => it.item === c.item);
+          const measured = item?.lufs ?? -20;
+          const target = typeof p['target'] === 'number' ? Math.max(-60, Math.min(0, p['target'] as number)) : -23;
+          const gain = target - measured;
+          report.push({ clip: c.clip, measuredLufs: measured, targetLufs: target, gainDb: gain });
+          matched.push(c);
+          const loud = c.essential.settings['loudness'] as Record<string, unknown>;
+          c.gainDb = (c.gainDb ?? 0) - (typeof loud['gain_db'] === 'number' ? (loud['gain_db'] as number) : 0) + gain;
+          loud['enabled'] = true;
+          loud['measured_lufs'] = measured;
+          loud['target_lufs'] = target;
+          loud['gain_db'] = gain;
+        }
+        if (matched.length === 0)
+          throw new FakeEngineError('invalid parameters for `essentialSound.autoMatch`: no clips with an audio type and audible audio in the selection');
+        this.snapshot('Auto-Match Loudness');
+        this.touch();
+        return { clips: report };
+      }
+      case 'sequence.normalizeMixTrack': {
+        const seq = this.sequence;
+        const target = typeof p['db'] === 'number' ? (p['db'] as number) : 0;
+        if (target < -96 || target > 24)
+          throw new FakeEngineError('invalid parameters for `sequence.normalizeMixTrack`: the target must be between -96 and +24 dB');
+        if (!seq.audio.some((t) => t.items.length > 0)) throw new FakeEngineError('the mix is silent: nothing to normalize');
+        const before = this.state.masterDb;
+        const peak = (this.opts.mixPeakDb ?? -6) + before;
+        this.snapshot('Normalize Mix Track');
+        this.state.masterDb = Math.max(-96, Math.min(48, before + (target - peak)));
+        this.touch();
+        return { peakBeforeDb: peak, peakDb: target, gainDb: this.state.masterDb - before, masterVolumeDb: this.state.masterDb };
+      }
+      case 'transcript.set': {
+        const item = p['item'];
+        if (typeof item !== 'number') throw new FakeEngineError('invalid parameters for `transcript.set`: `item` is required');
+        if (!this.state.items.some((it) => it.item === item && it.type !== 'Sequence'))
+          throw new FakeEngineError('invalid parameters for `transcript.set`: no such media item');
+        const tr = p['transcript'] as { words?: FakeWord[] } | undefined;
+        if (!tr || !Array.isArray(tr.words)) throw new FakeEngineError('invalid parameters for `transcript.set`: `transcript` is required');
+        this.snapshot('Set Transcript');
+        this.state.transcripts[item] = tr.words.map((w) => ({ text: String(w.text), start: Number(w.start), end: Number(w.end), speaker: w.speaker ?? null }));
+        this.touch();
+        return { item, words: tr.words.length };
+      }
+      case 'transcript.delete': {
+        const items =
+          (p['items'] as number[] | undefined) ?? (typeof p['item'] === 'number' ? [p['item'] as number] : Object.keys(this.state.transcripts).map(Number));
+        const n = items.filter((i) => i in this.state.transcripts).length;
+        if (n === 0) throw new FakeEngineError('no transcript to delete');
+        this.snapshot('Delete Transcript');
+        for (const i of items) delete this.state.transcripts[i];
+        this.touch();
+        return { deleted: n };
+      }
+      case 'transcript.inspect': {
+        if (!this.state.sequence) throw new FakeEngineError('no active sequence');
+        const words = this.sequenceWords();
+        const gap = (typeof p['paragraphGapSeconds'] === 'number' ? (p['paragraphGapSeconds'] as number) : 1.5) * T;
+        const paragraphs: Array<{ from: number; to: number; speaker: string | null; start: number; end: number; text: string }> = [];
+        for (const w of words) {
+          const last = paragraphs[paragraphs.length - 1];
+          if (last && w.start - last.end <= gap && last.speaker === w.speaker) {
+            last.to = w.i;
+            last.end = w.end;
+            last.text += ` ${w.text}`;
+          } else paragraphs.push({ from: w.i, to: w.i, speaker: w.speaker, start: w.start, end: w.end, text: w.text });
+        }
+        const speakers = [...new Set(words.map((w) => w.speaker).filter((x): x is string => x !== null))];
+        const ph = this.state.playhead;
+        const current = words.find((w) => w.start <= ph && ph < w.end)?.i ?? null;
+        return {
+          words: words.map((w) => ({ ...w, confidence: null })),
+          paragraphs,
+          speakers,
+          current,
+          items: Object.entries(this.state.transcripts).map(([item, ws]) => ({
+            item: Number(item),
+            words: ws.length,
+            language: 'ko',
+            source: 'fake',
+            speakers: [],
+          })),
+        };
+      }
+      case 'transcript.search': {
+        const q = p['query'];
+        if (typeof q !== 'string') throw new FakeEngineError('invalid parameters for `transcript.search`: `query` is required');
+        const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+        const words = this.sequenceWords();
+        const matches: Array<{ from: number; to: number; start: number; end: number }> = [];
+        if (tokens.length === 0) return { matches };
+        for (let i = 0; i + tokens.length <= words.length; i++) {
+          if (tokens.every((t, k) => (words[i + k]?.text ?? '').toLowerCase().includes(t))) {
+            const last = words[i + tokens.length - 1] as NonNullable<(typeof words)[number]>;
+            matches.push({ from: i, to: last.i, start: (words[i] as NonNullable<(typeof words)[number]>).start, end: last.end });
+          }
+        }
+        return { matches };
+      }
+      case 'transcript.select': {
+        const r = this.wordRange(p, 'transcript.select');
+        this.snapshot('Mark Transcript Selection');
+        this.state.markIn = r.start;
+        this.state.markOut = r.end - frameTicksOf(this.sequence);
+        this.state.playhead = r.start;
+        this.touch();
+        return { start: r.start, end: r.end };
+      }
+      case 'transcript.extract':
+      case 'transcript.lift': {
+        const r = this.wordRange(p, id);
+        const seq = this.sequence;
+        this.snapshot(id === 'transcript.extract' ? 'Extract Text' : 'Lift Text');
+        this.removeRange(seq, r.start, r.end, id === 'transcript.extract');
+        this.state.markIn = null;
+        this.state.markOut = null;
+        this.state.playhead = r.start;
+        this.touch();
+        return { start: r.start, end: r.end };
+      }
+      case 'transcript.removePauses': {
+        const words = this.sequenceWords();
+        if (words.length === 0) throw new FakeEngineError('transcript.removePauses is disabled: the sequence has no transcript (Transcribe first)');
+        const min = (typeof p['minSeconds'] === 'number' ? (p['minSeconds'] as number) : 1) * T;
+        const keep = (typeof p['keepSeconds'] === 'number' ? (p['keepSeconds'] as number) : 0.15) * T;
+        const ranges: Array<{ start: number; end: number }> = [];
+        for (let i = 1; i < words.length; i++) {
+          const prev = words[i - 1] as NonNullable<(typeof words)[number]>;
+          const next = words[i] as NonNullable<(typeof words)[number]>;
+          if (next.start - prev.end >= min && next.start - keep > prev.end + keep) ranges.push({ start: prev.end + keep, end: next.start - keep });
+        }
+        return this.removeRanges('Remove Pauses', ranges);
+      }
+      case 'transcript.removeFillers': {
+        const words = this.sequenceWords();
+        if (words.length === 0) throw new FakeEngineError('transcript.removeFillers is disabled: the sequence has no transcript (Transcribe first)');
+        const fillers = ((p['fillers'] as string[] | undefined) ?? ['um', 'uh', 'erm', 'hmm']).map((f) => f.toLowerCase());
+        const norm = (t: string) =>
+          t
+            .toLowerCase()
+            .replace(/[.,!?~]/g, '')
+            .trim();
+        const ranges: Array<{ start: number; end: number }> = [];
+        for (const w of words) {
+          if (!fillers.includes(norm(w.text))) continue;
+          const last = ranges[ranges.length - 1];
+          if (last && w.start <= last.end) last.end = Math.max(last.end, w.end);
+          else ranges.push({ start: w.start, end: w.end });
+        }
+        return this.removeRanges('Remove Filler Words', ranges);
+      }
+      case 'clip.sceneEditDetection': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        const videos = seq.video.flatMap((t) => t.items).filter((c) => ids.includes(c.clip));
+        if (videos.length === 0) throw new FakeEngineError('clip.sceneEditDetection is disabled: select a video clip in the timeline');
+        const applyCuts = p['applyCuts'] !== false;
+        if (!applyCuts && p['createSubclips'] !== true && p['generateMarkers'] !== true) {
+          throw new FakeEngineError('invalid parameters for `clip.sceneEditDetection`: choose at least one of applyCuts, createSubclips, generateMarkers');
+        }
+        const ft = frameTicksOf(seq);
+        const report: Array<{ clip: number; cuts: number[]; mediaCuts: number[] }> = [];
+        let frames = 0;
+        for (const c of videos) {
+          frames += Math.round((c.end - c.start) / ft);
+          const item = this.state.items.find((it) => it.item === c.item);
+          const mediaCuts = (item?.sceneCuts ?? []).filter((m) => m > c.sourceIn && m < c.sourceIn + (c.end - c.start)).sort((a, b) => a - b);
+          report.push({ clip: c.clip, cuts: mediaCuts.map((m) => c.start + (m - c.sourceIn)), mediaCuts });
+        }
+        const job = this.jobs.length + 1;
+        this.jobs.push({ id: job, finished: true, result: null });
+        const total = report.reduce((n, r) => n + r.cuts.length, 0);
+        if (total > 0 && applyCuts) {
+          this.snapshot('Scene Edit Detection');
+          for (const r of report) for (const t of [...r.cuts].reverse()) this.razorAt(seq, t, r.clip);
+          this.cleanTransitions(seq);
+          this.touch();
+        } else if (total === 0) this.pushToast('Scene Edit Detection found no cut points');
+        return { job, frames, clips: report };
       }
       default:
         throw new FakeEngineError(`unknown command \`${id}\``);

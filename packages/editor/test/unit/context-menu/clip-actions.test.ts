@@ -1,7 +1,15 @@
 /** features/context-menu/clip-actions.ts, clip-menu.ts: 연결 토글·복제·싱크·메뉴 항목. */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useEditor } from '@editor/store';
-import { duplicateClip, linkGroups, selectedClips, synchronizeByAudio, toggleEnabled, toggleLink } from '@editor/features/context-menu/clip-actions';
+import {
+  detectScenes,
+  duplicateClip,
+  linkGroups,
+  selectedClips,
+  synchronizeByAudio,
+  toggleEnabled,
+  toggleLink,
+} from '@editor/features/context-menu/clip-actions';
 import { clipMenu, laneMenu } from '@editor/features/context-menu/clip-menu';
 import { useContextMenu } from '@editor/features/context-menu/store';
 import { useProject } from '@editor/features/project/store';
@@ -157,7 +165,7 @@ describe('synchronizeByAudio', () => {
 
 describe('clipMenu / laneMenu', () => {
   it('클립 메뉴 항목과 활성 조건', async () => {
-    const { clips } = await ready();
+    const { engine, clips } = await ready();
     const video = tl().sequence!.video[0]!.items[0]!;
     const entries = clipMenu(video);
     expect(labels(entries)).toEqual([
@@ -167,6 +175,7 @@ describe('clipMenu / laneMenu', () => {
       '복제',
       '-',
       '속도, 길이...',
+      '장면마다 자르기',
       '-',
       '소리 분리(연결 해제)',
       '소리로 싱크 맞추기',
@@ -189,9 +198,18 @@ describe('clipMenu / laneMenu', () => {
     expect(b('자르기').disabled).toBe(false);
     expect(b('소리로 싱크 맞추기').disabled).toBe(false);
     expect(b('이름 바꾸기...').disabled).toBe(true);
-    // 소리 클립은 음소거 문구
+    // 소리 클립은 음소거 문구, 영상이 없는(소리만 있는) 클립은 장면 찾기 비활성
     const audio = tl().sequence!.audio[0]!.items[0]!;
     expect(labels(clipMenu(audio))).toContain('음소거');
+    const music = engine.addItem({ name: 'm.mp3', type: 'Audio' });
+    engine.place(music, 8 * T);
+    await tl().refresh();
+    const onlyAudio = tl().sequence!.audio[0]!.items.find((c) => c.item === music.item)!;
+    const sceneItem = clipMenu(onlyAudio).find((e) => e.kind === 'item' && e.label === '장면마다 자르기') as Extract<
+      (typeof entries)[number],
+      { kind: 'item' }
+    >;
+    expect(sceneItem.disabled).toBe(true);
   });
 
   it('레인 메뉴와 이름 바꾸기 입력', async () => {
@@ -209,5 +227,39 @@ describe('clipMenu / laneMenu', () => {
     await p;
     expect(tl().sequence!.video[0]!.items[0]!.name).toBe('첫 장면');
     expect(useEditor.getState().status).toBe('클립 이름을 바꿨습니다: 첫 장면');
+  });
+});
+
+describe('detectScenes (장면마다 자르기)', () => {
+  it('영상 클립의 장면 전환마다 자르고(연결된 소리 포함) 토스트와 상태 줄로 수를 알린다', async () => {
+    const { engine, items, clips } = await ready();
+    // a.mp4 는 1초와 3초에서 장면이 바뀐다
+    items[0]!.sceneCuts = [1 * T, 3 * T];
+    const video = tl().sequence!.video[0]!.items[0]!;
+    const r = await detectScenes([video]);
+    expect(r).toEqual({ clips: 1, cuts: 2 });
+    expect(engine.callsOf('clip.sceneEditDetection')).toEqual([{ clips: [clips[0]!.clip], applyCuts: true, wait: true }]);
+    expect(tl().sequence!.video[0]!.items.map((c) => c.start / T)).toEqual([0, 1, 3, 4]);
+    expect(tl().sequence!.audio[0]!.items.map((c) => c.start / T)).toEqual([0, 1, 3, 4]);
+    expect(useEditor.getState().status).toBe('장면 2곳에서 잘랐습니다 (클립 1개)');
+    expect(lastToast()).toMatchObject({ kind: 'success' });
+    expect(tl().busy).toBe(false);
+    // 실행 취소 한 단계
+    await tl().undo();
+    expect(tl().sequence!.video[0]!.items).toHaveLength(2);
+  });
+
+  it('장면 전환이 없으면 안내 토스트, 소리 클립만 고르면 경고', async () => {
+    const { engine } = await ready();
+    const video = tl().sequence!.video[0]!.items[0]!;
+    expect(await detectScenes([video])).toEqual({ clips: 1, cuts: 0 });
+    expect(lastToast()).toMatchObject({ kind: 'info' });
+    expect(useEditor.getState().status).toBe('장면이 바뀌는 곳을 찾지 못했습니다');
+    const audio = tl().sequence!.audio[0]!.items[0]!;
+    expect(await detectScenes([audio])).toBeNull();
+    expect(lastToast()).toMatchObject({ kind: 'warning' });
+    engine.failNext('clip.sceneEditDetection', 'decoder busy');
+    expect(await detectScenes([video])).toBeNull();
+    expect(lastToast()).toMatchObject({ kind: 'danger', text: expect.stringContaining('decoder busy') });
   });
 });

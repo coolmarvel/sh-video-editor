@@ -140,6 +140,27 @@ impl MxfVideoCodec {
     }
 }
 
+/// Video codec of a WebM export.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WebmVideoCodec {
+    /// VP9 profile 0 (`filmcraft-vp9enc`), `V_VP9`.
+    #[default]
+    Vp9,
+    /// AV1 Main (`filmcraft-av1enc`), `V_AV1` with the `av1C` as CodecPrivate.
+    Av1,
+}
+
+impl WebmVideoCodec {
+    pub const ALL: [WebmVideoCodec; 2] = [WebmVideoCodec::Vp9, WebmVideoCodec::Av1];
+    pub fn label(self) -> &'static str {
+        match self {
+            WebmVideoCodec::Vp9 => "VP9",
+            WebmVideoCodec::Av1 => "AV1",
+        }
+    }
+}
+
 /// Audio codec. `Auto` = AAC in MP4, PCM in QuickTime / WAV / AIFF.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -410,8 +431,8 @@ impl ExportSettings {
         match (self.format, self.audio.codec) {
             (Format::Wav | Format::Aiff | Format::MxfOp1a | Format::MxfOpAtom, _) => AudioCodec::Pcm,
             (Format::WebM, _) => AudioCodec::Opus,
-            (f, _) if f.is_h26x() && self.multiplexer == Multiplexer::Mp4 => AudioCodec::Aac,
-            (_, AudioCodec::Auto) if self.format.is_h26x() => AudioCodec::Aac,
+            (f, _) if f.is_mp4_video() && self.multiplexer == Multiplexer::Mp4 => AudioCodec::Aac,
+            (_, AudioCodec::Auto) if self.format.is_mp4_video() => AudioCodec::Aac,
             (_, AudioCodec::Auto) => AudioCodec::Pcm,
             (_, c) => c,
         }
@@ -429,7 +450,7 @@ impl ExportSettings {
 
     /// File extension of the output.
     pub fn extension(&self) -> &'static str {
-        if self.format.is_h26x() && self.multiplexer == Multiplexer::Mov { "mov" } else { self.format.extension() }
+        if self.format.is_mp4_video() && self.multiplexer == Multiplexer::Mov { "mov" } else { self.format.extension() }
     }
 
     /// Estimated output size in bytes for `duration` of a sequence (`seq_w`×`seq_h` at `seq_rate`).
@@ -439,7 +460,7 @@ impl ExportSettings {
         let fps = r.rate.num as f64 / r.rate.den as f64;
         let px = r.width as f64 * r.height as f64;
         let video_bps = match self.video_format() {
-            Format::H264 | Format::Hevc | Format::WebM => r.target_kbps as f64 * 1000.0,
+            Format::H264 | Format::Hevc | Format::Av1 | Format::WebM => r.target_kbps as f64 * 1000.0,
             Format::ProRes => crate::prores_profile(&self.prores_profile).nominal_mbps_1080p30() * 1e6 * px / (1920.0 * 1080.0) * fps / 29.97,
             Format::DnxHr => {
                 // nominal 1080p29.97 data rates of the DNxHR profiles (Mb/s)
@@ -520,6 +541,14 @@ impl ExportSettings {
                     };
                     v += &format!(", keyframe every {} frames", r.keyint);
                 }
+                Format::Av1 => {
+                    v += &format!(", AV1 Main, {}", self.bitrate_mode.label());
+                    v += &match self.bitrate_mode {
+                        BitrateMode::Cbr => format!(", {}", mbps(r.target_kbps)),
+                        _ => format!(", Target {}, Max {}", mbps(r.target_kbps), mbps(r.max_kbps)),
+                    };
+                    v += &format!(", keyframe every {} frames", r.keyint);
+                }
                 Format::ProRes => {
                     use filmcraft_prores::Profile;
                     v += match crate::prores_profile(&self.prores_profile) {
@@ -533,7 +562,7 @@ impl ExportSettings {
                 Format::Apv => v += &format!(", {}", crate::apv_profile(&self.apv_profile).name()),
                 Format::Mjpeg => v += &format!(", quality {}", self.quality),
                 Format::WebM => {
-                    v += &format!(", VP9, {}", self.bitrate_mode.label());
+                    v += &format!(", {}, {}", self.video_codec.label(), self.bitrate_mode.label());
                     v += &match self.bitrate_mode {
                         BitrateMode::Cbr => format!(", {}", mbps(r.target_kbps)),
                         _ => format!(", Target {}, Max {}", mbps(r.target_kbps), mbps(r.max_kbps)),
@@ -559,8 +588,8 @@ impl ExportSettings {
             "No audio".to_string()
         };
         let container = match self.format {
-            Format::H264 | Format::Hevc if self.multiplexer == Multiplexer::Mov => "QuickTime",
-            Format::H264 | Format::Hevc => "MP4",
+            Format::H264 | Format::Hevc | Format::Av1 if self.multiplexer == Multiplexer::Mov => "QuickTime",
+            Format::H264 | Format::Hevc | Format::Av1 => "MP4",
             Format::ProRes | Format::DnxHr | Format::Apv | Format::Mjpeg => "QuickTime",
             Format::MxfOp1a | Format::MxfOpAtom => self.mxf_video_codec.label(),
             Format::PngSequence | Format::TiffSequence | Format::BmpSequence => "Image sequence",

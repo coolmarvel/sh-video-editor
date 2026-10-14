@@ -85,6 +85,12 @@ fn hevc(size: Option<(u32, u32)>, kbps: u32, max_kbps: u32) -> ExportSettings {
     ExportSettings { format: Format::Hevc, ..h264(size, kbps, max_kbps) }
 }
 
+/// AV1 (MP4): `filmcraft-av1enc` at a target bitrate (VBR, 1 pass; half of the H.264 preset of the same
+/// size for a similar picture), AAC 320 kbps stereo at 48 kHz.
+fn av1(size: Option<(u32, u32)>, kbps: u32, max_kbps: u32) -> ExportSettings {
+    ExportSettings { format: Format::Av1, ..h264(size, kbps, max_kbps) }
+}
+
 /// WebM: VP9 at a target bitrate (VBR, 1 pass), Opus 128 kbps stereo at 48 kHz.
 fn webm(size: Option<(u32, u32)>, kbps: u32, max_kbps: u32) -> ExportSettings {
     ExportSettings {
@@ -151,6 +157,13 @@ pub fn builtin_presets() -> Vec<ExportPreset> {
             webm(Some((1920, 1080)), 8_000, 12_000),
         ),
         p("WebM 720p", web, "WebM, VP9 1280×720, VBR 1 pass, 4 Mbps target, Opus 128 kbps", webm(Some((1280, 720)), 4_000, 6_000)),
+        p(
+            "AV1 1080p",
+            web,
+            "MP4, AV1 Main 1920×1080, VBR 1 pass, 10 Mbps target, AAC 320 kbps; about half the size of H.264 at the same quality, slow to encode",
+            av1(Some((1920, 1080)), 10_000, 12_000),
+        ),
+        p("AV1 720p", web, "MP4, AV1 Main 1280×720, VBR 1 pass, 5 Mbps target, AAC 320 kbps", av1(Some((1280, 720)), 5_000, 6_000)),
         p("Apple ProRes 422 HQ", bc, "QuickTime, ProRes 422 HQ, 24-bit 48 kHz PCM", mov(Format::ProRes, "hq")),
         p("Apple ProRes 422", bc, "QuickTime, ProRes 422, 24-bit 48 kHz PCM", mov(Format::ProRes, "standard")),
         p("Apple ProRes 422 LT", bc, "QuickTime, ProRes 422 LT, 24-bit 48 kHz PCM", mov(Format::ProRes, "lt")),

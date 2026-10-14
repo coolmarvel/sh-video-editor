@@ -474,7 +474,7 @@ fn h265_is_a_format_with_a_builtin_encoder() {
     }
     assert_eq!(Format::from_name(Format::Hevc.id()), Some(Format::Hevc));
     assert_eq!((Format::Hevc.extension(), Format::Hevc.label()), ("mp4", "H.265 (HEVC)"));
-    assert!(Format::ALL.contains(&Format::Hevc) && Format::ALL.contains(&Format::WebM) && Format::ALL.len() == 15);
+    assert!(Format::ALL.contains(&Format::Hevc) && Format::ALL.contains(&Format::WebM) && Format::ALL.len() == 16);
     let s: ExportSettings = serde_json::from_value(serde_json::json!({"format": "hevc"})).unwrap();
     assert_eq!(s.format, Format::Hevc);
     assert_eq!(serde_json::to_value(&s).unwrap()["format"], "hevc");
@@ -511,6 +511,53 @@ fn h265_is_a_format_with_a_builtin_encoder() {
     let (p, seq, m) = matte([0.0, 0.0, 1.0, 1.0], 160, 90, None);
     let sc = Scratch::new("h265-builtin");
     let r = export(&p, seq, &ExportSettings { path: sc.path("x.mp4"), include_audio: false, ..h.clone() }, &m, &Progress::default()).unwrap();
+    assert!(r.frames > 0 && r.bytes > 0, "{} frames, {} bytes", r.frames, r.bytes);
+}
+
+#[test]
+fn av1_is_a_format_with_a_builtin_encoder() {
+    // names, ids, files and serialized settings
+    for name in ["av1", "AV1", "av01", "AV1 MP4"] {
+        assert_eq!(Format::from_name(name), Some(Format::Av1), "{name}");
+    }
+    assert_eq!(Format::from_name(Format::Av1.id()), Some(Format::Av1));
+    assert_eq!((Format::Av1.extension(), Format::Av1.label()), ("mp4", "AV1"));
+    assert!(Format::ALL.contains(&Format::Av1) && Format::Av1.has_builtin_encoder() && available(Format::Av1));
+    let s: ExportSettings = serde_json::from_value(serde_json::json!({"format": "av1"})).unwrap();
+    assert_eq!(s.format, Format::Av1);
+    assert_eq!(serde_json::to_value(&s).unwrap()["format"], "av1");
+
+    // the MP4 family: AAC in MP4, or QuickTime; the same size estimate as H.264
+    let a = ExportSettings { format: Format::Av1, ..Default::default() };
+    assert_eq!((a.audio_codec(), a.extension()), (AudioCodec::Aac, "mp4"));
+    assert_eq!(ExportSettings { multiplexer: Multiplexer::Mov, ..a.clone() }.extension(), "mov");
+    let b = a.estimate_bytes(1920, 1080, FrameRate::FPS_25, 48_000, Tick(10 * TICKS_PER_SECOND));
+    assert!((b as f64 - 25.4e6).abs() < 0.2e6, "{b}");
+    let summary = a.summary(1920, 1080, FrameRate::FPS_25, 48_000, Tick(10 * TICKS_PER_SECOND));
+    assert_eq!(summary.format, "AV1 (MP4)");
+    assert!(summary.video.contains("AV1 Main") && summary.video.contains("Target 20.00 Mbps"), "{}", summary.video);
+    // one pass only
+    let e = ExportSettings { bitrate_mode: BitrateMode::Vbr2Pass, ..a.clone() }.validate().unwrap_err();
+    assert!(e.to_string().contains("two-pass"), "{e}");
+    assert!(ExportSettings { bitrate_mode: BitrateMode::Cbr, ..a.clone() }.validate().is_ok());
+
+    // WebM picks its video codec with `videoCodec`; VP9 unless set, and MP4 formats ignore it
+    let w: ExportSettings = serde_json::from_value(serde_json::json!({"format": "webm", "videoCodec": "av1"})).unwrap();
+    assert_eq!((w.format, w.video_codec), (Format::WebM, WebmVideoCodec::Av1));
+    assert_eq!(serde_json::to_value(&w).unwrap()["videoCodec"], "av1");
+    assert_eq!(ExportSettings::default().video_codec, WebmVideoCodec::Vp9);
+    let summary = w.summary(1920, 1080, FrameRate::FPS_25, 48_000, Tick(10 * TICKS_PER_SECOND));
+    assert!(summary.video.contains(", AV1, "), "{}", summary.video);
+    let summary = ExportSettings { format: Format::WebM, ..Default::default() }.summary(1920, 1080, FrameRate::FPS_25, 48_000, Tick(10 * TICKS_PER_SECOND));
+    assert!(summary.video.contains(", VP9, "), "{}", summary.video);
+    assert!(super::av1_factory(Format::H264, 64, 36, FrameRate::FPS_24, &w).is_none(), "the AV1 factory only takes AV1 and WebM/av1");
+    assert!(super::av1_factory(Format::WebM, 64, 36, FrameRate::FPS_24, &w).is_some());
+    assert!(super::vp9_factory(Format::WebM, 64, 36, FrameRate::FPS_24, &w).is_none(), "WebM/av1 is not taken by the VP9 factory");
+
+    // a small export goes through the built-in encoder
+    let (p, seq, m) = matte([0.0, 0.0, 1.0, 1.0], 160, 90, None);
+    let sc = Scratch::new("av1-builtin");
+    let r = export(&p, seq, &ExportSettings { path: sc.path("x.mp4"), include_audio: false, ..a.clone() }, &m, &Progress::default()).unwrap();
     assert!(r.frames > 0 && r.bytes > 0, "{} frames, {} bytes", r.frames, r.bytes);
 }
 

@@ -18,8 +18,9 @@ Copyright © 2026 이성현 (SeongHyun Lee). All rights reserved.
 2. EffectCraft (https://github.com/storytold/effectcraft), version 0.4.0
    Copyright (c) 2026 ArtCraft Team and the EffectCraft contributors
    License: MIT OR Apache-2.0 (MIT 전문은 각 크레이트 폴더의 LICENSE-MIT, Apache-2.0 은 packages/engine/vendor/filmcraft/LICENSE-APACHE 와 같은 문구)
-   Location: packages/engine/vendor/filmcraft/crates/vp9enc, crates/opusenc, crates/hevcenc (2026-10-14 이식, 크레이트 이름만 filmcraft-* 로 변경)
-   나머지 크레이트(effects, keyframe, gpu, lottie, av1enc)는 아직 이식 전(ADR-0003). 이식 시 이 항목을 갱신한다.
+   Location: packages/engine/vendor/filmcraft/crates/vp9enc, crates/opusenc, crates/hevcenc (2026-10-14 이식), crates/av1enc (2026-10-15 이식);
+   크레이트 이름만 filmcraft-* 로 변경
+   나머지 크레이트(effects, keyframe, gpu, lottie)는 아직 이식 전(ADR-0003). 이식 시 이 항목을 갱신한다.
 
 3. SoundCraft (https://github.com/storytold/soundcraft), version 0.1.0
    License: MIT OR Apache-2.0. 아직 이식 전(ADR-0003). 이식 시 이 항목을 갱신한다.

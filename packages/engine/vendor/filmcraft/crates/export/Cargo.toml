@@ -29,6 +29,7 @@ filmcraft-h264enc = { workspace = true }
 filmcraft-vp9enc = { workspace = true }
 filmcraft-opusenc = { workspace = true }
 filmcraft-hevcenc = { workspace = true }
+filmcraft-av1enc = { workspace = true }
 filmcraft-matroska = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

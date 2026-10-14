@@ -1,10 +1,10 @@
 # 이식한 엔진 출처 (ADR-0003)
 
-| 저장소      | 상류                                     | 버전                       | 복사일     | 로컬 스냅샷                                        | 이식 범위                                                                                                                                            |
-| ----------- | ---------------------------------------- | -------------------------- | ---------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| filmcraft   | https://github.com/storytold/filmcraft   | 0.2.1 (ROADMAP 2026-10-05) | 2026-10-14 | `~/craft-opensource/filmcraft` (2026-10-08 복사본) | `crates/*`(ui-egui 제외), `apps/filmcraft-cli`, `xtask`, `assets`, `docs`(images·brand 제외)                                                         |
-| effectcraft | https://github.com/storytold/effectcraft | 0.4.0                      | 2026-10-14 | `~/craft-opensource/effectcraft`                   | `crates/vp9enc`, `crates/opusenc`, `crates/hevcenc` (filmcraft 워크스페이스 안 같은 이름의 `crates/*`). 계획: effects, keyframe, gpu, lottie, av1enc |
-| soundcraft  | https://github.com/storytold/soundcraft  | 0.1.0                      | 2026-10-14 | `~/craft-opensource/soundcraft`                    | `crates/dsp/src/offline.rs` 의 `time_stretch`(WSOLA)만 `filmcraft/crates/audio-dsp/src/timestretch.rs` 로. 나머지(dsp 플러그인, mix)는 미이식        |
+| 저장소      | 상류                                     | 버전                       | 복사일     | 로컬 스냅샷                                        | 이식 범위                                                                                                                                                     |
+| ----------- | ---------------------------------------- | -------------------------- | ---------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filmcraft   | https://github.com/storytold/filmcraft   | 0.2.1 (ROADMAP 2026-10-05) | 2026-10-14 | `~/craft-opensource/filmcraft` (2026-10-08 복사본) | `crates/*`(ui-egui 제외), `apps/filmcraft-cli`, `xtask`, `assets`, `docs`(images·brand 제외)                                                                  |
+| effectcraft | https://github.com/storytold/effectcraft | 0.4.0                      | 2026-10-14 | `~/craft-opensource/effectcraft`                   | `crates/vp9enc`, `crates/opusenc`, `crates/hevcenc`, `crates/av1enc` (filmcraft 워크스페이스 안 같은 이름의 `crates/*`). 계획: effects, keyframe, gpu, lottie |
+| soundcraft  | https://github.com/storytold/soundcraft  | 0.1.0                      | 2026-10-14 | `~/craft-opensource/soundcraft`                    | `crates/dsp/src/offline.rs` 의 `time_stretch`(WSOLA)만 `filmcraft/crates/audio-dsp/src/timestretch.rs` 로. 나머지(dsp 플러그인, mix)는 미이식                 |
 
 ## 이식 시 한 일 (filmcraft)
 
@@ -73,6 +73,29 @@
   인코더 기준으로), `tests.rs`(`hevc_export_roundtrip`), `crates/platform/src/hardware_encode.rs`(주석만: HW 가 거절하면 내장 인코더로
   폴백). VideoToolbox HW 인코더 팩토리는 `register_encoder` 로 앞에 끼므로 macOS 에서는 여전히 HW 가 먼저 받는다.
   가이드: `docs/guides/webm-export.md` 의 HEVC 절.
+
+## 이식 시 한 일 (effectcraft, 2026-10-15: av1enc)
+
+- 원본 `effectcraft/crates/av1enc`(AV1 인코더, src 8,808줄 중 tables.rs 4,805줄: Main 프로파일 8/10비트 4:2:0, KEY + INTER 프레임(LAST 참조 하나),
+  64x64 슈퍼블록을 8x8 까지 RDO 분할, 인트라 DC/V/H/Paeth/smooth, 정수+하프+쿼터펠 움직임 탐색과 규격 MV 예측 스택, DCT/ADST 4..32, 멀티심볼
+  산술 코더와 CDF 적응, 디블로킹 필터(프레임 단위 레벨 탐색), 타일 1개, 비트레이트/고정 q)를 `vendor/filmcraft/crates/av1enc` 로 복사했다.
+  의존성 0, `unsafe` 없음, `std::time`·스레드 없음(wasm32 빌드 확인). hevcenc 와 같은 방식: 크레이트 이름만 `effectcraft-av1enc` 를
+  `filmcraft-av1enc` 로 바꿨고(`Cargo.toml` 의 name·description, 테스트·README 의 경로 이름) 소스 로직은 그대로다. 라이선스는
+  `MIT OR Apache-2.0`(MIT 전문 `crates/av1enc/LICENSE-MIT`, Apache-2.0 은 `vendor/filmcraft/LICENSE-APACHE` 와 같은 문구). README 머리에 출처
+  블록, 루트 `NOTICE` 2번 항목에 추가.
+- 테스트 이식: `av1enc/tests/{common/mod.rs,roundtrip.rs,ffmpeg_oracle.rs,bench.rs}` 는 원본 그대로(우리 `filmcraft-av1` 디코더 왕복은 비트 일치
+  8개, ffmpeg libdav1d 오라클 비트 일치 2개(1080p 포함), bench 4개는 `--ignored`). ffmpeg 는 원본의 `Command::new("ffmpeg")` 대신
+  `filmcraft_testkit::ffmpeg_or_skip` 로 찾고 libdav1d 디코더가 없으면 SKIPPED(`FILMCRAFT_REQUIRE_ORACLES=1` 이면 실패). dev-dependency 에
+  `filmcraft-testkit` 추가. 왕복 테스트는 원본처럼 `Decoder::with_threads(1)` 을 쓴다(패킷마다 그림 하나).
+- 워크스페이스: `Cargo.toml` 에 크레이트와 `profile.dev.package` opt-level 3, `xtask` LAYERS 에 L0, `docs/architecture.md` 1절 표.
+- 내보내기 연결(상류 filmcraft 파일 수정): `crates/export/src/lib.rs`(`Format::Av1`(id `av1`, 확장자 mp4, 라벨 "AV1"), `Format::is_mp4_video`
+  (H.264·HEVC·AV1: MP4/MOV + AAC 계열. `is_h26x` 는 그대로 두고 MP4 판정 네 곳만 바꿨다), `Av1Encoder` + `av1_factory`: RGBA8 을 `rgba_to_yuv420_8`
+  로 8비트 BT.709 리미티드 4:2:0 으로 바꾼 뒤 u16 평면으로 넓혀 넣고, 샘플 엔트리는 `av01` + `av1C`(`Encoder::av1c()` 를 `Av1Config::parse`),
+  WebM 이면 `V_AV1` + CodecPrivate = av1C), `settings.rs`(`WebmVideoCodec {vp9, av1}` 과 `ExportSettings.video_codec`(JSON `videoCodec`, WebM 전용,
+  기본 vp9), AV1 의 AAC·확장자·요약 "AV1 Main"·컨테이너 MP4), `presets.rs`(`AV1 1080p` 10 Mbps, `AV1 720p` 5 Mbps: H.264 의 50%), `job.rs`(`stepped`,
+  MP4 브랜드), `tests.rs`(`av1_export_roundtrip`, `webm_av1_export_roundtrip`), `settings_tests.rs`(`Format::ALL` 16개, `av1_is_a_format_with_a_builtin_encoder`),
+  `crates/engine/src/export_tools.rs`(플랫 파라미터 `videoCodec`), `crates/engine/src/export_tests.rs`(프리셋 전수 ffprobe 에 `av1` 분기).
+  `vp9_factory` 는 `video_codec == vp9` 일 때만 받으므로 기존 WebM 경로는 그대로다. 가이드: `docs/guides/webm-export.md` 의 AV1 절.
 
 ## 상류 갱신
 

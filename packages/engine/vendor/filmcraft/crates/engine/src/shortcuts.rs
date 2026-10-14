@@ -1079,17 +1079,24 @@ pub fn commands() -> Vec<CommandSpec> {
             let bs: Vec<Value> = s.shortcuts.for_command(id).into_iter().map(|b| s.shortcuts.binding_json(b, plat)).collect();
             Ok(json!({"id": c.id, "label": c.label, "category": c.category, "shortcuts": bs}))
         }),
-        sc!("shortcuts.set", "Assign Shortcut", r#"{"command":id,"keys":"Cmd+Shift+K","panel":str?,"add":bool?,"keepConflicts":bool?}"#, true, |s, p| {
-            let id = str_p(p, "command").ok_or_else(|| bad("shortcuts.set", "need `command`"))?;
-            let keys = str_p(p, "keys").ok_or_else(|| bad("shortcuts.set", "need `keys`"))?;
-            let r = s
-                .shortcuts
-                .set(id, keys, str_p(p, "panel"), bool_p(p, "add").unwrap_or(false), bool_p(p, "keepConflicts").unwrap_or(false))
-                .map_err(err("shortcuts.set"))?;
-            let plat = Platform::current();
-            let conflicts: Vec<Value> = s.shortcuts.conflicts(plat).into_iter().map(|(c, k, v)| json!({"context": c, "keys": k, "commands": v})).collect();
-            Ok(json!({"keys": normalize(keys).unwrap_or_default(), "reassigned": r, "conflicts": conflicts}))
-        }),
+        sc!(
+            "shortcuts.set",
+            "Assign Shortcut",
+            r#"{"command":id,"keys":"Cmd+Shift+K","panel":str?,"add":bool?,"keepConflicts":bool?,"platform":"mac|windows|linux"?}"#,
+            true,
+            |s, p| {
+                let id = str_p(p, "command").ok_or_else(|| bad("shortcuts.set", "need `command`"))?;
+                let keys = str_p(p, "keys").ok_or_else(|| bad("shortcuts.set", "need `keys`"))?;
+                let r = s
+                    .shortcuts
+                    .set(id, keys, str_p(p, "panel"), bool_p(p, "add").unwrap_or(false), bool_p(p, "keepConflicts").unwrap_or(false))
+                    .map_err(err("shortcuts.set"))?;
+                // conflicts are platform specific (Ctrl and Cmd merge on Windows/Linux); default to the host like shortcuts.conflicts
+                let plat = platform_p(p);
+                let conflicts: Vec<Value> = s.shortcuts.conflicts(plat).into_iter().map(|(c, k, v)| json!({"context": c, "keys": k, "commands": v})).collect();
+                Ok(json!({"keys": normalize(keys).unwrap_or_default(), "reassigned": r, "conflicts": conflicts}))
+            }
+        ),
         sc!("shortcuts.clear", "Clear Shortcut", r#"{"command":id,"keys":str?,"panel":str?}"#, true, |s, p| {
             let id = str_p(p, "command").ok_or_else(|| bad("shortcuts.clear", "need `command`"))?;
             let n = s.shortcuts.clear(id, str_p(p, "keys"), str_p(p, "panel")).map_err(err("shortcuts.clear"))?;

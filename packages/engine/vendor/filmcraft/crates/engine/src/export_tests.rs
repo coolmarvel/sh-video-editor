@@ -207,6 +207,11 @@ fn every_builtin_preset_exports_and_ffprobe_confirms() {
                 assert!((vbr / (mbps * px) - 1.0).abs() < 0.25, "{name}: {vbr:.1} Mb/s vs nominal {:.1}", mbps * px);
                 assert_eq!(a["codec_name"], "pcm_s24le", "{name}");
             }
+            "apv" if v["codec_name"].is_null() => {
+                // ffprobe before 7.1 has no APV decoder and reports the stream without a codec name
+                assert!(fmt_name.contains("mov"), "{name}: {fmt_name}");
+                filmcraft_testkit::skip("export apv probe", "ffprobe has no apv decoder (needs ffmpeg 7.1+)");
+            }
             "apv" => {
                 assert!(fmt_name.contains("mov"), "{name}: {fmt_name}");
                 assert_eq!(v["codec_name"], "apv", "{name}");

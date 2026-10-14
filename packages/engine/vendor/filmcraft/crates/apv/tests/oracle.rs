@@ -8,7 +8,15 @@ use filmcraft_apv::{
 };
 
 fn ffmpeg() -> Option<PathBuf> {
-    filmcraft_testkit::ffmpeg_or_skip("apv oracle")
+    let ff = filmcraft_testkit::ffmpeg_or_skip("apv oracle")?;
+    // APV demuxer/decoder landed in ffmpeg 7.1. Older builds (Ubuntu 24.04 ships 6.1) cannot act as the oracle.
+    let out = Command::new(&ff).args(["-hide_banner", "-demuxers"]).output().ok()?;
+    let has_apv = String::from_utf8_lossy(&out.stdout).lines().any(|l| l.split_whitespace().nth(1) == Some("apv"));
+    if !has_apv {
+        filmcraft_testkit::skip("apv oracle", "ffmpeg has no apv demuxer (needs ffmpeg 7.1+)");
+        return None;
+    }
+    Some(ff)
 }
 
 fn fixture_dir() -> PathBuf {

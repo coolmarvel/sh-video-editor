@@ -1,4 +1,4 @@
-/** features/export/ExportDialog: 형식 콤보에 HEVC·WebM 이 보이고, WebM 을 고르면 파일 이름·경로의 확장자가 .webm 으로 바뀐다. */
+/** features/export/ExportDialog: 형식 콤보에 HEVC·AV1·WebM 이 보이고, WebM 을 고르면 파일 이름·경로의 확장자가 .webm 으로 바뀐다. */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ExportDialog } from '@editor/features/export/ExportDialog';
@@ -21,7 +21,7 @@ async function opened(desktop = true) {
 }
 
 describe('ExportDialog 형식 콤보', () => {
-  it('H.264(mp4)·HEVC(mp4)·WebM(webm)이 보이고 WebM 을 고르면 저장 경로가 .webm 으로 바뀐다', async () => {
+  it('H.264(mp4)·HEVC(mp4)·AV1(mp4)·WebM(webm)이 보이고 WebM 을 고르면 저장 경로가 .webm 으로 바뀐다', async () => {
     const engine = await opened();
     engine.pickSaveResult = '/tmp/out';
     await act(async () => {
@@ -30,7 +30,7 @@ describe('ExportDialog 형식 콤보', () => {
     render(<ExportDialog />);
     const select = screen.getByLabelText('형식') as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.textContent);
-    expect(options).toEqual(['H.264 (mp4)', 'HEVC (mp4)', 'WebM (VP9 + Opus) (webm)']);
+    expect(options).toEqual(['H.264 (mp4)', 'HEVC (mp4)', 'AV1 (mp4)', 'WebM (VP9 + Opus) (webm)']);
     expect(select.value).toBe('h264');
     expect((screen.getByLabelText('저장 위치') as HTMLInputElement).value).toBe('/tmp/out.mp4');
 
@@ -62,6 +62,25 @@ describe('ExportDialog 형식 콤보', () => {
     expect(ex().formatId).toBe('hevc');
     expect((screen.getByLabelText('저장 위치') as HTMLInputElement).value).toBe('/tmp/out.mp4');
     expect(engine.callsOf('export.resolve')).toContainEqual({ preset: 'HEVC 1080p (Half Size)', format: 'hevc' });
+    const presets = screen.getByLabelText('프리셋') as HTMLSelectElement;
+    expect(Array.from(presets.options).map((o) => o.value)).toEqual(['1080p', '720p', '9x16', '1x1', 'sns-youtube', 'sns-shorts', 'sns-instagram', 'sns-4k']);
+  });
+
+  it('AV1 을 고르면 확장자는 .mp4 그대로이고 AV1 프리셋(원본 크기 없음)으로 해석한다', async () => {
+    const engine = await opened();
+    engine.pickSaveResult = '/tmp/out';
+    await act(async () => {
+      await ex().browse();
+    });
+    render(<ExportDialog />);
+    const select = screen.getByLabelText('형식') as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'av1' } });
+    });
+    expect(select.value).toBe('av1');
+    expect(ex().formatId).toBe('av1');
+    expect((screen.getByLabelText('저장 위치') as HTMLInputElement).value).toBe('/tmp/out.mp4');
+    expect(engine.callsOf('export.resolve')).toContainEqual({ preset: 'AV1 1080p', format: 'av1' });
     const presets = screen.getByLabelText('프리셋') as HTMLSelectElement;
     expect(Array.from(presets.options).map((o) => o.value)).toEqual(['1080p', '720p', '9x16', '1x1', 'sns-youtube', 'sns-shorts', 'sns-instagram', 'sns-4k']);
   });

@@ -442,6 +442,8 @@ const ENGINE_PRESETS = [
     frameSize: [1920, 1080] as [number, number],
   },
   { name: 'HEVC 2160p 4K', format: 'hevc', extension: 'mp4', category: 'Web & Social', frameSize: [3840, 2160] as [number, number] },
+  { name: 'AV1 1080p', format: 'av1', extension: 'mp4', category: 'Web & Social', frameSize: [1920, 1080] as [number, number] },
+  { name: 'AV1 720p', format: 'av1', extension: 'mp4', category: 'Web & Social', frameSize: [1280, 720] as [number, number] },
   {
     name: 'WebM 1080p (Web)',
     format: 'webm',
@@ -455,6 +457,7 @@ const ENGINE_PRESETS = [
 const ENGINE_FORMATS = [
   { id: 'h264', label: 'H.264', extension: 'mp4', available: true, video: true, audio: true },
   { id: 'hevc', label: 'H.265 (HEVC)', extension: 'mp4', available: true, video: true, audio: true },
+  { id: 'av1', label: 'AV1', extension: 'mp4', available: true, video: true, audio: true },
   { id: 'webm', label: 'WebM (VP9 + Opus)', extension: 'webm', available: true, video: true, audio: true },
   { id: 'prores', label: 'Apple ProRes', extension: 'mov', available: true, video: true, audio: true },
   { id: 'png', label: 'PNG', extension: 'png', available: true, video: true, audio: false },

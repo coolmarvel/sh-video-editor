@@ -62,6 +62,7 @@ export function captureWrittenFile(bridge: EngineBridge, path: string): WrittenC
 export const exportDownload = { fn: downloadBytes };
 
 export function downloadExport(fileName: string, bytes: Uint8Array): void {
-  const mime = fileName.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'application/octet-stream';
+  const lower = fileName.toLowerCase();
+  const mime = lower.endsWith('.mp4') ? 'video/mp4' : lower.endsWith('.webm') ? 'video/webm' : 'application/octet-stream';
   exportDownload.fn(fileName, bytes, mime);
 }

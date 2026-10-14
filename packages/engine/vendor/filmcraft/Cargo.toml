@@ -34,6 +34,8 @@ filmcraft-av1 = { path = "crates/av1" }
 filmcraft-aac = { path = "crates/aac" }
 filmcraft-opus = { path = "crates/opus" }
 filmcraft-h264enc = { path = "crates/h264enc" }
+filmcraft-vp9enc = { path = "crates/vp9enc" }
+filmcraft-opusenc = { path = "crates/opusenc" }
 filmcraft-audio-dsp = { path = "crates/audio-dsp" }
 filmcraft-frame = { path = "crates/frame" }
 filmcraft-media = { path = "crates/media" }
@@ -121,3 +123,10 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Ported effectcraft encoders (VENDOR.md): their round-trip tests encode whole sequences.
+[profile.dev.package.filmcraft-vp9enc]
+opt-level = 3
+
+[profile.dev.package.filmcraft-opusenc]
+opt-level = 3

@@ -240,6 +240,16 @@ fn every_builtin_preset_exports_and_ffprobe_confirms() {
                 assert_eq!(v["codec_name"], codec, "{name}");
                 assert_eq!(a["codec_name"], "pcm_s24le", "{name}");
             }
+            "webm" => {
+                assert_eq!(fmt_name, "matroska,webm", "{name}");
+                assert_eq!(v["codec_name"], "vp9", "{name}");
+                assert_eq!(v["profile"], "Profile 0", "{name}");
+                assert_eq!(a["codec_name"], "opus", "{name}");
+                // seven frames at 23.976; the Opus track may end up to one 20 ms packet later
+                let secs = frames as f64 * 1001.0 / 24000.0;
+                let got = num(&j["format"]["duration"]);
+                assert!(got >= secs - 0.01 && got <= secs + 0.05, "{name}: {got} vs {secs}");
+            }
             other => panic!("{name}: unexpected format {other}"),
         }
     }

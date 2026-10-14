@@ -28,7 +28,7 @@ describe('show', () => {
     const s = ex();
     expect(s.open).toBe(true);
     expect(s.loading).toBe(false);
-    expect(s.formats.map((f) => f.id)).toEqual(['h264']);
+    expect(s.formats.map((f) => f.id)).toEqual(['h264', 'webm']);
     expect(s.presets.map((p) => p.id)).toEqual(['1080p', '720p', '9x16', '1x1', 'source']);
     expect(s.formatId).toBe('h264');
     expect(s.presetId).toBe('1080p');
@@ -36,7 +36,20 @@ describe('show', () => {
     expect(s.problem).toBeNull();
     expect(s.resolved).toEqual({ frames: 240, seconds: 8, width: 1920, height: 1080, fps: '30', targetKbps: 20000 });
     expect(engine.callsOf('export.resolve')).toEqual([{ preset: 'High Quality 1080p HD', format: 'h264' }]);
-    expect(engine.callsOf('export.presets.list')).toEqual([{ format: 'h264' }]);
+    expect(engine.callsOf('export.presets.list')).toEqual([undefined]);
+  });
+
+  it('지난번 고른 형식이 아직 있으면 유지하고 확장자도 그 형식을 따른다', async () => {
+    await desktopReady();
+    useExport.setState({ formatId: 'webm' });
+    await ex().show();
+    expect(ex().formatId).toBe('webm');
+    expect(ex().defaultName).toBe('내 프로젝트.webm');
+    expect(ex().presets.map((p) => p.id)).toEqual(['1080p', '720p', '9x16', '1x1']);
+    useExport.setState({ formatId: 'gone' });
+    await ex().show();
+    expect(ex().formatId).toBe('h264');
+    expect(ex().defaultName).toBe('내 프로젝트.mp4');
   });
 
   it('프로젝트 이름이 비어 있으면 export.mp4', async () => {
@@ -113,6 +126,38 @@ describe('hide / setPreset / setFormat / browse', () => {
     await Promise.resolve();
     expect(ex().formatId).toBe('prores');
     expect(engine.callsOf('export.resolve').at(-1)).toMatchObject({ format: 'prores' });
+  });
+
+  it('WebM 을 고르면 프리셋을 WebM 프리셋으로 다시 만들고 파일 이름·경로의 확장자가 .webm 이 된다', async () => {
+    const engine = await desktopReady();
+    await ex().show();
+    engine.pickSaveResult = '/tmp/out';
+    await ex().browse();
+    expect(ex().path).toBe('/tmp/out.mp4');
+    await ex().setPreset('720p');
+    ex().setFormat('webm');
+    await Promise.resolve();
+    await Promise.resolve();
+    const s = ex();
+    expect(s.formatId).toBe('webm');
+    expect(s.presetId).toBe('720p');
+    expect(s.presets.map((p) => p.id)).toEqual(['1080p', '720p', '9x16', '1x1']);
+    expect(s.defaultName).toBe('내 프로젝트.webm');
+    expect(s.path).toBe('/tmp/out.webm');
+    expect(engine.callsOf('export.resolve').at(-1)).toEqual({ preset: 'WebM 720p', format: 'webm' });
+    // 저장 대화상자도 webm 필터·확장자
+    engine.pickSaveResult = '/tmp/clip';
+    await ex().browse();
+    expect(ex().path).toBe('/tmp/clip.webm');
+    // 원본 크기 프리셋을 고른 채 WebM 으로 바꾸면(WebM 에는 없다) 첫 프리셋으로
+    ex().setFormat('h264');
+    await ex().setPreset('source');
+    ex().setFormat('webm');
+    expect(ex().presetId).toBe('1080p');
+    expect(ex().path).toBe('/tmp/clip.webm');
+    ex().setFormat('h264');
+    expect(ex().path).toBe('/tmp/clip.mp4');
+    expect(ex().defaultName).toBe('내 프로젝트.mp4');
   });
 
   it('없는 프리셋이나 브리지 없음은 해석을 건너뛴다', async () => {

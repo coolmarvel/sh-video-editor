@@ -1,10 +1,10 @@
 # 이식한 엔진 출처 (ADR-0003)
 
-| 저장소      | 상류                                     | 버전                       | 복사일     | 로컬 스냅샷                                        | 이식 범위                                                                                                                                     |
-| ----------- | ---------------------------------------- | -------------------------- | ---------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| filmcraft   | https://github.com/storytold/filmcraft   | 0.2.1 (ROADMAP 2026-10-05) | 2026-10-14 | `~/craft-opensource/filmcraft` (2026-10-08 복사본) | `crates/*`(ui-egui 제외), `apps/filmcraft-cli`, `xtask`, `assets`, `docs`(images·brand 제외)                                                  |
-| effectcraft | https://github.com/storytold/effectcraft | 0.4.0                      | 미이식     | `~/craft-opensource/effectcraft`                   | 계획: effects, keyframe, gpu, lottie, hevcenc, av1enc, vp9enc, opusenc                                                                        |
-| soundcraft  | https://github.com/storytold/soundcraft  | 0.1.0                      | 2026-10-14 | `~/craft-opensource/soundcraft`                    | `crates/dsp/src/offline.rs` 의 `time_stretch`(WSOLA)만 `filmcraft/crates/audio-dsp/src/timestretch.rs` 로. 나머지(dsp 플러그인, mix)는 미이식 |
+| 저장소      | 상류                                     | 버전                       | 복사일     | 로컬 스냅샷                                        | 이식 범위                                                                                                                                             |
+| ----------- | ---------------------------------------- | -------------------------- | ---------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filmcraft   | https://github.com/storytold/filmcraft   | 0.2.1 (ROADMAP 2026-10-05) | 2026-10-14 | `~/craft-opensource/filmcraft` (2026-10-08 복사본) | `crates/*`(ui-egui 제외), `apps/filmcraft-cli`, `xtask`, `assets`, `docs`(images·brand 제외)                                                          |
+| effectcraft | https://github.com/storytold/effectcraft | 0.4.0                      | 2026-10-14 | `~/craft-opensource/effectcraft`                   | `crates/vp9enc`, `crates/opusenc` (filmcraft 워크스페이스 안 `crates/vp9enc`·`crates/opusenc`). 계획: effects, keyframe, gpu, lottie, hevcenc, av1enc |
+| soundcraft  | https://github.com/storytold/soundcraft  | 0.1.0                      | 2026-10-14 | `~/craft-opensource/soundcraft`                    | `crates/dsp/src/offline.rs` 의 `time_stretch`(WSOLA)만 `filmcraft/crates/audio-dsp/src/timestretch.rs` 로. 나머지(dsp 플러그인, mix)는 미이식         |
 
 ## 이식 시 한 일 (filmcraft)
 
@@ -31,6 +31,23 @@
   옮겼다(proptest 대신 고정 LCG, 스펙트럼 피크는 rustfft 대신 in-crate `fft::Fft`). `pitch_shift`·`resample`(windowed sinc)·플러그인은
   가져오지 않았다(filmcraft 에 `resample.rs` 가 따로 있다).
 - 쓰는 곳: `TrackItem.maintain_pitch`(속도 변경 시 음정 유지)가 켜진 정방향 클립의 소리. 역방향은 상류 varispeed 리샘플 그대로.
+
+## 이식 시 한 일 (effectcraft, 2026-10-14: vp9enc·opusenc)
+
+- 원본 `effectcraft/crates/vp9enc`(VP9 인코더, src 2,735줄)·`crates/opusenc`(Opus 인코더, src 5,043줄)를 `vendor/filmcraft/crates/vp9enc`·
+  `crates/opusenc` 로 복사했다. 둘 다 의존성 0, `unsafe` 없음, wasm32 빌드 확인. 크레이트 이름만 `effectcraft-*` 를 `filmcraft-*` 로
+  바꿨고(`Cargo.toml` 의 name·description, 소스·테스트·README 의 경로 이름), 소스 로직은 그대로다. 라이선스는 `MIT OR Apache-2.0`
+  (`Copyright (c) 2026 ArtCraft Team and the EffectCraft contributors`): MIT 전문은 각 크레이트 폴더의 `LICENSE-MIT`(effectcraft 원본,
+  저작권 표시만 filmcraft 와 다르다), Apache-2.0 은 `vendor/filmcraft/LICENSE-APACHE` 와 같은 문구라 따로 두지 않았다. 각 크레이트
+  README 머리에 출처 블록을 두었고 루트 `NOTICE` 2번 항목에 적었다.
+- 테스트 이식: `vp9enc/tests/roundtrip.rs` 는 원본 `effectcraft/crates/export/tests/vp9_roundtrip.rs`(filmcraft-vp9 디코더·ffmpeg 오라클 왕복).
+  우리 `filmcraft-vp9` 디코더는 프레임 스레드로 그림을 늦게 내놓으므로 `Decoder::new()` 를 `Decoder::with_threads(1)` 로 바꿨다.
+  `opusenc/tests/{modes,ffmpeg}.rs` 는 원본 그대로(`filmcraft-opus` 디코더 왕복, ffmpeg opus·libopus 오라클).
+- 워크스페이스: `Cargo.toml` 에 두 크레이트와 `profile.dev.package` opt-level 3, `xtask` LAYERS 에 L0 로 등록, `docs/architecture.md` 1절 표.
+- 내보내기 연결(상류 filmcraft 파일 수정): `crates/export/src/lib.rs`(`Format::WebM`, `Vp9Encoder`·`OpusAudioEncoder` + 팩토리,
+  `VideoEncoder`/`AudioEncoder` 의 `matroska_codec`), `settings.rs`(`AudioCodec::Opus`, WebM 은 48 kHz·2채널 고정, 요약·추정 크기),
+  `presets.rs`(`WebM 1080p (Web)`, `WebM 720p`), `job.rs`(`WebmMux` 분기), 신규 `webm_out.rs`(matroska `MkvWriter` 로 WebM 쓰기).
+  먹서는 상류 `crates/matroska/src/mux.rs` 를 그대로 쓴다(이미 EBML·Cluster·Cues·SeekHead 를 쓴다). 가이드: `docs/guides/webm-export.md`.
 
 ## 상류 갱신
 

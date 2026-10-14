@@ -10,7 +10,18 @@ const editor = resolve(__dirname, '../../packages/editor/src');
 const tokens = resolve(__dirname, '../../design-tokens');
 
 export default defineConfig({
-  main: { plugins: [externalizeDepsPlugin()] },
+  main: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        // index: Electron 메인. engine-host: 엔진 utility process (main 이 utilityProcess.fork 로 띄운다)
+        input: {
+          index: resolve(__dirname, 'src/main/index.ts'),
+          'engine-host': resolve(__dirname, 'src/engine-host/index.ts'),
+        },
+      },
+    },
+  },
   preload: { plugins: [externalizeDepsPlugin()] },
   renderer: {
     resolve: { alias: { '@editor': editor, '@tokens': tokens } },

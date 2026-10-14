@@ -1,3 +1,4 @@
+import { TransitionBlocks } from '../transitions/TransitionBlocks';
 import { tickToPx } from './geometry';
 import type { ClipInfo, TrackRow } from './types';
 
@@ -102,6 +103,7 @@ export function Lane({ row, pxPerSec, selection, preview, dropTick, onClipPointe
           onPointerDown={onClipPointerDown}
         />
       ))}
+      <TransitionBlocks row={row} pxPerSec={pxPerSec} />
       {dropTick !== null && <div className="tl-drop" style={{ left: `${tickToPx(dropTick, pxPerSec)}px` }} />}
     </div>
   );

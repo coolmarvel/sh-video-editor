@@ -20,3 +20,19 @@ export function readMediaItemId(dt: DataTransfer | null): number | null {
 export function hasMediaItem(dt: DataTransfer | null): boolean {
   return !!dt && Array.from(dt.types).includes(MEDIA_ITEM_MIME);
 }
+
+/**
+ * 전환 갤러리(features/transitions)에서 클립 경계로 끌어다 놓는 계약. 값은 엔진 `effects.list` 의 전환 id
+ * (`cross_dissolve` 등). 타임라인은 이 타입이 있으면 가장 가까운 편집점을 찾아 `sequence.applyVideoTransition` 을 보낸다.
+ */
+export const TRANSITION_MIME = 'application/x-sh-transition';
+
+export function readTransitionEffect(dt: DataTransfer | null): string | null {
+  if (!dt) return null;
+  const raw = dt.getData(TRANSITION_MIME);
+  return raw && /^[a-z0-9_]+$/.test(raw) ? raw : null;
+}
+
+export function hasTransition(dt: DataTransfer | null): boolean {
+  return !!dt && Array.from(dt.types).includes(TRANSITION_MIME);
+}

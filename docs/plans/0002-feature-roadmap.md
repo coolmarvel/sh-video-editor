@@ -130,10 +130,10 @@ domain: development
   - (b) features/captions: "자막 자동 생성" 버튼, 모델 내려받기 진행률(whisper-base 293MB), 자막 목록 편집(텍스트·시간), 스타일 패널, SRT 가져오기·내보내기
   - (c) 한국어 30초 음성 클립에서 자막 10줄 이상, 단어 시간 오차 0.5초 이내(수동 확인)
   - (d) L
-- [ ] **M2-3 전환**
+- [x] **M2-3 전환** (2026-10-14, feat/transitions. 남은 것: 엔진에 전환 삭제·정렬 변경 커맨드가 없어 인스펙터의 삭제·정렬은 읽기 전용, 일반 트림으로 틈이 생긴 전환을 엔진이 정리하지 않음, 썸네일은 SVG 로 대체)
   - (a) `sequence.applyVideoTransition`(effect·frames·edge), `sequence.setTransition`, `effects.setDefaultTransition`. 사용자용 전환 12종 선별: cross_dissolve, dip_to_black, dip_to_white, push, slide, whip, zoom_blur, glitch, light_leak, clock_wipe, linear_wipe, cross_zoom
-  - (b) features/transitions: 전환 패널(썸네일은 `renderFrame` 축소본 캐시), 클립 경계로 드롭, 길이 핸들
-  - (c) 전환 뒤 리플 트림 시 전환이 따라오는지(filmcraft #7 회귀), 내보내기 길이 불변
+  - (b) features/transitions: 미디어 패널의 전환 탭(썸네일은 두 색 SVG, `renderFrame` 미니 시퀀스는 프로젝트를 더럽혀 보류), 클립 경계로 드롭, 더블클릭, 길이 핸들, 인스펙터 전환 탭
+  - (c) 전환 뒤 리플 트림 시 전환이 따라오는지(filmcraft #7 회귀), 내보내기 길이 불변: `packages/engine/tests/transitions.test.ts`
   - (d) M
 - [ ] **M2-4 기본 효과·필터**
   - (a) `effects.apply`, `effects.setParam`, `effects.remove`, `presets.apply`(Fade In·Out), `lumetri.applyPreset`. 사용자용 효과 10종: brightness_contrast, lumetri(노출·대비·채도·온도만 노출), gaussian_blur, sharpen, vignette, mosaic, black_white, tint, noise, drop_shadow

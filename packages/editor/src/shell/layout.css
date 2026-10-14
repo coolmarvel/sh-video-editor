@@ -162,3 +162,18 @@ body {
     max-height: 42vh;
   }
 }
+
+/* 미디어 패널 탭(미디어 | 전환). 숨긴 탭은 마운트를 유지한다(미디어 탭의 파일 드롭 차단 리스너가 살아 있게) */
+.ve-media-tabs {
+  flex: none;
+}
+.ve-media-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.ve-media-tab[hidden] {
+  display: none;
+}

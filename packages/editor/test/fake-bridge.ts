@@ -22,10 +22,23 @@ export interface FakeClip {
   enabled: boolean;
 }
 
+/** 트랙의 전환(엔진 inspect 의 transitions[] 와 같은 모양). 두 클립 사이는 컷을 가운데 둔다 */
+export interface FakeTransition {
+  id: number;
+  effect: string;
+  start: number;
+  duration: number;
+  from: number | null;
+  to: number | null;
+  reverse: boolean;
+  params: Record<string, unknown>;
+}
+
 export interface FakeTrack {
   id: number;
   name: string;
   items: FakeClip[];
+  transitions?: FakeTransition[];
   enabled: boolean;
   locked: boolean;
   muted: boolean;
@@ -118,6 +131,14 @@ export const FAKE_COMMANDS: CommandSpec[] = [
   { id: 'help.about', label: 'About', menu: ['Help'], shortcut: null, params: '{}' },
   { id: 'timeline.razor', label: 'Razor', menu: [], shortcut: null, params: '{"time":ticks}' },
   { id: 'sequence.inspect', label: 'Inspect Sequence', menu: [], shortcut: null, params: '{}' },
+  {
+    id: 'sequence.applyVideoTransition',
+    label: 'Apply Video Transition',
+    menu: ['Sequence'],
+    shortcut: null,
+    params: '{"clip":id?,"effect":str?,"frames":i64?,"edge":"in"|"out"?}',
+  },
+  { id: 'sequence.setTransition', label: 'Edit Transition Settings', menu: [], shortcut: null, params: '{"transition":id,"reverse":bool?}' },
 ];
 
 const ENGINE_PRESETS = [
@@ -294,6 +315,7 @@ export class FakeEngine {
       id: this.nextId++,
       name: `${prefix}${i + 1}`,
       items: [],
+      transitions: [],
       enabled: true,
       locked: false,
       muted: false,
@@ -476,6 +498,7 @@ export class FakeEngine {
       id: t.id,
       name: t.name,
       items: t.items.map(toClip),
+      transitions: (t.transitions ?? []).map((x) => clone(x)),
       enabled: t.enabled,
       locked: t.locked,
       muted: t.muted,
@@ -575,6 +598,68 @@ export class FakeEngine {
       }
     }
     seq.selection = seq.selection.filter((id) => !targets.has(id));
+    this.cleanTransitions(seq);
+  }
+
+  /**
+   * 엔진의 remove_orphan_transitions + transitions_follow_cuts 흉내: 클립이 사라진 전환은 지우고, 남은 전환은
+   * 기준 클립 가장자리(오른쪽 클립 시작, 없으면 왼쪽 클립 끝)를 따라 옮긴다. 두 클립 사이는 가운데 정렬.
+   */
+  cleanTransitions(seq: FakeSequence): void {
+    for (const t of [...seq.video, ...seq.audio]) {
+      if (!t.transitions) continue;
+      const byId = new Map(t.items.map((c) => [c.clip, c] as const));
+      t.transitions = t.transitions.filter(
+        (tr) => (tr.from === null || byId.has(tr.from)) && (tr.to === null || byId.has(tr.to)) && (tr.from !== null || tr.to !== null),
+      );
+      // 단순화: 두 클립이 더 이상 맞닿지 않으면(이동·틈) 전환을 지운다. 실제 엔진은 이동 때만 지우고 일반 트림의 틈은 남긴다
+      t.transitions = t.transitions.filter((tr) => tr.from === null || tr.to === null || byId.get(tr.from)!.end === byId.get(tr.to)!.start);
+      for (const tr of t.transitions) {
+        const cut = tr.to !== null ? byId.get(tr.to)!.start : byId.get(tr.from!)!.end;
+        tr.start = tr.from !== null && tr.to !== null ? cut - tr.duration / 2 : tr.to !== null ? cut : cut - tr.duration;
+      }
+    }
+  }
+
+  /** `sequence.applyVideoTransition`: clip 의 edge 쪽 편집점에 전환을 넣는다. 같은 자리의 전환은 교체한다 */
+  private applyVideoTransition(p: Record<string, unknown>): { transition: number } {
+    const seq = this.sequence;
+    const effect = (p['effect'] as string | undefined) ?? 'cross_dissolve';
+    if (!/^[a-z0-9_]+$/.test(effect) || effect.startsWith('bad_'))
+      throw new FakeEngineError(`invalid parameters for \`transition\`: unknown transition \`${effect}\``);
+    const { clip, track, kind } = this.findClip(seq, p['clip'] as number);
+    if (kind !== 'video') throw new FakeEngineError('no edit point at the playhead on targeted tracks');
+    if (track.locked) throw new FakeEngineError('edit failed: track is locked');
+    const ft = frameTicksOf(seq);
+    const frames = typeof p['frames'] === 'number' ? p['frames'] : Math.round(seq.fr.num / seq.fr.den);
+    const duration = frames * ft;
+    const edge = (p['edge'] as 'in' | 'out' | undefined) ?? 'out';
+    const items = [...track.items].sort((a, b) => a.start - b.start);
+    const i = items.findIndex((c) => c.clip === clip.clip);
+    const prev = items[i - 1];
+    const next = items[i + 1];
+    const from = edge === 'in' ? (prev && prev.end === clip.start ? prev.clip : null) : clip.clip;
+    const to = edge === 'in' ? clip.clip : next && next.start === clip.end ? next.clip : null;
+    const cut = edge === 'in' ? clip.start : clip.end;
+    const start = from !== null && to !== null ? cut - duration / 2 : to !== null ? cut : cut - duration;
+    this.snapshot(`Apply ${effect}`);
+    track.transitions = (track.transitions ?? []).filter(
+      (x) => !(x.start < start + duration && start < x.start + x.duration && (x.from === from || x.to === to)),
+    );
+    const tr: FakeTransition = {
+      id: this.nextId++,
+      effect,
+      start,
+      duration,
+      from,
+      to,
+      reverse: p['reverse'] === true,
+      params: (p['params'] as Record<string, unknown> | undefined) ?? {},
+    };
+    track.transitions.push(tr);
+    track.transitions.sort((a, b) => a.start - b.start);
+    this.touch();
+    return { transition: tr.id };
   }
 
   execute(id: string, params?: Record<string, unknown>): unknown {
@@ -720,6 +805,7 @@ export class FakeEngine {
           }
           t.items = next;
         }
+        if (cuts > 0) this.cleanTransitions(seq);
         if (cuts > 0) this.touch();
         return { cuts };
       }
@@ -773,6 +859,7 @@ export class FakeEngine {
             dest.track.items.sort((a, b) => a.start - b.start);
           }
         }
+        this.cleanTransitions(seq);
         this.touch();
         return { moved, overwritten: [] };
       }
@@ -800,6 +887,7 @@ export class FakeEngine {
             }
           }
         }
+        this.cleanTransitions(seq);
         this.touch();
         return { delta };
       }
@@ -890,6 +978,36 @@ export class FakeEngine {
       }
       case 'jobs.list':
         return clone(this.jobs);
+      case 'effects.list':
+        return [
+          'cross_dissolve',
+          'dip_to_black',
+          'dip_to_white',
+          'push',
+          'slide',
+          'whip',
+          'zoom_blur',
+          'glitch',
+          'light_leak',
+          'clock_wipe',
+          'linear_wipe',
+          'cross_zoom',
+        ].map((eid) => ({ id: eid, name: eid, kind: 'VideoTransition', params: [] }));
+      case 'effects.setDefaultTransition':
+        return { effect: p['effect'] };
+      case 'sequence.applyVideoTransition':
+        return this.applyVideoTransition(p);
+      case 'sequence.setTransition': {
+        const seq = this.sequence;
+        const tid = p['transition'] as number;
+        const tr = [...seq.video, ...seq.audio].flatMap((t) => t.transitions ?? []).find((x) => x.id === tid);
+        if (!tr) throw new FakeEngineError(`invalid parameters for \`sequence.setTransition\`: no transition ${tid}`);
+        this.snapshot('Edit Transition');
+        if (typeof p['reverse'] === 'boolean') tr.reverse = p['reverse'];
+        if (p['params'] && typeof p['params'] === 'object') Object.assign(tr.params, p['params'] as Record<string, unknown>);
+        this.touch();
+        return { transition: tid, effect: tr.effect, reverse: tr.reverse };
+      }
       case 'file.save': {
         if (!s.path) throw new FakeEngineError('file.save: project has no path, use file.saveAs');
         s.dirty = false;

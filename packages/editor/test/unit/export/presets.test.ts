@@ -1,6 +1,16 @@
 /** features/export/presets.ts: 화면 프리셋 구성, 형식 필터, 크기·남은 시간 표기. */
 import { describe, expect, it } from 'vitest';
-import { buildUiPresets, formatBytes, formatEta, usableFormats, type EngineFormat, type EnginePreset } from '@editor/features/export/presets';
+import {
+  buildUiPresets,
+  formatBytes,
+  formatEta,
+  formatExtension,
+  formatFilterName,
+  usableFormats,
+  withExtension,
+  type EngineFormat,
+  type EnginePreset,
+} from '@editor/features/export/presets';
 
 const hd: EnginePreset = {
   name: 'HQ 1080p',
@@ -25,6 +35,8 @@ const source: EnginePreset = {
   frameSize: null,
 };
 const prores: EnginePreset = { name: 'ProRes', format: 'prores', extension: 'mov', category: 'Mezz', frameSize: null };
+const webmHd: EnginePreset = { name: 'WebM 1080p (Web)', format: 'webm', extension: 'webm', category: 'Web', frameSize: [1920, 1080] };
+const webm720: EnginePreset = { name: 'WebM 720p', format: 'webm', extension: 'webm', category: 'Web', frameSize: [1280, 720] };
 
 describe('buildUiPresets', () => {
   it('전체가 있으면 다섯 가지를 정해진 순서로', () => {
@@ -61,6 +73,23 @@ describe('buildUiPresets', () => {
     const hd2 = { ...hd, name: 'YouTube 1080p' };
     expect(buildUiPresets([hd2, hd])[0]?.params).toEqual({ preset: 'YouTube 1080p' });
   });
+
+  it('webm 형식은 WebM 프리셋으로 만든다: 720p 는 엔진 프리셋, 세로·정사각은 1080p 에 크기·비트레이트 덮어쓰기, 원본 크기 없음', () => {
+    const out = buildUiPresets([hd, source, vertical, webmHd, webm720], 'webm');
+    expect(out.map((p) => p.id)).toEqual(['1080p', '720p', '9x16', '1x1']);
+    expect(out[0]?.params).toEqual({ preset: 'WebM 1080p (Web)' });
+    expect(out[1]?.params).toEqual({ preset: 'WebM 720p' });
+    expect(out[2]?.params).toEqual({ preset: 'WebM 1080p (Web)', width: 1080, height: 1920, bitrateKbps: 6000 });
+    expect(out[3]?.params).toEqual({ preset: 'WebM 1080p (Web)', width: 1080, height: 1080, bitrateKbps: 6000 });
+    for (const p of out) expect(p.label).not.toMatch(/[–—×]/);
+  });
+
+  it('webm 720p 프리셋이 없으면 1080p 에 4 Mbps 덮어쓰기, h264 는 영향 없음', () => {
+    const out = buildUiPresets([hd, webmHd], 'webm');
+    expect(out[1]?.params).toEqual({ preset: 'WebM 1080p (Web)', width: 1280, height: 720, bitrateKbps: 4000 });
+    expect(buildUiPresets([hd, webmHd, webm720]).map((p) => p.id)).toEqual(['1080p', '720p', '1x1']);
+    expect(buildUiPresets([hd, webmHd, webm720])[1]?.params).toEqual({ preset: 'HQ 1080p', width: 1280, height: 720, bitrateKbps: 10000 });
+  });
 });
 
 describe('usableFormats', () => {
@@ -74,7 +103,7 @@ describe('usableFormats', () => {
     ...over,
   });
 
-  it('사용 가능하고 영상+소리인 mp4 만 남긴다', () => {
+  it('사용 가능하고 영상+소리인 mp4·webm 만 남긴다', () => {
     const list = [
       fmt({}),
       fmt({ id: 'hevc', available: false }),
@@ -82,9 +111,33 @@ describe('usableFormats', () => {
       fmt({ id: 'png', audio: false, extension: 'png' }),
       fmt({ id: 'wav', video: false, extension: 'wav' }),
       fmt({ id: 'mp4-video-only', audio: false }),
+      fmt({ id: 'webm', label: 'WebM (VP9 + Opus)', extension: 'webm' }),
+      fmt({ id: 'webm-off', extension: 'webm', available: false }),
     ];
-    expect(usableFormats(list).map((f) => f.id)).toEqual(['h264']);
+    expect(usableFormats(list).map((f) => f.id)).toEqual(['h264', 'webm']);
     expect(usableFormats([])).toEqual([]);
+  });
+
+  it('formatExtension 은 형식의 확장자, 모르면 mp4', () => {
+    const list = [fmt({}), fmt({ id: 'webm', extension: 'webm' })];
+    expect(formatExtension(list, 'webm')).toBe('webm');
+    expect(formatExtension(list, 'h264')).toBe('mp4');
+    expect(formatExtension(list, 'nope')).toBe('mp4');
+    expect(formatFilterName('webm')).toBe('WebM 동영상');
+    expect(formatFilterName('mp4')).toBe('MP4 동영상');
+  });
+});
+
+describe('withExtension', () => {
+  it('동영상 확장자는 바꾸고, 없거나 다른 확장자면 붙인다', () => {
+    expect(withExtension('/a/b.mp4', 'webm')).toBe('/a/b.webm');
+    expect(withExtension('/a/b.MP4', 'webm')).toBe('/a/b.webm');
+    expect(withExtension('/a/b.webm', 'mp4')).toBe('/a/b.mp4');
+    expect(withExtension('/a/b.webm', 'webm')).toBe('/a/b.webm');
+    expect(withExtension('/a/b.WEBM', 'webm')).toBe('/a/b.WEBM');
+    expect(withExtension('/a/b', 'webm')).toBe('/a/b.webm');
+    expect(withExtension('/a/b.txt', 'webm')).toBe('/a/b.txt.webm');
+    expect(withExtension('내 프로젝트.mp4', 'webm')).toBe('내 프로젝트.webm');
   });
 });
 

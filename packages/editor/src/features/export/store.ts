@@ -2,7 +2,17 @@
 import { create } from 'zustand';
 import { useEditor } from '../../store';
 import { findJobReport, runQueueLoop, type QueueItem } from './jobs';
-import { buildUiPresets, formatBytes, usableFormats, type EngineFormat, type EnginePreset, type UiPreset } from './presets';
+import {
+  buildUiPresets,
+  formatBytes,
+  formatExtension,
+  formatFilterName,
+  usableFormats,
+  withExtension,
+  type EngineFormat,
+  type EnginePreset,
+  type UiPreset,
+} from './presets';
 import { captureWrittenFile, downloadExport, isWebExport, webExportPath, type WrittenCapture } from './web-download';
 
 export interface Resolved {
@@ -23,6 +33,8 @@ interface ExportState {
   open: boolean;
   loading: boolean;
   formats: EngineFormat[];
+  /** 엔진 프리셋 전체(모든 형식). 형식을 바꾸면 여기서 화면 프리셋을 다시 만든다. */
+  enginePresets: EnginePreset[];
   presets: UiPreset[];
   presetId: string;
   formatId: string;
@@ -84,6 +96,7 @@ export const useExport = create<ExportState>((set, get) => {
     open: false,
     loading: false,
     formats: [],
+    enginePresets: [],
     presets: [],
     presetId: '1080p',
     formatId: 'h264',
@@ -105,22 +118,26 @@ export const useExport = create<ExportState>((set, get) => {
       try {
         const [formatsRaw, presetsRaw, project] = await Promise.all([
           b.execute('export.formats') as Promise<EngineFormat[]>,
-          b.execute('export.presets.list', { format: 'h264' }) as Promise<{ presets: EnginePreset[] }>,
+          b.execute('export.presets.list') as Promise<{ presets: EnginePreset[] }>,
           b.execute('project.inspect') as Promise<{ name: string }>,
         ]);
         const formats = usableFormats(formatsRaw);
-        const presets = buildUiPresets(presetsRaw.presets);
+        // 지난번 고른 형식이 아직 있으면 유지
+        const formatId = formats.some((f) => f.id === get().formatId) ? get().formatId : (formats[0]?.id ?? 'h264');
+        const ext = formatExtension(formats, formatId);
+        const presets = buildUiPresets(presetsRaw.presets, formatId);
         const first = presets[0];
         // 엔진의 기본 이름 "Untitled" 는 화면처럼 "제목 없음" 으로
         const projectName = project.name === 'Untitled' ? '제목 없음' : project.name;
         set({
           formats,
+          enginePresets: presetsRaw.presets,
           presets,
-          formatId: formats[0]?.id ?? 'h264',
+          formatId,
           presetId: presets.some((p) => p.id === get().presetId) ? get().presetId : (first?.id ?? ''),
-          defaultName: `${projectName || 'export'}.mp4`,
+          defaultName: `${projectName || 'export'}.${ext}`,
           // 웹은 저장 위치가 없다: 엔진 가상 경로에 쓰고 완료되면 다운로드한다
-          path: isWebExport(b) ? webExportPath(`${projectName || 'export'}.mp4`) : get().path,
+          path: isWebExport(b) ? webExportPath(`${projectName || 'export'}.${ext}`) : get().path && withExtension(get().path, ext),
           loading: false,
         });
         await resolve();
@@ -144,16 +161,28 @@ export const useExport = create<ExportState>((set, get) => {
     },
 
     setFormat(id) {
-      set({ formatId: id });
+      // 형식이 바뀌면 그 형식의 프리셋으로 다시 만들고(같은 id 가 있으면 유지) 파일 이름·경로의 확장자를 맞춘다
+      const { formats, enginePresets, presetId, path, defaultName } = get();
+      const ext = formatExtension(formats, id);
+      // features/ratio 의 SNS 카드(`sns-` 접두)는 이 목록에 덧붙여진 것이라 형식이 바뀌어도 남긴다
+      const presets = [...buildUiPresets(enginePresets, id), ...get().presets.filter((p) => p.id.startsWith('sns-'))];
+      set({
+        formatId: id,
+        presets,
+        presetId: presets.some((p) => p.id === presetId) ? presetId : (presets[0]?.id ?? ''),
+        defaultName: withExtension(defaultName, ext),
+        path: path && withExtension(path, ext),
+      });
       void resolve();
     },
 
     async browse() {
       const b = bridge();
       if (!b?.pickSavePath) return;
-      const picked = await b.pickSavePath(get().defaultName, [{ name: 'MP4 동영상', extensions: ['mp4'] }]);
+      const ext = formatExtension(get().formats, get().formatId);
+      const picked = await b.pickSavePath(get().defaultName, [{ name: formatFilterName(ext), extensions: [ext] }]);
       if (!picked) return;
-      set({ path: picked.toLowerCase().endsWith('.mp4') ? picked : `${picked}.mp4` });
+      set({ path: picked.toLowerCase().endsWith(`.${ext}`) ? picked : `${picked}.${ext}` });
     },
 
     async start() {

@@ -342,11 +342,20 @@ const ENGINE_PRESETS = [
     frameSize: [1080, 1920] as [number, number],
   },
   { name: 'ProRes 422 HQ', format: 'prores', extension: 'mov', category: 'Mezzanine', frameSize: null },
+  {
+    name: 'WebM 1080p (Web)',
+    format: 'webm',
+    extension: 'webm',
+    category: 'Web & Social',
+    frameSize: [1920, 1080] as [number, number],
+  },
+  { name: 'WebM 720p', format: 'webm', extension: 'webm', category: 'Web & Social', frameSize: [1280, 720] as [number, number] },
 ];
 
 const ENGINE_FORMATS = [
   { id: 'h264', label: 'H.264', extension: 'mp4', available: true, video: true, audio: true },
   { id: 'hevc', label: 'HEVC (H.265)', extension: 'mp4', available: false, video: true, audio: true },
+  { id: 'webm', label: 'WebM (VP9 + Opus)', extension: 'webm', available: true, video: true, audio: true },
   { id: 'prores', label: 'Apple ProRes', extension: 'mov', available: true, video: true, audio: true },
   { id: 'png', label: 'PNG', extension: 'png', available: true, video: true, audio: false },
   { id: 'wav', label: 'Waveform Audio', extension: 'wav', available: true, video: false, audio: true },

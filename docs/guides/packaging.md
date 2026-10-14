@@ -94,15 +94,38 @@ npm run dist:win                                          # check:win-engine 통
   `@napi-rs/cli` 3.10.8 도 windows-gnu 를 크로스 컴파일(`--cross-compile`) 대상에서 제외하고 같은 `libnode.dll` 요구를 안내한다.
 - 반면 msvc 타깃은 cargo-xwin 이 `clang-cl` 로 C 코드(napi 의 delay-load 훅)를, `lld-link` 로 링크를 맡아 통과한다(경로 1).
 - 참고로 filmcraft `platform` 크레이트(Media Foundation/D3D11, `windows` 0.62) 자체는 gnu 타깃에서 컴파일된다
-  (`cargo check --target x86_64-pc-windows-gnu -p filmcraft-platform` 통과. 링크는 mingw 가 없어 미검증). 현재 napi 바인딩은
-  `filmcraft-platform` 에 의존하지 않아(`register()` 를 부르는 곳은 filmcraft-cli 뿐) Windows HW 디코드는 아직 바인딩에 안 들어 있다.
-  넣을 때도 빌드는 위 msvc 절차 그대로다(`windows` 크레이트는 msvc 에서 import lib 를 자체 제공).
+  (`cargo check --target x86_64-pc-windows-gnu -p filmcraft-platform` 통과. 링크는 mingw 가 없어 미검증).
+
+### Windows 하드웨어 디코드 (Media Foundation) 가 애드온에 들어 있다
+
+napi 바인딩은 Windows·macOS 타깃에서만 `filmcraft-platform` 에 의존하고(`bindings/napi/Cargo.toml` 의
+`[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]`), `Engine::new`·`engineVersion()`·
+`hardwareDecoder()` 가 프로세스에서 한 번 `filmcraft_platform::register()` 를 불러 OS 디코더 팩토리를 엔진 코덱 앞에
+둔다. Linux 는 의존하지 않아 Linux `.node` 는 전과 같다. 등록은 팩토리 포인터를 두는 것뿐이라 장치를 만들지 않으며,
+하드웨어가 못 받는 스트림(필드 코딩 H.264, 4:2:2, 8192 초과, DXVA 가 없는 GPU, HEVC/VP9/AV1 확장이 없는 Windows)은
+자체 디코더로 간다(`HybridDecoder`, 중간 실패도 소프트웨어로 이어 감). 설정 Playback 의 Hardware decoding 이 Off 면
+전부 자체 디코더.
+
+2026-10-14 cargo-xwin 크로스 빌드 결과(경로 1, LLVM 23.1.3, `CARGO_BUILD_JOBS=3`, 다른 빌드와 동시):
+
+- 링크 통과, 5분 35초, `engine-node.win32-x64-msvc.node` 31,489,536 바이트(PE32+ DLL). `windows` 크레이트의 import lib
+  (`windows_x86_64_msvc`) 를 lld-link 가 그대로 받았고 오류·경고 없음.
+- 애드온이 import 하는 DLL: `d3d11.dll`(`D3D11CreateDevice`), `dxgi.dll`, `combase.dll`, `ole32.dll`, `oleaut32.dll`,
+  `kernel32.dll`, `ntdll.dll`, `bcryptprimitives.dll`, `VCRUNTIME140.dll` + UCRT api-set(`api-ms-win-crt-*`).
+  `mfplat.dll` 은 import 가 아니라 실행 시 `LoadLibrary` 로 연다(Windows "N" 에디션에서도 로드되고 소프트웨어 디코드).
+  NVENC(`nvEncodeAPI64.dll`)도 실행 시 로드.
+- 확인 명령: `~/.local/llvm/bin/llvm-readobj --coff-imports engine-node.win32-x64-msvc.node`.
+- `engineVersion()` 은 `sh-video-engine <v> (base filmcraft 0.2.1; hw: Media Foundation)` 처럼 끝에 등록된 백엔드를 적는다
+  (Linux 는 `hw: none`). `hardwareDecoder()` 는 그 이름 또는 null. 실제로 하드웨어가 쓰였는지는 엔진 커맨드
+  `perf.stats` 의 `decode.hardware`(frames, software frames, sessions, declined, fallbacks)로 본다.
+- Windows 실기 동작은 미확인(아래 표). `VCRUNTIME140.dll` 은 Electron 자체도 쓰는 Visual C++ 2015-2022 런타임이라 새 요구는 아니다.
 
 ### 실기 검증
 
-| 날짜       | 빌드 경로                        | Electron | 결과                                                    |
-| ---------- | -------------------------------- | -------- | ------------------------------------------------------- |
-| 2026-10-14 | 경로 1 (cargo-xwin, LLVM 23.1.3) | 44.7.2   | 빌드·패키징 성공. 사용자 Windows PC 에서 실행 확인 대기 |
+| 날짜       | 빌드 경로                                                          | Electron | 결과                                                                                                                                                                                                                                                                                         |
+| ---------- | ------------------------------------------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-14 | 경로 1 (cargo-xwin, LLVM 23.1.3)                                   | 44.7.2   | 빌드·패키징 성공. 사용자 Windows PC 에서 실행 확인 대기                                                                                                                                                                                                                                      |
+| 2026-10-14 | 경로 1 + `filmcraft-platform`(Media Foundation 디코드, NVENC) 링크 | 44.7.2   | 크로스 빌드 성공(31.5MB). 실기 대기: 앱에서 `engineVersion()` 이 `hw: Media Foundation` 인지, 1080p H.264 클립 재생 뒤 `perf.stats` 의 `decode.hardware.frames` 가 0 보다 큰지, HEVC(iPhone) 파일이 열리는지(HEVC Video Extensions 없으면 자체 디코더), N 에디션·GPU 없는 VM 에서도 켜지는지 |
 
 ## 배포 소스 보호
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { useEditor } from '../../store';
 import type { EngineBridge } from '../../engine/bridge';
 import { useContextMenu } from '../context-menu/store';
+import { RevisionGate } from '../events/revision-gate';
 import { useProject, type Notice } from '../project/store';
 import { findBin, findItem, isClipLike, walkItems, type DemoScene, type MediaBin, type MediaItem, type MediaNode } from './types';
 
@@ -49,7 +50,8 @@ interface MediaState {
   selectedIds: number[];
   busy: boolean;
   dragOver: boolean;
-  refresh(): Promise<void>;
+  /** project.inspect 를 다시 읽는다. `need` 는 엔진 이벤트의 revision: 이미 읽었으면 건너뛴다(features/events RevisionGate) */
+  refresh(need?: number): Promise<void>;
   select(id: number | null, opts?: SelectOptions): Promise<void>;
   importPaths(paths: string[]): Promise<void>;
   pickAndImport(): Promise<void>;
@@ -107,6 +109,8 @@ function message(e: unknown): string {
 }
 
 export const useMedia = create<MediaState>((set, get) => {
+  const gate = new RevisionGate(() => get().revision);
+
   /** 엔진 쪽 프로젝트 패널 선택을 화면 선택과 맞춘다. 실패는 화면 선택을 막지 않는다 */
   async function syncEngineSelection(ids: number[]): Promise<void> {
     const bridge = bridgeOrNull();
@@ -137,6 +141,34 @@ export const useMedia = create<MediaState>((set, get) => {
     }
   }
 
+  /** project.inspect + project.items + media.status 를 읽어 트리를 만든다(refresh 의 본체) */
+  async function readProject(bridge: EngineBridge): Promise<void> {
+    try {
+      const inspect = (await bridge.execute('project.inspect')) as InspectResult;
+      const rows = new Map<number, ItemsRow>();
+      try {
+        const items = (await bridge.execute('project.items', { recursive: true })) as ItemsResult;
+        for (const r of items.rows) if (typeof r.item === 'number') rows.set(r.item, r);
+      } catch {
+        // 열 정보는 보조 정보라 실패해도 목록은 보여 준다
+      }
+      // 미디어 파일 경로(호스트 캐시 키, features/cache). 실패해도 목록은 보여 준다
+      const paths = new Map<number, string>();
+      try {
+        const status = (await bridge.execute('media.status')) as StatusRow[];
+        for (const r of status) if (typeof r.item === 'number' && r.path) paths.set(r.item, r.path);
+      } catch {
+        // 경로 없이도 목록은 보여 준다
+      }
+      const root = toNode(inspect.root, rows, paths) as MediaBin;
+      const selectedIds = get().selectedIds.filter((id) => findItem(root, id));
+      const selectedId = findItem(root, get().selectedId) ? get().selectedId : (selectedIds[selectedIds.length - 1] ?? null);
+      set({ root, activeSequence: inspect.activeSequence, revision: inspect.revision, selectedId, selectedIds });
+    } catch (e) {
+      toast('danger', `미디어 목록을 읽지 못했습니다. ${message(e)}`);
+    }
+  }
+
   return {
     root: null,
     activeSequence: null,
@@ -146,33 +178,10 @@ export const useMedia = create<MediaState>((set, get) => {
     busy: false,
     dragOver: false,
 
-    async refresh() {
+    refresh(need) {
       const bridge = bridgeOrNull();
-      if (!bridge) return;
-      try {
-        const inspect = (await bridge.execute('project.inspect')) as InspectResult;
-        const rows = new Map<number, ItemsRow>();
-        try {
-          const items = (await bridge.execute('project.items', { recursive: true })) as ItemsResult;
-          for (const r of items.rows) if (typeof r.item === 'number') rows.set(r.item, r);
-        } catch {
-          // 열 정보는 보조 정보라 실패해도 목록은 보여 준다
-        }
-        // 미디어 파일 경로(호스트 캐시 키, features/cache). 실패해도 목록은 보여 준다
-        const paths = new Map<number, string>();
-        try {
-          const status = (await bridge.execute('media.status')) as StatusRow[];
-          for (const r of status) if (typeof r.item === 'number' && r.path) paths.set(r.item, r.path);
-        } catch {
-          // 경로 없이도 목록은 보여 준다
-        }
-        const root = toNode(inspect.root, rows, paths) as MediaBin;
-        const selectedIds = get().selectedIds.filter((id) => findItem(root, id));
-        const selectedId = findItem(root, get().selectedId) ? get().selectedId : (selectedIds[selectedIds.length - 1] ?? null);
-        set({ root, activeSequence: inspect.activeSequence, revision: inspect.revision, selectedId, selectedIds });
-      } catch (e) {
-        toast('danger', `미디어 목록을 읽지 못했습니다. ${message(e)}`);
-      }
+      if (!bridge) return Promise.resolve();
+      return gate.run(need, () => readProject(bridge));
     },
 
     async select(id, opts) {

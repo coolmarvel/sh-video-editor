@@ -13,7 +13,23 @@ interface ShBridge {
 declare global {
   interface Window {
     shBridge: ShBridge;
+    /** 호출 수 측정(이 스펙만): bridge.execute 를 감싸 커맨드 id 별로 센다 */
+    __shExecCounts?: Record<string, number>;
   }
+}
+
+/** 화면이 bridge.execute 로 보내는 커맨드를 id 별로 센다(같은 객체를 화면이 쓰므로 메서드를 바꾸면 화면 호출도 잡힌다) */
+async function countExecutes(page: import('@playwright/test').Page): Promise<void> {
+  await page.evaluate(() => {
+    const b = window.shBridge;
+    const counts: Record<string, number> = {};
+    window.__shExecCounts = counts;
+    const orig = b.execute.bind(b);
+    b.execute = (id, params) => {
+      counts[id] = (counts[id] ?? 0) + 1;
+      return orig(id, params);
+    };
+  });
 }
 
 test.describe('엔진 이벤트 통합', () => {
@@ -111,5 +127,20 @@ test.describe('썸네일', () => {
       return { width: f.width, height: f.height };
     });
     expect(size).toEqual({ width: 64, height: 36 });
+  });
+
+  test('데모 넣기와 타임라인에 넣기 동안 읽기 커맨드가 중복되지 않는다(커맨드 하나에 sequence.inspect 는 패널 수만큼만)', async ({ app }) => {
+    await countExecutes(app);
+    await makeDemoSequence(app);
+    // 폴링 두 주기(정지 250ms)가 지나도록 기다려 뒤늦은 갱신까지 센다
+    await app.waitForTimeout(700);
+    const counts = (await app.evaluate(() => window.__shExecCounts)) ?? {};
+    console.log(`[events] execute 호출 수: ${JSON.stringify(counts)}`);
+    // 데모 넣기(1 커맨드) + 타임라인에 넣기(편집본 만들기 + 놓기 + 선택 해제, 트랜잭션 하나). 실행한 쪽의 읽기와 이벤트 구독자의
+    // 읽기가 같은 revision 이면 하나로 합쳐진다(features/events/revision-gate.ts). 2026-10-14 실측: 수정 전 sequence.inspect 9,
+    // project.inspect 7, media.status 5 / 수정 뒤 6, 4, 3. 상한은 실측 + 1
+    expect(counts['sequence.inspect'] ?? 0).toBeLessThanOrEqual(7);
+    expect(counts['project.inspect'] ?? 0).toBeLessThanOrEqual(5);
+    expect(counts['media.status'] ?? 0).toBeLessThanOrEqual(4);
   });
 });

@@ -1,6 +1,7 @@
 import type { EngineBridge, Frame } from '../../engine/bridge';
 import { TICKS_PER_SECOND } from '../../engine/time';
 import { useEngineEvents } from '../events/store';
+import { RevisionGate, neededRevision } from '../events/revision-gate';
 import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
 
 /** 재생 중 백그라운드 작업(pumpJobs) 호출 간격과 1회 예산 */
@@ -52,6 +53,9 @@ export class MonitorController {
 
   private unsubscribe: (() => void) | null = null;
   private revision = -1;
+  /** 마지막으로 읽은 sequence.inspect 의 revision(없으면 -1). 이벤트 구독자의 중복 읽기를 막는다(features/events RevisionGate) */
+  private readRevision = -1;
+  private readonly gate = new RevisionGate(() => this.readRevision);
 
   private renderTimes: number[] = [];
   private framesDrawn = 0;
@@ -64,8 +68,9 @@ export class MonitorController {
   start(): void {
     this.unsubscribe?.();
     this.unsubscribe = useEngineEvents.subscribe((s, prev) => {
-      if (s.projectChanged !== prev.projectChanged || s.sequenceChanged !== prev.sequenceChanged) void this.onProjectChanged(s.revision);
-      else if (s.playheadChanged !== prev.playheadChanged) this.onPlayheadChanged(s.playhead);
+      if (s.projectChanged !== prev.projectChanged || s.sequenceChanged !== prev.sequenceChanged) {
+        void this.onProjectChanged(s.revision, neededRevision(s.revision, prev.revision));
+      } else if (s.playheadChanged !== prev.playheadChanged) this.onPlayheadChanged(s.playhead);
     });
     void this.onProjectChanged(useEngineEvents.getState().revision);
   }
@@ -243,15 +248,28 @@ export class MonitorController {
     if (!this.playing) this.requestRender(tick);
   }
 
-  /** 활성 시퀀스 정보를 다시 읽는다. 시퀀스가 없으면 캔버스를 비운다. */
-  async refreshSequence(): Promise<void> {
+  /**
+   * 활성 시퀀스 정보를 다시 읽는다. 시퀀스가 없으면 캔버스를 비운다. `need` 는 엔진 이벤트의 revision: 이미 그 revision 을
+   * 읽었으면 건너뛴다(커맨드를 실행한 쪽의 refreshNow 와 겹치지 않게).
+   */
+  refreshSequence(need?: number): Promise<void> {
+    return this.gate.run(need, () => this.readSequence(need));
+  }
+
+  private async readSequence(need?: number): Promise<void> {
     let seq: SequenceInfo | null = null;
+    // 결과에 revision 이 없으면(실패, 오래된 바인딩) 이벤트가 준 값, 그것도 없으면 모름(-1: 다음 이벤트에 다시 읽는다)
+    let revision = need ?? -1;
     try {
-      seq = toSequenceInfo(await this.bridge.execute('sequence.inspect'));
+      const raw = await this.bridge.execute('sequence.inspect');
+      seq = toSequenceInfo(raw);
+      const r = (raw as { revision?: unknown }).revision;
+      if (typeof r === 'number') revision = r;
     } catch {
       seq = null; // "no active sequence"
     }
     if (this.disposed) return;
+    this.readRevision = revision;
     const prev = useMonitor.getState().sequence;
     if (!seq) {
       if (this.playing) this.pause();
@@ -267,10 +285,10 @@ export class MonitorController {
   }
 
   /** 엔진 이벤트: 프로젝트가 바뀌었거나 다른 시퀀스가 열렸다. 시퀀스 정보를 다시 읽고 플레이헤드를 맞춰 다시 그린다 */
-  private async onProjectChanged(revision: number): Promise<void> {
+  private async onProjectChanged(revision: number, need?: number): Promise<void> {
     if (this.disposed) return;
     this.revision = revision;
-    await this.refreshSequence();
+    await this.refreshSequence(need);
     if (this.disposed) return;
     await this.syncPlayhead();
     if (!this.disposed && useMonitor.getState().error) useMonitor.setState({ error: null });

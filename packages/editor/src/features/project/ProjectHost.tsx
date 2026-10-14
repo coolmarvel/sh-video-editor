@@ -6,6 +6,7 @@
 import { useEffect } from 'react';
 import { useEditor } from '../../store';
 import { useEngineEvents } from '../events/store';
+import { neededRevision } from '../events/revision-gate';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RecoveryDialog } from './RecoveryDialog';
 import { WebFilesDialog } from './WebFilesDialog';
@@ -30,7 +31,7 @@ export function ProjectHost() {
     void p.refresh().then(() => p.startAutosave());
     void useRecent.getState().refresh();
     return useEngineEvents.subscribe((s, prev) => {
-      if (s.projectChanged !== prev.projectChanged) void useProject.getState().refresh();
+      if (s.projectChanged !== prev.projectChanged) void useProject.getState().refresh(neededRevision(s.revision, prev.revision));
     });
   }, [bridge, version]);
 
@@ -48,6 +49,18 @@ export function ProjectHost() {
           {notices.map((n) => (
             <div key={n.id} className={`sh-alert ve-toast${n.kind === 'info' ? '' : ` sh-alert--${n.kind}`}`} role={n.kind === 'danger' ? 'alert' : 'status'}>
               <span className="ve-toast__text">{n.text}</span>
+              {n.action && (
+                <button
+                  type="button"
+                  className="sh-btn sh-btn--sm sh-btn--primary"
+                  onClick={() => {
+                    n.action?.run();
+                    dismiss(n.id);
+                  }}
+                >
+                  {n.action.label}
+                </button>
+              )}
               <button type="button" className="sh-btn sh-btn--sm" aria-label="알림 닫기" onClick={() => dismiss(n.id)}>
                 닫기
               </button>

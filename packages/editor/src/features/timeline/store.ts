@@ -5,6 +5,8 @@
 import { create } from 'zustand';
 import type { EngineBridge } from '../../engine/bridge';
 import { useEditor } from '../../store';
+import { RevisionGate } from '../events/revision-gate';
+import { historyLabelKo } from '../i18n/labels.ko';
 import { useMedia } from '../media/store';
 import { walkItems } from '../media/types';
 import { editionName } from '../onboarding/naming';
@@ -39,7 +41,13 @@ interface TimelineState {
   /** "타임라인 전체 보기" 요청 횟수. Timeline 화면이 바뀜을 보고 줌을 맞춘다(화면 폭은 화면만 안다) */
   fitRequest: number;
 
-  refresh(): Promise<void>;
+  /**
+   * sequence.inspect 를 다시 읽는다. `need` 는 엔진 이벤트가 알려 준 revision: 이미 그 revision 이상을 읽었으면 건너뛴다
+   * (features/events RevisionGate). 커맨드를 실행한 쪽은 need 없이 부른다
+   */
+  refresh(need?: number): Promise<void>;
+  /** 마지막으로 읽은 sequence.inspect 의 revision. 없으면 -1 */
+  revision: number;
   syncPlayhead(): Promise<void>;
   setPlayhead(tick: number): Promise<void>;
   setZoom(pxPerSec: number): void;
@@ -71,6 +79,8 @@ function describeError(e: unknown): string {
 }
 
 export const useTimeline = create<TimelineState>((set, get) => {
+  const gate = new RevisionGate(() => get().revision);
+
   /** 커맨드 하나 실행 + 상태 줄 갱신 + inspect 재조회. 실패해도 화면은 엔진 상태로 되돌린다 */
   async function exec(id: string, params: Record<string, unknown> | undefined, done: string): Promise<unknown> {
     const bridge = bridgeOrNull();
@@ -107,16 +117,20 @@ export const useTimeline = create<TimelineState>((set, get) => {
     lastError: null,
     fitRequest: 0,
 
-    async refresh() {
+    revision: -1,
+
+    refresh(need) {
       const bridge = bridgeOrNull();
-      if (!bridge) return;
-      try {
-        const [seq, playhead] = await Promise.all([bridge.execute('sequence.inspect') as Promise<SequenceInfo>, bridge.playhead()]);
-        set({ sequence: seq, playhead });
-      } catch {
-        // "no active sequence": 편집본이 없으면 빈 상태를 그린다
-        set({ sequence: null });
-      }
+      if (!bridge) return Promise.resolve();
+      return gate.run(need, async () => {
+        try {
+          const [seq, playhead] = await Promise.all([bridge.execute('sequence.inspect') as Promise<SequenceInfo>, bridge.playhead()]);
+          set({ sequence: seq, playhead, revision: seq.revision ?? need ?? -1 });
+        } catch {
+          // "no active sequence": 편집본이 없으면 빈 상태를 그린다. 이 revision 에 편집본이 없다는 것도 읽은 결과다
+          set({ sequence: null, revision: need ?? -1 });
+        }
+      });
     },
 
     async syncPlayhead() {
@@ -273,7 +287,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
       if (!bridge) return;
       try {
         const label = await bridge.undo();
-        useEditor.setState({ status: label ? `실행 취소: ${label}` : '되돌릴 작업이 없습니다', error: null });
+        useEditor.setState({ status: label ? `실행 취소: ${historyLabelKo(label, useEditor.getState().commands)}` : '되돌릴 작업이 없습니다', error: null });
       } catch (e) {
         useEditor.setState({ error: describeError(e) });
       }
@@ -285,7 +299,10 @@ export const useTimeline = create<TimelineState>((set, get) => {
       if (!bridge) return;
       try {
         const label = await bridge.redo();
-        useEditor.setState({ status: label ? `다시 실행: ${label}` : '다시 실행할 작업이 없습니다', error: null });
+        useEditor.setState({
+          status: label ? `다시 실행: ${historyLabelKo(label, useEditor.getState().commands)}` : '다시 실행할 작업이 없습니다',
+          error: null,
+        });
       } catch (e) {
         useEditor.setState({ error: describeError(e) });
       }

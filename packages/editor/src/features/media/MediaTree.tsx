@@ -4,7 +4,7 @@ import { formatTimecode } from '../../engine/time';
 import { writeMediaItemIds } from '../timeline/dnd';
 import { TypeIcon } from './icons';
 import { POSTER_TICK, hasPicture, useThumbnail } from './thumbs';
-import { isEdition, typeLabelKo, type MediaBin, type MediaItem, type MediaNode } from './types';
+import { isEdition, typeLabelKo, visibleChildren, type MediaBin, type MediaItem, type MediaNode } from './types';
 import type { SelectOptions } from './store';
 
 interface Props {
@@ -97,12 +97,12 @@ export function MediaTree({ root, selectedIds, onSelect, onOpen, onItemContextMe
 
   const renderBin = (bin: MediaBin, top: boolean) => {
     const expanded = !collapsed.has(bin.id);
+    // 텍스트 클립의 내부 Graphic 항목은 보이지 않는다(types.ts isInternalGraphic)
+    const children = visibleChildren(bin);
     return (
       <li key={`b${bin.id}`} role="none" aria-expanded={expanded}>
         <div className="sh-tree__row">
-          {bin.children.length > 0 && (
-            <button type="button" className="sh-tree__toggle" aria-label={expanded ? '접기' : '펼치기'} onClick={() => toggle(bin.id)} />
-          )}
+          {children.length > 0 && <button type="button" className="sh-tree__toggle" aria-label={expanded ? '접기' : '펼치기'} onClick={() => toggle(bin.id)} />}
           <span
             role="treeitem"
             tabIndex={0}
@@ -118,10 +118,10 @@ export function MediaTree({ root, selectedIds, onSelect, onOpen, onItemContextMe
             }}
           >
             <span className="ve-media-name">{top ? '프로젝트' : bin.name}</span>
-            <span className="ve-media-time sh-tnum">{bin.children.length}</span>
+            <span className="ve-media-time sh-tnum">{children.length}</span>
           </span>
         </div>
-        {bin.children.length > 0 && <ul role="group">{bin.children.map(renderNode)}</ul>}
+        {children.length > 0 && <ul role="group">{children.map(renderNode)}</ul>}
       </li>
     );
   };

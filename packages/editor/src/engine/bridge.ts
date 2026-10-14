@@ -32,6 +32,14 @@ export type EngineEvent =
   | { type: 'openSource'; item: number }
   | { type: 'revealInProject'; item: number };
 
+/** 엔진 재시작 알림(onEngineRestart). 호스트가 문제 보고 파일을 남겼으면 그 경로. */
+export interface EngineRestartInfo {
+  /** 죽은 프로세스의 종료 코드. 모르면 null */
+  exitCode: number | null;
+  /** 문제 보고 파일 경로. 쓰지 못했거나 호스트가 지원하지 않으면 null */
+  report: string | null;
+}
+
 /** 파일 대화상자 필터(Electron 의 FileFilter 와 같은 모양). */
 export interface FileFilter {
   name: string;
@@ -150,9 +158,14 @@ export interface EngineBridge {
   audioPeaks?(item: number, perSecond: number): Promise<Float32Array>;
   /**
    * [데스크톱] 엔진 프로세스가 죽어 다시 떴을 때 알림. 새 엔진은 빈 세션이므로 화면은 모든 패널을 다시 읽는다
-   * (features/events 의 폴러가 구독). 반환값은 구독 해제 함수.
+   * (features/events 의 폴러가 구독). 반환값은 구독 해제 함수. `info.report` 는 호스트가 남긴 문제 보고 파일 경로.
    */
-  onEngineRestart?(cb: () => void): () => void;
+  onEngineRestart?(cb: (info: EngineRestartInfo) => void): () => void;
+  /**
+   * [데스크톱] 문제 보고 폴더(M4-6). `open(path)` 는 OS 파일 탐색기로 폴더를 열고, 파일 경로를 주면 그 파일을 선택한 채로 연다.
+   * 서버 전송은 없다. 없으면 도움말 메뉴의 "문제 보고 폴더 열기" 를 숨긴다.
+   */
+  crashReports?: { open(path?: string | null): Promise<void> };
   /** 호스트 파일 대화상자. 데스크톱만 구현한다(없으면 가져오기 버튼을 숨긴다). 취소하면 빈 배열 */
   pickFiles?(): Promise<string[]>;
   /** 끌어다 놓은 File 의 실제 경로. 데스크톱만 구현한다(Electron 의 webUtils.getPathForFile) */

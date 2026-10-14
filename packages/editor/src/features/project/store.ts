@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import type { EngineBridge } from '../../engine/bridge';
 import { useEditor } from '../../store';
+import { RevisionGate } from '../events/revision-gate';
 import { useRecent } from './recent';
 import { isOpfsPath, isWebFiles, isWebRecoveryId } from './web-files';
 import { afterWebSave, discardWeb, recoverWeb, startWebSession, webRecoveryCandidates, webSaveRedirect } from './web-session';
@@ -21,11 +22,18 @@ export interface RecoveryCandidate {
   cleanExit: boolean;
 }
 
-/** 토스트 알림 한 건. 6초 뒤 자동으로 닫히고(오류는 닫기 버튼으로만), 닫기 버튼으로 바로 닫을 수 있다 */
+/** 토스트의 동작 버튼(예: 문제 보고 "폴더 열기"). 누르면 run 을 부르고 알림을 닫는다 */
+export interface NoticeAction {
+  label: string;
+  run: () => void;
+}
+
+/** 토스트 알림 한 건. 6초 뒤 자동으로 닫히고(오류·동작 버튼이 있는 것은 닫기 버튼으로만), 닫기 버튼으로 바로 닫을 수 있다 */
 export interface Notice {
   id: number;
   kind: 'info' | 'success' | 'warning' | 'danger';
   text: string;
+  action?: NoticeAction;
 }
 
 export interface ConfirmRequest {
@@ -47,7 +55,8 @@ interface ProjectState {
   recoveryOpen: boolean;
   confirm: ConfirmRequest | null;
   notices: Notice[];
-  refresh(): Promise<void>;
+  /** project.inspect 를 다시 읽는다. `need` 는 엔진 이벤트의 revision: 이미 읽었으면 건너뛴다(features/events RevisionGate) */
+  refresh(need?: number): Promise<void>;
   startAutosave(): Promise<void>;
   newProject(): Promise<void>;
   openProject(): Promise<void>;
@@ -60,7 +69,7 @@ interface ProjectState {
   recover(id: string): Promise<void>;
   discardRecovery(id: string): Promise<void>;
   cancelConfirm(): void;
-  notify(kind: Notice['kind'], text: string): void;
+  notify(kind: Notice['kind'], text: string, action?: NoticeAction): void;
   dismiss(id: number): void;
 }
 
@@ -73,6 +82,7 @@ export const NOTICE_TTL_MS = 6000;
 
 export const useProject = create<ProjectState>((set, get) => {
   const bridge = (): EngineBridge | null => useEditor.getState().bridge;
+  const gate = new RevisionGate(() => get().revision);
 
   /** 저장하지 않은 변경이 있으면 묻고, 없으면 바로 진행한다. */
   async function guardDirty(title: string, action: () => Promise<void>) {
@@ -115,25 +125,27 @@ export const useProject = create<ProjectState>((set, get) => {
     confirm: null,
     notices: [],
 
-    async refresh() {
+    refresh(need) {
       const b = bridge();
-      if (!b) return;
-      try {
-        const r = (await b.execute('project.inspect')) as {
-          name: string;
-          path: string | null;
-          dirty: boolean;
-          revision: number;
-        };
-        // 엔진의 기본 이름 "Untitled" 는 화면에서 "제목 없음" 으로 보여 준다
-        const name = r.name === 'Untitled' ? UNTITLED : r.name;
-        const s = get();
-        if (s.name !== name || s.path !== r.path || s.dirty !== r.dirty || s.revision !== r.revision) {
-          set({ name, path: r.path, dirty: r.dirty, revision: r.revision });
+      if (!b) return Promise.resolve();
+      return gate.run(need, async () => {
+        try {
+          const r = (await b.execute('project.inspect')) as {
+            name: string;
+            path: string | null;
+            dirty: boolean;
+            revision: number;
+          };
+          // 엔진의 기본 이름 "Untitled" 는 화면에서 "제목 없음" 으로 보여 준다
+          const name = r.name === 'Untitled' ? UNTITLED : r.name;
+          const s = get();
+          if (s.name !== name || s.path !== r.path || s.dirty !== r.dirty || s.revision !== r.revision) {
+            set({ name, path: r.path, dirty: r.dirty, revision: r.revision });
+          }
+        } catch {
+          // 엔진이 아직 준비되지 않았으면 다음 주기에 다시 읽는다
         }
-      } catch {
-        // 엔진이 아직 준비되지 않았으면 다음 주기에 다시 읽는다
-      }
+      });
     },
 
     async startAutosave() {
@@ -315,10 +327,12 @@ export const useProject = create<ProjectState>((set, get) => {
       set({ confirm: null });
     },
 
-    notify(kind, text) {
+    notify(kind, text, action) {
       const id = ++noticeSeq;
-      set((s) => ({ notices: [...s.notices.slice(-2), { id, kind, text }] }));
-      if (kind !== 'danger') setTimeout(() => get().dismiss(id), NOTICE_TTL_MS);
+      const notice: Notice = action ? { id, kind, text, action } : { id, kind, text };
+      set((s) => ({ notices: [...s.notices.slice(-2), notice] }));
+      // 동작 버튼이 있는 알림은 사용자가 누르거나 닫을 때까지 남긴다
+      if (kind !== 'danger' && !action) setTimeout(() => get().dismiss(id), NOTICE_TTL_MS);
     },
 
     dismiss(id) {

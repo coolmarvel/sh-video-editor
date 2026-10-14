@@ -946,6 +946,8 @@ export class FakeEngine {
       in: null,
       out: null,
       markers: [],
+      // 실제 엔진처럼 이 스냅샷의 프로젝트 revision(화면 store 가 같은 revision 을 이미 읽었으면 다시 읽지 않는다)
+      revision: this.state.revision,
     };
   }
 

@@ -15,9 +15,12 @@ export const THUMB_CAPACITY = 512;
 /** 포스터 프레임(없으면 0) 을 뜻하는 tick */
 export const POSTER_TICK = -1;
 
-/** 그림이 있는 항목인지(소리·조정 레이어는 썸네일이 없다) */
+/**
+ * 그림이 있는 항목인지. 소리·조정 레이어는 썸네일이 없고, 그래픽 항목(텍스트·도형 클립이 공유하는 빈 캔버스)은 그림이
+ * 클립의 레이어에 있어 항목 자체를 그리면 빈 프레임이 나온다. 이런 항목은 엔진을 부르지 않고 유형 아이콘만 보인다.
+ */
 export function hasPicture(type: string): boolean {
-  return type !== 'Audio' && type !== 'Adjustment Layer';
+  return type !== 'Audio' && type !== 'Adjustment Layer' && type !== 'Graphic';
 }
 
 /** 삽입 순서 기반 LRU. get 이 항목을 뒤로 보내고, 넘치면 가장 오래된 것부터 버린다 */

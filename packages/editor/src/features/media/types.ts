@@ -88,3 +88,17 @@ export function findBin(root: MediaBin | null, id: number | null): MediaBin | nu
 export function isEdition(item: MediaItem): boolean {
   return item.type === 'Sequence';
 }
+
+/**
+ * 텍스트 클립이 내부적으로 쓰는 그래픽 항목인지. 엔진은 텍스트·도형 클립을 만들 때 편집본 크기마다 "Graphic" 이름의
+ * Graphic 항목 하나를 만들어 공유한다(레이어는 클립에 있다). 사용자가 넣은 것이 아니므로 미디어 패널에서 숨긴다(todo P1).
+ * 파일로 만든 소스 그래픽(Upgrade to Source Graphic, 이름이 다르다)은 보인다.
+ */
+export function isInternalGraphic(item: MediaItem): boolean {
+  return item.type === 'Graphic' && item.name === 'Graphic';
+}
+
+/** 미디어 패널에 보이는 자식(내부 그래픽 항목 제외). 빈은 모두 보인다 */
+export function visibleChildren(bin: MediaBin): MediaNode[] {
+  return bin.children.filter((c) => c.kind === 'bin' || !isInternalGraphic(c));
+}

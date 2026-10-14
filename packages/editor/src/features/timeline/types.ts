@@ -94,6 +94,8 @@ export interface SequenceInfo {
   settings: { frame_rate: FrameRate; width: number; height: number };
   in: number | null;
   out: number | null;
+  /** 이 스냅샷의 프로젝트 revision(엔진 revision). 오래된 바인딩이면 없다 */
+  revision?: number;
 }
 
 export type TrackKind = 'video' | 'audio';

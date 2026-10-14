@@ -1,6 +1,8 @@
 import { TransitionBlocks } from '../transitions/TransitionBlocks';
 import { useEditor } from '../../store';
-import { useThumbnail } from '../media/thumbs';
+import { hasPicture, useThumbnail } from '../media/thumbs';
+import { useMedia } from '../media/store';
+import { findItem } from '../media/types';
 import { tickToPx } from './geometry';
 import type { ClipInfo, TrackRow } from './types';
 import { SpeedBadge } from '../speed/SpeedBadge';
@@ -8,10 +10,14 @@ import { SpeedBadge } from '../speed/SpeedBadge';
 /** 폭이 이보다 좁은 클립에는 썸네일을 넣지 않는다(px) */
 const THUMB_MIN_CLIP_PX = 64;
 
-/** 영상 클립의 첫 프레임(sourceIn) 썸네일 한 장. 엔진이 만들고 features/media/thumbs 가 캐시한다 */
+/**
+ * 영상 클립의 첫 프레임(sourceIn) 썸네일 한 장. 엔진이 만들고 features/media/thumbs 가 캐시한다.
+ * 텍스트·도형 클립의 항목(Graphic)은 그림이 레이어에 있어 항목 썸네일이 빈 프레임이므로 요청하지 않는다(hasPicture).
+ */
 function ClipThumb({ clip }: { clip: ClipInfo }) {
   const bridge = useEditor((s) => s.bridge);
-  const url = useThumbnail(bridge, clip.item, clip.sourceIn);
+  const type = useMedia((s) => findItem(s.root, clip.item)?.type ?? '');
+  const url = useThumbnail(bridge, clip.item, clip.sourceIn, 0, type === '' || hasPicture(type));
   return url ? <img className="tl-clip__thumb" src={url} alt="" draggable={false} /> : null;
 }
 import { ClipWaveform } from '../audio/ClipWaveform';

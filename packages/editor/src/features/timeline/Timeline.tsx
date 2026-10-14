@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../../store';
 import { transitionDragLeave, transitionDragOver, transitionDrop } from '../transitions/timeline-drop';
 import { useEngineEvents } from '../events/store';
+import { neededRevision } from '../events/revision-gate';
 import { clipMenu, laneMenu, openAt } from '../context-menu';
 import { OnboardingCard } from '../onboarding/OnboardingCard';
 import { hasMediaItem, readMediaItemIds } from './dnd';
@@ -105,19 +106,14 @@ export function Timeline() {
     if (!bridge) return;
     const { refresh } = useTimeline.getState();
     void refresh();
-    let timer = 0;
-    const unsubscribe = useEngineEvents.subscribe((s, prev) => {
+    // 폴링 하나가 묶음마다 한 번만 신호를 올리므로 바로 읽는다. 커맨드를 실행한 쪽이 이미 이 revision 을 읽었으면 store 가 건너뛴다
+    return useEngineEvents.subscribe((s, prev) => {
       if (s.playheadChanged !== prev.playheadChanged && !gestureRef.current && useTimeline.getState().playhead !== s.playhead) {
         useTimeline.setState({ playhead: s.playhead });
       }
       if (s.projectChanged === prev.projectChanged && s.sequenceChanged === prev.sequenceChanged) return;
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => void useTimeline.getState().refresh(), 60);
+      void useTimeline.getState().refresh(neededRevision(s.revision, prev.revision));
     });
-    return () => {
-      window.clearTimeout(timer);
-      unsubscribe();
-    };
   }, [bridge]);
 
   // 보이는 구간 추적(눈금은 보이는 만큼만 그린다)

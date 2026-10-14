@@ -23,7 +23,13 @@ export type EngineMethod =
   | 'isDirty'
   | 'startAutosave'
   | 'pollPersistence'
-  | 'shutdown';
+  | 'shutdown'
+  // 자동 자막(features/stt, 엔진 feature `stt`). 인식·다운로드는 엔진 프로세스의 libuv 스레드에서 돌고 진행률은 폴링한다
+  | 'sttDownloadModel'
+  | 'sttTranscribeItem'
+  | 'sttProgress'
+  | 'sttCancel'
+  | 'sttReleaseModel';
 
 export interface EngineRequest {
   id: number;

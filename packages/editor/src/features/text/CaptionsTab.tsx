@@ -5,6 +5,7 @@ import type { InspectorContext } from '../inspector/registry';
 import { useCaptions, type CaptionCue } from './captions-store';
 import { DEFAULT_FONT } from './presets';
 import { useText } from './store';
+import { SttSection } from '../stt';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -131,8 +132,10 @@ export function CaptionsTab(_ctx: InspectorContext) {
         </label>
       ) : null}
 
+      <SttSection />
+
       {!track ? (
-        <p className="ve-inspector__hint">자막 트랙이 없습니다. 자막 추가 또는 SRT 가져오기로 시작하세요.</p>
+        <p className="ve-inspector__hint">자막 트랙이 없습니다. 자동 자막, 자막 추가 또는 SRT 가져오기로 시작하세요.</p>
       ) : (
         <>
           <section className="tx-group">

@@ -131,10 +131,10 @@ domain: development
   - (b) features/text: 모니터 위 드래그로 위치, 인스펙터(글꼴·크기·색·외곽선·배경), 타임라인 그래픽 클립
   - (c) 한글·영문 혼합 문장을 1080p 로 내보내 ffmpeg 로 프레임 추출, 글리프 누락(네모) 없음
   - (d) M
-- [ ] **M2-2 자동 자막(STT)**
-  - (a) `speech` 의 `whisper`·`download` feature 를 napi 빌드에 켠다. `transcript.models`, `transcript.downloadModel`, `transcript.generate`(language auto), `transcript.createCaptions`, `captions.setStyle`. 웹은 모델 fetch 를 JS 가 하고 wasm 에 바이트를 넘기는 `putModel` 바인딩 신규(candle wasm 추론 가능 여부 M4 에서 측정)
-  - (b) features/captions: "자막 자동 생성" 버튼, 모델 내려받기 진행률(whisper-base 293MB), 자막 목록 편집(텍스트·시간), 스타일 패널, SRT 가져오기·내보내기
-  - (c) 한국어 30초 음성 클립에서 자막 10줄 이상, 단어 시간 오차 0.5초 이내(수동 확인)
+- [~] **M2-2 자동 자막(STT)** (2026-10-14 feat/stt-captions: 데스크톱 (a)(b) 구현. 모델은 첫 사용 때 동의 뒤 내려받아 `<userData>/engine/models` 에 보관(인스톨러 미동봉). 웹은 candle 이 wasm32 에서 컴파일되지만 모델 적재·fetch 경로가 없어 안내 문구만(M4). 실측·배포는 `guides/packaging.md` "STT 음성 모델")
+  - (a) napi 바인딩 feature `stt`(기본 on) 로 `whisper`·`speech-download` 를 켬. 진행률·취소를 위해 바인딩 `downloadSpeechModel`·`Engine.transcribeItem`(libuv 스레드, 세션을 막지 않음) 신규, 결과는 `transcript.set` -> `transcript.createCaptions`. `transcript.generate` 도 그대로 동작(동기, 진행률 없음). 웹 `putModel` 은 미착수
+  - (b) features/stt: 자막 탭의 "자동 자막" 절(모델·언어·줄당 글자·최소 시간, 선택 클립/편집본 전체), 동의 대화상자(크기·출처·라이선스·보관), 진행률·취소, "음성 정리"(군말 제거·무음 자르기: 생성 시 옵션 + 인식 뒤 버튼). 자막 목록·스타일·SRT 는 M2-1 의 자막 탭 그대로
+  - (c) 한국어 30초 낭독 샘플(zeroth-korean): whisper-base 8.5초(모델 적재 포함), 단어 39개, 자막 6개(12줄), 한 줄 20자 규칙으로 자막 생성(엔진 테스트 `tests/stt.test.ts` 가 모델이 있을 때 검증). 단어 시간 오차 0.5초 이내는 수동 확인 미실시. CER 은 98초 세트에서 base 32.5%, small 24.6%
   - (d) L
 - [x] **M2-3 전환** (2026-10-14, feat/transitions. 남은 것: 엔진에 전환 삭제·정렬 변경 커맨드가 없어 인스펙터의 삭제·정렬은 읽기 전용, 일반 트림으로 틈이 생긴 전환을 엔진이 정리하지 않음, 썸네일은 SVG 로 대체)
   - (a) `sequence.applyVideoTransition`(effect·frames·edge), `sequence.setTransition`, `effects.setDefaultTransition`. 사용자용 전환 12종 선별: cross_dissolve, dip_to_black, dip_to_white, push, slide, whip, zoom_blur, glitch, light_leak, clock_wipe, linear_wipe, cross_zoom
@@ -229,7 +229,7 @@ domain: development
 - [?] **음악·효과음 라이브러리 출처**: 후보 (1) Free Music Archive CC0/CC-BY 선별, (2) Kevin MacLeod(incompetech, CC-BY 4.0: 크레딧 표기 필요), (3) freesound.org CC0 효과음, (4) 자체 제작(soundcraft 악기로 생성). 인스톨러 동봉 용량 상한(예: 50MB)과 웹은 지연 로드. 각 파일에 `.attribution` 사이드카.
 - [?] **LUT·필터 에셋**: 엔진 Lumetri 프리셋 14종은 파라미터라 라이선스 문제 없음. 외부 .cube LUT 를 넣을지(CC0 LUT 팩 검증 필요), 아니면 프리셋만으로 갈지.
 - [?] **스티커 에셋**: Lottie 이식 전제. 출처 후보 LottieFiles 는 라이선스가 파일마다 달라 선별 비용이 크다. 대안: Tabler Icons(MIT)·Phosphor(MIT) 를 SVG 로, 애니메이션은 자체 제작 소수.
-- [?] **Whisper 모델 배포**: 인스톨러에 whisper-base(293MB) 동봉 vs 첫 사용 시 Hugging Face 에서 내려받기(브리프 "오프라인 동작"과 충돌 여부). 웹은 fetch + OPFS 캐시, 모델 크기 상한.
+- [x] **Whisper 모델 배포** (2026-10-14 사용자 결정): 인스톨러에 동봉하지 않고 첫 사용 때 동의 뒤 Hugging Face 에서 내려받아 `<userData>/engine/models` 에 보관한다. 한 번 받으면 오프라인 동작. 기본 whisper-base, 품질이 필요하면 small 선택. 웹(fetch + OPFS, 크기 상한)은 M4 에서.
 - [?] **AI 배경 제거**: 범위 밖(AI 생성)은 아니지만 모델(MobileSAM 류)의 라이선스·크기·wasm 추론 성능 미확인. M3 이후로 미루고 크로마키로 대체할지.
 - [?] **HEVC 특허**: 소프트웨어 HEVC 인코더 배포 시 특허 풀(Access Advance·Via LA) 문제는 UNLICENSED 개인 저작물이라도 확인 필요. VP9/AV1 은 로열티 없음.
 - [?] **effectcraft `keyframe` 이식 시점**: filmcraft 키프레임(7종 보간)으로 M3-1 을 먼저 만들고, 부족할 때만 이식.

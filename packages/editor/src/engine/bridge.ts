@@ -57,6 +57,32 @@ export interface OpfsStore {
   flush(): Promise<void>;
 }
 
+/** 자동 자막(features/stt)의 진행 상황. 다운로드는 `done`·`total` 이 바이트, 인식은 `fraction`(0..1)만 뜻이 있다. */
+export interface SttProgress {
+  fraction: number;
+  done: number;
+  total: number;
+  status: string;
+}
+
+/**
+ * [데스크톱 전용] 자동 자막(음성 인식) 호스트 기능. 엔진 바인딩의 `downloadSpeechModel`·`transcribeItem`(libuv 스레드,
+ * 세션을 막지 않음)을 감싼다. 모델 목록·설치 여부는 엔진 커맨드 `transcript.models`, 결과 transcript 는
+ * `transcript.set` 으로 넣는다. 한 번에 작업 하나만 돈다(`progress` 는 그 작업의 것, 없으면 null).
+ */
+export interface SttHost {
+  /** 카탈로그 모델을 엔진의 모델 디렉토리에 내려받는다(검증 포함). 취소하면 거부된다 */
+  downloadModel(model: string): Promise<void>;
+  /** 미디어 항목의 소리를 인식해 엔진 `Transcript` JSON 객체를 돌려준다. `language` 는 'ko' 같은 코드 또는 'auto' */
+  transcribeItem(item: number, model: string, language: string): Promise<unknown>;
+  /** 진행 중인 작업의 진행 상황(폴링). 없으면 null */
+  progress(): Promise<SttProgress | null>;
+  /** 진행 중인 작업을 멈춘다 */
+  cancel(): Promise<void>;
+  /** 열어 둔 모델 가중치를 메모리에서 놓는다(자막 생성 묶음이 끝난 뒤) */
+  releaseModel(): Promise<void>;
+}
+
 export interface EngineBridge {
   version(): Promise<string>;
   commands(): Promise<CommandSpec[]>;
@@ -135,4 +161,7 @@ export interface EngineBridge {
 
   /** [웹 전용] OPFS 저장소. 브라우저가 OPFS 를 지원하지 않으면 undefined. */
   opfs?: OpfsStore;
+
+  /** [데스크톱 전용] 자동 자막(음성 인식). 없으면 화면이 "데스크톱 앱에서만" 안내를 보인다(features/stt). */
+  stt?: SttHost;
 }

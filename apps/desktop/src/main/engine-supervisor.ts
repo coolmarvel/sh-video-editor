@@ -84,7 +84,8 @@ export class EngineSupervisor {
     const child = utilityProcess.fork(HOST_MODULE, [], {
       serviceName: 'SH Video Editor engine',
       stdio: 'inherit',
-      env: { ...process.env, SH_ENGINE_DATA_DIR: this.dataDir },
+      // FILMCRAFT_DATA_DIR: 엔진이 음성 모델을 두는 곳(<dataDir>/models, transcript.models 의 dir). 자동 저장과 같은 디렉토리
+      env: { ...process.env, SH_ENGINE_DATA_DIR: this.dataDir, FILMCRAFT_DATA_DIR: this.dataDir },
     });
     this.child = child;
     const { port1, port2 } = new MessageChannelMain();

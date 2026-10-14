@@ -44,6 +44,14 @@ const bridge: EngineBridge = {
       void api.version().then(() => cb());
     }),
   audioPeaks: (item, perSecond) => api.audioPeaks(item, perSecond),
+  // 자동 자막(features/stt): 데스크톱만. 엔진 프로세스가 인식·다운로드를 돌린다
+  stt: {
+    downloadModel: (model) => api.sttDownloadModel(model),
+    transcribeItem: (item, model, language) => api.sttTranscribeItem(item, model, language),
+    progress: () => api.sttProgress(),
+    cancel: () => api.sttCancel(),
+    releaseModel: () => api.sttReleaseModel(),
+  },
 };
 
 const el = document.getElementById('root');

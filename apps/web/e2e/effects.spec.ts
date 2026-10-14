@@ -148,11 +148,12 @@ test.describe('효과 탭', () => {
     await expect
       .poll(async () => {
         const seq = (await app.evaluate(() => (window as unknown as { shBridge: ShBridge }).shBridge.execute('sequence.inspect'))) as {
-          video: { items: { effects: { effect: string; params: Record<string, { value: string }> }[] }[] }[];
+          video: { items: { effects: { effect: string; params: Record<string, { value: unknown }> }[] }[] }[];
         };
         return seq.video[0]!.items[0]!.effects.find((e) => e.effect === 'motion')!.params['position']!.value;
       })
-      .toBe('Vec2(Vec2 { x: 100.0, y: 540.0 })');
+      // inspect 의 파라미터는 {kind, value} JSON (docs/guides/engine-commands.md). point 는 [x, y]
+      .toEqual([100, 540]);
   });
 });
 

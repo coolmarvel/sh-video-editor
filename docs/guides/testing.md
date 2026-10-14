@@ -1,0 +1,73 @@
+---
+title: 테스트와 CI (층 구조, 명령, 전제, flaky 대처, 워크플로)
+created: 2026-10-14
+updated: 2026-10-14
+domain: development
+---
+
+# 테스트와 CI
+
+## 개요
+
+테스트는 다섯 층이다. 아래로 갈수록 실제 환경에 가깝고 느리다. 빠른 층이 먼저 돌고, 느린 층은 빌드 산출물을 전제로 한다.
+`npm run verify`(CLAUDE.md 변경 후 자동 규칙 2)는 lint + 엔진 빌드 + typecheck + 1~3층 + 앱 빌드이고, e2e 두 층은 `npm run test:all`
+또는 CI 가 돌린다. 층별 수·시간은 `npm run test:report` 가 표로 찍는다(session-log 에 붙인다).
+
+| 층  | 이름                 | 무엇을                                                                                                                              | 설정·위치                                                                   | 명령                                                 |
+| --- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1   | Rust (cargo test)    | 바인딩 워크스페이스(napi·wasm 글루). 엔진 자체 테스트는 이식 엔진의 `cargo xtask ci`                                                | `packages/engine/Cargo.toml`, `packages/engine/vendor/filmcraft/xtask`      | `npm run test:rust`, `cargo xtask ci`(vendor 안에서) |
+| 2   | 단위(editor)         | 화면 순수 모듈·store·컴포넌트. 엔진은 `test/fake-bridge.ts` 가 대신한다. 커버리지 임계 강제                                         | `packages/editor/vitest.config.ts`, `packages/editor/test/unit/**`          | `npm run test:unit`, `npm run test:unit:coverage`    |
+| 3   | 엔진 기능(napi·wasm) | 빌드된 `.node` 와 wasm pkg 를 Node 에서 띄워 화면이 기대하는 커맨드 모양·불변식·내보내기·실매체 코퍼스 왕복                         | `packages/engine/tests/vitest.config.ts`, `tests/*.test.ts`, `tests/corpus` | `npm run test:engine`                                |
+| 4   | 웹 e2e               | `vite build` + `vite preview` 를 실제 Chromium 에서. 프로젝트 `desktop-1440`·`mobile-390`                                           | `apps/web/playwright.config.ts`, `apps/web/e2e/*.spec.ts`                   | `npm run test:e2e:web`                               |
+| 5   | 데스크톱 e2e         | 빌드된 Electron(`out/`)을 `_electron` 으로. 프로젝트 `app`(창·메뉴·편집·캐시·자동 자막 대화상자) 뒤 `recovery`(엔진 강제 종료 복구) | `apps/desktop/playwright.config.ts`, `apps/desktop/e2e/*.spec.ts`           | `npm run test:e2e:desktop`                           |
+
+## 전제
+
+| 항목                | 내용                                                                                                                                                                                                                                                                                                                               |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 엔진 산출물         | 3·4·5층과 `npm run typecheck`(napi `index.d.ts`, wasm pkg 타입)는 `npm run build:engine` 결과가 있어야 한다. 없으면 3층은 `describe.skip`, typecheck 는 실패                                                                                                                                                                       |
+| ffmpeg·ffprobe      | 3층의 오라클과 코퍼스 생성(`tests/corpus/gen.sh`). 없으면 `media-compat`·내보내기 검증 일부가 skip 된다(`helpers.ts` `hasFfprobe`)                                                                                                                                                                                                 |
+| STT 모델            | 3층 `stt.test.ts` 의 인식 테스트는 이 컴퓨터에 Whisper 가중치(`FILMCRAFT_DATA_DIR` 또는 `~/.local/share/filmcraft/models`)가 있을 때만 돈다. 없으면 사유와 함께 skip. CI 러너에는 없으므로 늘 skip. 다운로드 테스트는 네트워크가 없으면 오류만 확인하고 끝낸다                                                                     |
+| 웹 e2e 포트         | `SH_E2E_PORT` 가 있으면 그 포트, 없으면 설정 파일이 빈 포트를 골라 같은 변수에 넣는다(워커는 env 를 물려받아 같은 포트). 여러 워크트리가 동시에 돌아도 충돌하지 않는다. 고정 포트에서만 `reuseExistingServer`(로컬) 가 의미 있다. 크로미움은 `npx playwright install chromium`                                                     |
+| xvfb                | 5층과 `npm run smoke -w apps/desktop` 은 Linux 헤드리스에서 `xvfb-run -a` 로 감싼다. `test:e2e:desktop` 스크립트에 들어 있고, `scripts/test-report.mjs` 는 `DISPLAY` 가 없으면 자동으로 붙인다                                                                                                                                     |
+| userData            | 5층은 테스트마다 새 `--user-data-dir`(임시 디렉토리)를 써서 실제 자동 저장·복구 저널·캐시를 건드리지 않는다                                                                                                                                                                                                                        |
+| 커버리지 임계       | `packages/editor/vitest.config.ts` `coverage.thresholds` = statements 90, branches 82, functions 88, lines 93 (2026-10-14 실측 93/84/91/96). 측정 대상은 `coverage.include` 의 순수 모듈·store 뿐이고 컴포넌트는 e2e 가 본다. 미달이면 `test:unit:coverage` 가 실패한다(CI `lint-unit`). 새 순수 모듈을 만들면 `include` 에 넣는다 |
+| 예상 실패(expected) | 3층 `media-compat.test.ts` 의 `KNOWN_FAILURES`(파일명 -> 원인)에 적힌 파일만 `it.fails` 로 돈다. 2026-10-14 기준 비어 있다(0건). 고쳐지면 그 테스트가 "실패" 해서 알려 주므로 항목을 지운다. Playwright 쪽은 `test.fail()` 을 쓰지 않는다                                                                                          |
+
+## 재시도·flaky 대처
+
+- 재시도: 두 Playwright 설정 모두 `retries: CI ? 1 : 0`. 로컬은 한 번에 통과해야 하고, CI 는 한 번 더 돌려 통과하면 리포트에 `flaky` 로 남는다(`test-report.mjs` 표의 flaky 열, CI 의 HTML 리포트). flaky 가 보이면 통과로 넘기지 말고 원인을 todo P3 에 적는다.
+- 데스크톱 복구 테스트(`apps/desktop/e2e/recovery.spec.ts`): 과거 전체 스위트에서 CPU 경합 때 120초 타임아웃(todo P3). 지금은 (1) `recovery` 프로젝트가 `app` 프로젝트 뒤에 혼자 돌고(`dependencies`), (2) `onCrashed` 리스너 등록을 끝낸 뒤에 SIGKILL 하며, (3) 알림 대기에 상한 20초를 두고 안 오면 현재 엔진 pid 를 다시 죽인다(최대 3회), (4) 단계마다 `[recovery +초]` 로그를 남긴다. 복구만 돌리기: `xvfb-run -a npx playwright test -c apps/desktop/playwright.config.ts --project recovery --no-deps`.
+- 390 폭 전환 테스트(`apps/web/e2e/transitions.spec.ts`): 좁은 뷰포트에서 드래그 목표가 가로 스크롤 밖이라 skip 이었다. 지금은 둘째 클립 선택 -> 적용 위치 "앞" -> 카드 포커스 -> Enter 로 같은 편집점에 넣는다(`TransitionGallery.tsx` 의 `onKeyDown`, 더블클릭과 같은 store 경로). skip 은 `usage.spec.ts` 의 "390 폭에서만 본다"(반대 프로젝트 제외) 하나뿐이다.
+- 시간 제한: 웹 90초/테스트, 데스크톱 120초(복구 180초), 엔진 기능 120초/테스트. 내보내기처럼 오래 걸리는 시나리오는 3층 `fileParallelism: false` 로 직렬.
+- 실패 산출물: Playwright 는 `apps/*/e2e/.results`(trace 는 실패 때만, 스크린샷은 실패 때만). CI 는 실패한 job 의 이 디렉토리를 artifact 로 올린다.
+
+## CI 흐름 (`.github/workflows/ci.yml`)
+
+PR 과 main 푸시에서 아래 job 이 돈다. `engine` 이 napi `.node`·`index.js`·`index.d.ts` 와 wasm pkg 를 artifact `engine-build` 로 올리고 `typecheck`·`web`·`web-mobile`·`desktop` 이 받아 쓴다(Rust 를 한 번만 빌드). Rust 는 `Swatinem/rust-cache`, npm 은 `setup-node` 캐시. 메모리 7GB 러너 기준 `CARGO_BUILD_JOBS=3`.
+
+| job                 | 언제                                 | 하는 일                                                                                                                                                                    | 로컬 대응 명령                                                                                             |
+| ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `lint-unit`         | PR·push                              | `prettier --check .`, 단위 테스트 + 커버리지 임계. artifact `coverage-editor`(summary json, lcov)                                                                          | `npx prettier --check .`, `npm run test:unit:coverage`                                                     |
+| `engine`            | PR·push                              | clippy(바인딩 워크스페이스, `-D warnings`), napi Linux 빌드, wasm 빌드, `cargo test`, ffmpeg 설치 뒤 엔진 기능 테스트(STT 모델 없음 -> skip). artifact `engine-build`      | `npm run lint`(clippy 부분), `npm run build:engine`, `npm run test:rust`, `npm run test:engine`            |
+| `typecheck`         | engine 뒤                            | `npm run typecheck`(앱·패키지·테스트 tsconfig)                                                                                                                             | `npm run typecheck`                                                                                        |
+| `web`               | engine 뒤                            | 웹 빌드, chromium 설치, e2e `desktop-1440`. 실패 시 artifact `web-e2e-results`                                                                                             | `npm run build -w apps/web`, `npx playwright test -c apps/web/playwright.config.ts --project desktop-1440` |
+| `web-mobile`        | engine 뒤, `continue-on-error`       | e2e `mobile-390`. 결과는 보고만 하고 PR 을 막지 않는다(좁은 뷰포트의 흔들림). 안정되면 `web` 에 합친다                                                                     | `npx playwright test -c apps/web/playwright.config.ts --project mobile-390`                                |
+| `desktop`           | engine 뒤                            | xvfb·Chromium 라이브러리 설치, 데스크톱 빌드, 스모크, `xvfb-run` e2e(`app` 뒤 `recovery`). 실패 시 artifact `desktop-e2e-results`                                          | `npm run build -w apps/desktop`, `npm run smoke -w apps/desktop`, `npm run test:e2e:desktop`               |
+| `vendor-ci`         | nightly 03:00 KST, 수동(`vendor_ci`) | 이식 엔진 `cargo xtask ci`(fmt, clippy, test --release, layers, assets, wasm L0~L4). 느려서 PR 에서는 돌지 않는다                                                          | `cd packages/engine/vendor/filmcraft && cargo xtask ci`                                                    |
+| `windows-installer` | 수동(`windows_installer`)            | LLVM 23.1.3 + cargo-xwin 으로 Windows `.node` 크로스 빌드, `npm run dist:win`, artifact `windows-installer`(`SH-Video-Editor-Setup-<v>.exe`). 절차는 `packaging.md` 경로 1 | `npm run build:win:xwin -w @sh-video-editor/engine-node`, `npm run dist:win`                               |
+
+vendored xtask 의 `wasm` 서브커맨드는 `WEB_CRATES` 를 비워 L0~L4(`filmcraft-engine` 까지)만 검사한다(ui-egui·filmcraft-web 은 이식하지 않았다, `packages/engine/VENDOR.md`).
+
+## 테스트 보고 (`scripts/test-report.mjs`)
+
+`node scripts/test-report.mjs [--layers unit,engine,web,desktop,rust] [--json out.json]`. 각 층을 JSON 리포터로 실제로 돌리고 파일 수·통과·실패·건너뜀·flaky·예상 실패·시간을 마크다운 표로 찍는다(Playwright 는 프로젝트별 줄도). 기본 층은 unit, engine, web, desktop 이고 rust 는 적어야 돈다. 데스크톱은 빌드된 `out/` 이 있어야 하며 없으면 그 줄이 실패로 표시된다. 하나라도 실패하면 종료 코드 1.
+
+## 관련 코드
+
+- `package.json` scripts `test:*`, `test:report`, `verify`, `test:all`
+- `apps/web/playwright.config.ts`(`freePort`, `retries`), `apps/web/e2e/fixtures.ts`(공통 fixture·`shBridge` QA 훅), `apps/web/e2e/transitions.spec.ts`(`applyAtFirstCut`)
+- `apps/desktop/playwright.config.ts`(`app`·`recovery` 프로젝트), `apps/desktop/e2e/recovery.spec.ts`(`CRASH_NOTICE_MS`, `KILL_ATTEMPTS`)
+- `packages/editor/vitest.config.ts`(`coverage.include`, `thresholds`), `packages/engine/tests/vitest.config.ts`, `packages/engine/tests/helpers.ts`
+- `packages/engine/tests/media-compat.test.ts`(`KNOWN_FAILURES`), `packages/engine/tests/stt.test.ts`(`installedModel`)
+- `scripts/test-report.mjs`, `.github/workflows/ci.yml`, `packages/engine/vendor/filmcraft/xtask/src/main.rs`(`WEB_CRATES`, `ci`)

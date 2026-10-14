@@ -2,8 +2,8 @@
 //!
 //! - `layers`: enforces the dependency layering of `docs/architecture.md` §1 (downward-only edges,
 //!   listed same-layer edges, L0 codec crates depend on `bitstream` only, no UI/OS crates below L5).
-//! - `wasm`: `cargo check --target wasm32-unknown-unknown` for every crate in L0–L4, the egui UI
-//!   and the web app.
+//! - `wasm`: `cargo check --target wasm32-unknown-unknown` for every crate in L0–L4 (up to
+//!   `filmcraft-engine`; the egui UI and web app are not vendored here).
 //! - `web [--dev] [--serve PORT]`: build the web app (`apps/filmcraft-web`) into
 //!   `<target>/web/dist` with `wasm-bindgen` (docs/web.md); `--serve` serves it on localhost.
 //! - `assets`: every asset file (image, icon, font, LUT, audio, video…) has a complete
@@ -240,8 +240,10 @@ fn run(cmd: &mut Command) -> Result<(), String> {
     if st.success() { Ok(()) } else { Err(format!("failed: {cmd:?}")) }
 }
 
-/// Crates above L4 that must also build for the web.
-const WEB_CRATES: &[&str] = &["filmcraft-ui-egui", "filmcraft-web"];
+/// Crates above L4 that must also build for the web. sh-video-editor does not vendor `ui-egui` or
+/// `filmcraft-web` (packages/engine/VENDOR.md); the web build is the wasm binding in
+/// `packages/engine/bindings/wasm`, so the check stops at L4 (`filmcraft-engine`).
+const WEB_CRATES: &[&str] = &[];
 
 fn wasm() -> Result<(), String> {
     let md = metadata()?;

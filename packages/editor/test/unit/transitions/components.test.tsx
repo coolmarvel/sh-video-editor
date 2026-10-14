@@ -1,4 +1,4 @@
-/** features/transitions 화면 부품: 갤러리(드래그 데이터·더블클릭), 레인의 전환 블록(위치·선택·길이 핸들), 인스펙터 탭. */
+/** features/transitions 화면 부품: 갤러리(드래그 데이터·더블클릭·Enter), 레인의 전환 블록(위치·선택·길이 핸들), 인스펙터 탭. */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useTimeline } from '@editor/features/timeline/store';
@@ -60,6 +60,12 @@ describe('TransitionGallery', () => {
     fireEvent.doubleClick(screen.getByRole('listitem', { name: /검정으로 페이드/ }));
     await flush();
     expect(engine.callsOf('sequence.applyVideoTransition').map((p) => p?.['effect'])).toEqual(['dip_to_black', 'dip_to_black']);
+    // 키보드(Enter·Space)도 더블클릭과 같다. 다른 키는 아무것도 하지 않는다
+    fireEvent.keyDown(screen.getByRole('listitem', { name: /밀기/ }), { key: 'Enter' });
+    await flush();
+    fireEvent.keyDown(screen.getByRole('listitem', { name: /밀기/ }), { key: 'a' });
+    await flush();
+    expect(engine.callsOf('sequence.applyVideoTransition').map((p) => p?.['effect'])).toEqual(['dip_to_black', 'dip_to_black', 'push', 'push']);
   });
 
   it('더블클릭 위치 토글은 aria-pressed 로 보인다', async () => {

@@ -1,7 +1,10 @@
 /**
  * 전환(M2-3) e2e: 미디어 패널의 "전환" 탭에서 갤러리 항목을 클립 경계로 끌어다 놓아 적용, 타임라인 전환 블록 선택,
  * 속성 패널 "전환" 탭에서 길이 변경, 더블클릭 적용. 1440 과 390 뷰포트에서 같은 흐름(playwright.config.ts).
+ * 390 폭에서는 끌어다 놓을 목표(둘째 클립)가 가로 스크롤 밖이라 드래그 경로가 불안정했다(과거 skip 2건). 거기서는 같은 편집점에
+ * 키보드로 넣는다: 둘째 클립 선택 -> 적용 위치 "앞" -> 카드에 포커스 -> Enter (TransitionGallery 의 onKeyDown, 더블클릭과 같은 store 경로).
  */
+import type { Page } from '@playwright/test';
 import { clickRuler, engineSequence, expect, makeDemoSequence, test, ui } from './fixtures';
 
 interface ShBridge {
@@ -40,6 +43,32 @@ async function twoClips(page: Parameters<typeof clickRuler>[0]): Promise<void> {
   await expect(ui.timeline(page).locator('.tl-clip[aria-selected="true"]')).toHaveCount(0);
 }
 
+/**
+ * 갤러리 항목을 첫째·둘째 클립 사이 편집점에 넣는다. 데스크톱 폭은 둘째 클립 머리로 끌어다 놓기(새 전환이 선택된다),
+ * 390 폭은 둘째 클립을 선택하고 "앞" 경계에 Enter 로 넣기(클립 선택이 남고 전환은 선택되지 않는다). 상태 줄 문구를 돌려준다.
+ */
+async function applyAtFirstCut(page: Page, project: string, name: RegExp): Promise<RegExp> {
+  const media = page.getByRole('region', { name: '미디어' });
+  const second = ui.videoClips(page).nth(1);
+  if (project === 'mobile-390') {
+    await second.click({ position: { x: 20, y: 20 } });
+    await expect(ui.status(page)).toHaveText('클립을 선택했습니다');
+    await media.getByRole('tab', { name: '전환' }).click();
+    await media.getByRole('toolbar', { name: '전환 적용 위치' }).getByRole('button', { name: '앞' }).click();
+    const card = media.getByRole('listitem', { name });
+    await expect(card).toBeEnabled();
+    await card.focus();
+    await page.keyboard.press('Enter');
+    return /1곳$/;
+  }
+  await media.getByRole('tab', { name: '전환' }).click();
+  const card = media.getByRole('listitem', { name });
+  await expect(card).toBeEnabled();
+  await second.scrollIntoViewIfNeeded();
+  await card.dragTo(second, { targetPosition: { x: 2, y: 10 } });
+  return /\d+프레임$/;
+}
+
 test.describe('전환', () => {
   test('미디어 패널의 전환 탭에 12종이 보이고 시퀀스가 없으면 비활성', async ({ app }) => {
     const media = app.getByRole('region', { name: '미디어' });
@@ -54,18 +83,11 @@ test.describe('전환', () => {
     await expect(media.getByRole('button', { name: '데모 영상' })).toBeVisible();
   });
 
-  test('갤러리에서 클립 경계로 끌어다 놓으면 1초 디졸브가 들어가고 블록이 그려진다', async ({ app }, testInfo) => {
-    // 390 폭에서는 드래그 목표(둘째 클립)가 가로 스크롤 밖이라 경로가 불안정하다. 데스크톱 폭에서만 검증(todo P3)
-    test.skip(testInfo.project.name === 'mobile-390', '좁은 뷰포트의 드래그 경로 불안정');
+  test('갤러리에서 클립 경계로 끌어다 놓으면(390 폭은 Enter) 1초 디졸브가 들어가고 블록이 그려진다', async ({ app }, testInfo) => {
     await twoClips(app);
-    const media = app.getByRole('region', { name: '미디어' });
-    await media.getByRole('tab', { name: '전환' }).click();
-    const card = media.getByRole('listitem', { name: /디졸브/ });
-    await expect(card).toBeEnabled();
-    const second = ui.videoClips(app).nth(1);
-    await second.scrollIntoViewIfNeeded();
-    await card.dragTo(second, { targetPosition: { x: 2, y: 10 } });
-    await expect(ui.status(app)).toHaveText(/전환 적용: 디졸브, \d+프레임/);
+    const mobile = testInfo.project.name === 'mobile-390';
+    const tail = await applyAtFirstCut(app, testInfo.project.name, /디졸브/);
+    await expect(ui.status(app)).toHaveText(new RegExp(`^전환 적용: 디졸브, ${tail.source}`));
     const { frameTicks } = await engineSequence(app);
     const nominal = Math.round(254_016_000_000 / frameTicks);
     const trs = await engineTransitions(app);
@@ -77,19 +99,20 @@ test.describe('전환', () => {
     expect(Math.round(trs[0]!.duration / frameTicks)).toBe(nominal);
     const block = ui.timeline(app).locator('.tl-transition');
     await expect(block).toHaveCount(1);
+    // 끌어다 놓기는 새 전환을 바로 선택한다. 키보드 적용은 클립 선택을 남기므로 블록을 눌러 선택한다
+    if (mobile) {
+      await expect(block).toHaveAttribute('aria-pressed', 'false');
+      await block.click();
+    }
     await expect(block).toHaveAttribute('aria-pressed', 'true');
     await expect(app.getByRole('region', { name: '속성' }).getByRole('tab', { name: '전환' })).toBeVisible();
     await app.screenshot({ path: testInfo.outputPath('transition-dropped.png') });
   });
 
   test('전환 블록을 선택하고 속성 패널에서 길이를 바꾼다', async ({ app }, testInfo) => {
-    // 390 폭에서는 드래그 목표(둘째 클립)가 가로 스크롤 밖이라 경로가 불안정하다. 데스크톱 폭에서만 검증(todo P3)
-    test.skip(testInfo.project.name === 'mobile-390', '좁은 뷰포트의 드래그 경로 불안정');
     await twoClips(app);
-    const media = app.getByRole('region', { name: '미디어' });
-    await media.getByRole('tab', { name: '전환' }).click();
-    await media.getByRole('listitem', { name: /밀기/ }).dragTo(ui.videoClips(app).nth(1), { targetPosition: { x: 2, y: 10 } });
-    await expect(ui.status(app)).toHaveText(/전환 적용: 밀기/);
+    await applyAtFirstCut(app, testInfo.project.name, /밀기/);
+    await expect(ui.status(app)).toHaveText(/^전환 적용: 밀기/);
     // 클립을 선택하면 전환 선택이 풀리고, 블록을 누르면 다시 선택된다
     await ui
       .videoClips(app)

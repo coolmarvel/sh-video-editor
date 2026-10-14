@@ -7,7 +7,7 @@ members = ["bindings/napi", "bindings/wasm"]  # crates/sh-* 가 생기면 "crate
 exclude = ["vendor"]
 
 [workspace.package]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 license = "UNLICENSED"
 publish = false

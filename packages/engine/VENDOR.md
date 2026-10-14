@@ -10,8 +10,9 @@
 
 - `Cargo.toml` 워크스페이스 멤버를 `crates/*`, `apps/filmcraft-cli`, `xtask` 로 줄이고 egui/eframe/rfd 의존 줄을 뺐다.
 - `crates/ui-egui`, `apps/filmcraft`, `apps/filmcraft-web`(egui 웹 러너), `docs/images`, `docs/brand`(ArtCraft 상표), `plan/` 은 복사하지 않았다.
-- `xtask` 의 `web`·`bench` 서브커맨드는 ui-egui 가 없어 동작하지 않는다. `ci`(fmt, clippy, test, assets, layers, wasm) 중 `wasm` 은
-  `WEB_CRATES` 가 ui-egui 를 가리키므로 손봐야 한다(todo P2).
+- `xtask` 의 `web`·`bench` 서브커맨드는 ui-egui 가 없어 동작하지 않는다. `ci`(fmt, clippy, test, assets, layers, wasm) 의 `wasm` 은
+  `WEB_CRATES` 를 비워 L0~L4(`filmcraft-engine` 까지)만 검사한다(2026-10-14, 상류는 ui-egui·filmcraft-web 포함). CI 에서는
+  `.github/workflows/ci.yml` 의 `vendor-ci` job 이 nightly·수동으로 돌린다(`docs/guides/testing.md`).
 - 커맨드 보강(2026-10-14, `docs/guides/engine-commands.md`): 우리 커맨드는 `crates/engine/src/sh_commands.rs`(+`sh_commands_tests.rs`)
   에 모아 `commands.rs` 의 `build()` 끝에서 등록한다. 상류 파일에 들어간 최소 수정: `crates/edit/src/lib.rs`(고아 전환 정리의 인접성,
   일반 트림 뒤 정리, `remove_transition`, `set_transition_span`), `crates/engine/src/lib.rs`(`History.transaction`, `validate_params`·

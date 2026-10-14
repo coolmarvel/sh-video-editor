@@ -12,6 +12,50 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - CI 워크플로, e2e 안정화, 커버리지 임계 (M4 품질, feat/ci-quality 병합)
+
+- **요청**: 로드맵 M4 의 품질 축. 다음 물결(webm-export, timestretch, wasm-perf)과 병렬로 진행.
+- **수정**:
+  - `.github/workflows/ci.yml`: lint-unit(prettier + 커버리지 임계 90/82/88/93) / engine(clippy, napi·wasm 빌드, cargo test,
+    엔진 기능 테스트, artifact) / typecheck / web(desktop-1440) / web-mobile(390, 실패 허용) / desktop(xvfb 스모크·e2e) /
+    vendor-ci(매일 03:00 KST `cargo xtask ci`) / windows-installer(dispatch, cargo-xwin + LLVM). GitHub 에서 첫 실행은 아직.
+  - 데스크톱 e2e 복구 테스트를 `recovery.spec.ts` 로 분리해 `app` 뒤 단독 실행. onCrashed 등록을 기다린 뒤 kill, 20초 상한 +
+    재kill 3회, 단계 로그.
+  - 웹 e2e: `SH_E2E_PORT` 없으면 빈 포트 자동 선택, retries CI 1/로컬 0, 390 폭 전환 2건은 드래그 대신 카드 Enter(`TransitionGallery`
+    키보드 경로 신규)로 skip 0건. `scripts/test-report.mjs`(`npm run test:report`) 층별 표.
+  - vendor xtask `wasm` 검사를 ui-egui 대신 L0~L4(filmcraft-engine)로(`engine(vendor):`). `docs/guides/testing.md` 신규.
+- **검증**(병합 뒤 main): prettier, typecheck, 단위 604(커버리지 93.4/84.7/91.4/96.3), 데스크톱 e2e app 5 + recovery 1(복구 1.2초),
+  웹 e2e transitions·usability·keyframes 38(두 뷰포트, skip 0). 병합 뒤 고친 것: 복구 테스트가 빨라져 크래시 전 토스트가 남아 둘이
+  되던 것은 `.last()`, 내보내기 프리셋 수는 엔진 응답 뒤라 `expect.poll`(부하 35 에서 0개로 실패). vendor `cargo xtask ci` 는 아래 줄.
+- **다음**: GitHub Actions 첫 실행 확인(wasm-pack 설치, wine 패키지명, rust-cache 시간), keyframes.spec 모바일 flaky 1건 관찰.
+
+## 2026-10-14 - 사용법 문서, 자동 자막, 캐시·웹 저장, 키프레임·스티커·템플릿, 엔진 커맨드 보강 (v0.1.4)
+
+- **요청**: "기능은 있는데 사용법이 없다", 로드맵·todo 를 마일스톤 단위로 계속.
+- **방법**: 워크트리 5개(usage-guide, stt-captions, cache-web, keyframes-templates, engine-commands) 병렬. 병합 순서 usage, stt, keyframes,
+  cache, engine-commands. 충돌은 bridge.ts·preload·renderer·fake-bridge 의 줄 추가(STT 호스트 + 캐시 인터페이스 + 키프레임 가짜 파라미터).
+- **수정**:
+  - 사용법: docs/guides/usage.md(383줄, 단축키 표는 keymap.ts 에서 생성해 테스트로 대조), README 기능·시작하기, 앱 도움말 > 사용 안내가
+    같은 문서를 ?raw 로 번들(자체 마크다운 렌더러). 화면에 남은 "시퀀스" 문구 6곳 정리.
+  - M2-2 자동 자막: napi 에 whisper·download feature(stt), 바인딩 downloadSpeechModel·transcribeItem(libuv 스레드, 진행률·취소),
+    자막 탭 "자동 자막"(모델 동의 대화상자, 첫 사용 때 내려받기, 줄당 글자·최소 시간, 군말·무음 정리). whisper-base 기본(293MB,
+    한국어 CER 32%, 재생 시간의 1/4). Windows 크로스 빌드 candle 포함 성공. 웹은 데스크톱 전용 안내.
+  - M2-8 캐시: 데스크톱 node:sqlite(cache.sqlite, 썸네일·피크·최근 프로젝트, ADR-0004), 웹 IndexedDB. 웹 저장(OPFS + 내 컴퓨터로 받기)·
+    열기·자동 저장 30초·복구·미디어 재연결·내보내기 다운로드. 파일 메뉴 최근 프로젝트, 첫 화면 최근 목록.
+  - M3: 모션 탭(위치·크기·회전·불투명도 키프레임, 보간, 마커, 모니터 변형 상자, 등장·퇴장 프리셋 6종), 스티커 20종(자체 SVG,
+    PNG 래스터로 배치), 템플릿 4종(레시피). Lottie 는 이식 전.
+  - 엔진(vendor, crates/engine/src/sh_commands.rs): sequence.removeTransition·setTransitionLength, effects.move·bypass·keyframes,
+    edit.beginTransaction/endTransaction/cancelTransaction/transaction, lumetri.applyPreset replace, clip.enable/link linked,
+    timeline.trim linked, easeInOut, 입력 검증(비객체·시각 정수·없는 clip id), 잘린 mp4 경고, 리버스 디코드 시각, inspect 효과 값 JSON.
+    화면 transitions/ratio/text/onboarding 이 새 커맨드·withTransaction 사용. 커맨드 685개.
+  - 한 열 배치(900px 이하) 미리보기 행 max-content(이동 툴바 잘림 수정), 미디어 패널 높이 32vh 고정(auto 행에서 flex:1 인
+    미디어 목록이 0 높이가 되어 모바일 e2e 3건이 항목을 못 누르던 문제), 엔진 재시작 뒤 화면 복구(onEngineRestart).
+  - 웹 e2e 를 새 엔진 모양에 맞춤: 효과 값은 JSON(`[100, 540]`), 화면 비율은 트랜잭션이라 실행 취소 한 번.
+- **검증**: typecheck, prettier, clippy, 단위 604, 엔진 기능 143(expected fail 0), 웹 e2e 119 통과(데스크톱 1440 + 모바일 390, skip 3:
+  모바일 전환 드래그 2 + 데스크톱 전용 1), 데스크톱 e2e 4 + 스모크, Windows 엔진 재빌드(sh-video-engine 0.1.4). 인스톨러 0.1.4 바탕화면.
+- **다음**: M3 잔여(WebM 인코더 이식, 타임스트레치, 음성 정리 고도화, Lottie), M4(wasm 성능·WebCodecs, 실매체 코퍼스 확대, CI), 사용자
+  템플릿 저장, 전환 params JSON 화.
+
 ## 2026-10-14 - 마일스톤 2 병합 + 두 번째 피드백 반영 (v0.1.3)
 
 - **요청**: 로드맵·todo 를 마일스톤 단위로 전부 구현하고 마일스톤마다 검증. 두 번째 Windows 설치본 피드백(사용법 모름, "시퀀스" 용어,

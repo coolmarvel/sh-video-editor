@@ -65,17 +65,17 @@ Chrome 에서 같은 결과. 상세는 `docs/brief.md`, 스택은 ADR-0002, 엔�
 
 ## 문서 인덱스 (docs/)
 
-| 파일                     | 용도                                                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `docs/writing-guide.md`  | **문서 지배 규칙** (SSOT·frontmatter·코드 1:1 대조). 문서 쓰기 전 필독                                        |
-| `docs/brief.md`          | 프로젝트 **왜/무엇 SSOT**: 킥오프 산출물                                                                      |
-| `docs/session-log.md`    | 세션별 진행 이력. **"언제 무슨 일" SSOT** (최신이 위)                                                         |
-| `docs/todo.md`           | 미해결·향후 작업만 (P1~P4). 완료분은 session-log 로                                                           |
-| `docs/changelog.md`      | 릴리스 단위 사람용 요약                                                                                       |
-| `docs/adr/*.md`          | 구조적 결정 기록 - 0001 하네스, 0002 스택, 0003 엔진 이식·라이선스                                            |
-| `docs/plans/*.md`        | 앞으로 만들 것 - 0001 MVP 마일스톤 (역할 구분은 `plans/README.md`)                                            |
-| `docs/guides/*.md`       | 현재 구현된 동작·코드 위치 - `usage.md` 사용법 SSOT(앱 도움말에 번들), `packaging.md` 인스톨러, `timeline.md` |
-| `docs/feedback-archive/` | 처리 완료한 사용자 피드백 보관소                                                                              |
+| 파일                     | 용도                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/writing-guide.md`  | **문서 지배 규칙** (SSOT·frontmatter·코드 1:1 대조). 문서 쓰기 전 필독                                                             |
+| `docs/brief.md`          | 프로젝트 **왜/무엇 SSOT**: 킥오프 산출물                                                                                           |
+| `docs/session-log.md`    | 세션별 진행 이력. **"언제 무슨 일" SSOT** (최신이 위)                                                                              |
+| `docs/todo.md`           | 미해결·향후 작업만 (P1~P4). 완료분은 session-log 로                                                                                |
+| `docs/changelog.md`      | 릴리스 단위 사람용 요약                                                                                                            |
+| `docs/adr/*.md`          | 구조적 결정 기록 - 0001 하네스, 0002 스택, 0003 엔진 이식·라이선스                                                                 |
+| `docs/plans/*.md`        | 앞으로 만들 것 - 0001 MVP 마일스톤 (역할 구분은 `plans/README.md`)                                                                 |
+| `docs/guides/*.md`       | 현재 구현된 동작·코드 위치 - `usage.md` 사용법 SSOT(앱 도움말에 번들), `packaging.md` 인스톨러, `testing.md` 테스트, `timeline.md` |
+| `docs/feedback-archive/` | 처리 완료한 사용자 피드백 보관소                                                                                                   |
 
 ## 자주 쓰는 명령
 
@@ -87,6 +87,11 @@ npm run dev:web                   # http://localhost:5174 (엔진은 Worker 의 
 npm run verify                    # 전체 검증 (변경 후 자동 규칙 2)
 npm run check:engine              # cargo check (빠른 엔진 확인)
 npm run smoke -w apps/desktop     # 빌드된 Electron 을 xvfb 로 띄워 엔진 응답 확인
+npm run test:unit                 # 화면 단위 테스트(vitest, jsdom). 커버리지 임계는 test:unit:coverage
+npm run test:engine               # 엔진 기능 테스트(빌드된 .node·wasm 을 Node 에서, ffmpeg 오라클)
+npm run test:e2e:web              # 웹 e2e(Playwright chromium, 1440·390). 포트는 자동, 고정은 SH_E2E_PORT
+npm run test:e2e:desktop          # 데스크톱 빌드 + xvfb e2e(app 뒤 recovery 프로젝트)
+npm run test:report               # 층별 테스트 수·시간 표(session-log 용). 층·전제는 docs/guides/testing.md
 npm run dist:win                  # Windows 인스톨러 (release/)
 cd packages/engine/vendor/filmcraft && cargo xtask ci   # 이식 엔진 자체 CI
 cd packages/engine/vendor/filmcraft && cargo run -p filmcraft-cli -- commands   # 헤드리스로 커맨드 목록

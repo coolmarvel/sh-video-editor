@@ -14,7 +14,8 @@ const EDGES: Array<{ id: ApplyEdges; label: string; title: string }> = [
 
 /**
  * 전환 갤러리(미디어 패널의 "전환" 탭). 항목을 타임라인 클립 경계로 끌어다 놓거나(dnd.ts TRANSITION_MIME),
- * 더블클릭해 선택한 클립의 경계에 넣는다. 모든 적용은 store 를 거쳐 엔진 커맨드로 간다.
+ * 더블클릭(또는 카드에 포커스를 두고 Enter·Space)해 선택한 클립의 경계에 넣는다. 키보드 경로는 끌어다 놓기가 어려운
+ * 좁은 화면·보조기기용이며 더블클릭과 같은 동작이다. 모든 적용은 store 를 거쳐 엔진 커맨드로 간다.
  */
 export function TransitionGallery() {
   const seq = useTimeline((s) => s.sequence);
@@ -53,10 +54,15 @@ export function TransitionGallery() {
             className="ve-transition-card"
             draggable
             disabled={!seq || busy}
-            title={`${t.label}: 클립 경계로 끌어다 놓거나 더블클릭`}
+            title={`${t.label}: 클립 경계로 끌어다 놓거나 더블클릭(Enter)`}
             data-transition={t.id}
             onDragStart={(e) => onDragStart(e, t.id)}
             onDoubleClick={() => void useTransitions.getState().applyToSelectedClips(t.id)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              void useTransitions.getState().applyToSelectedClips(t.id);
+            }}
           >
             <TransitionIcon id={t.id} />
             <span className="ve-transition-card__label">{t.label}</span>
@@ -67,7 +73,7 @@ export function TransitionGallery() {
         {!seq
           ? '타임라인에 클립을 넣으면 전환을 넣을 수 있습니다.'
           : hasSelection
-            ? '더블클릭하면 선택한 클립의 경계에 넣습니다.'
+            ? '더블클릭(또는 Enter)하면 선택한 클립의 경계에 넣습니다.'
             : '클립 경계로 끌어다 놓으세요.'}
       </p>
     </div>

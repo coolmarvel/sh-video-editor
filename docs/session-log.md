@@ -12,6 +12,29 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - 첫 Windows 피드백 반영 + 테스트 3층 + 로드맵 (v0.1.2)
+
+- **피드백**(`docs/feedback-archive/2026-10-14-first-windows-run/`): 설치본이 Windows 에서 엔진까지 기동 확인. 요청: 아이콘, 메뉴 하나로,
+  영역 크기 조절, Ctrl+Z 등 단축키 점검, 배속 재생, "FilmCraft Demo" 제거. 추가 요청: 다음 단계 진행, 단위·기능·e2e 테스트, 엔진 개선·경쟁 제품
+  기능 적극 반영. printWidth 는 160 으로 결정(사용자).
+- **방법**: feat/* 워크트리 5개(아이콘, 스플리터, 단축키·메뉴·배속, 테스트, 로드맵 문서)에 에이전트 병렬. 충돌은 App.tsx 와 설정 3개뿐.
+- **수정**:
+  - 아이콘(apps/desktop/build/icon.svg, `npm run icons` 로 ico/png/favicon 생성, sharp 로 ICO 직접 조립). exe·인스톨러·창·웹 favicon 적용.
+  - 스플리터(features/layout): 미디어 200px~60%, 타임라인 120px~70%, 키보드·더블클릭 기본값, localStorage 복원. DESIGN.md 4.16.
+  - 단축키 관리자(features/shortcuts/keymap.ts 한 곳) + 큐레이션 한국어 메뉴(menu-def.ts, Ctrl 표기, 라벨 색·Demo Project 제외) +
+    배속 재생(0.25~4x, J/K/L 셔틀, 역재생) + Electron 기본 메뉴 제거(Menu.setApplicationMenu(null)) + "제목 없음" 표시.
+  - 테스트: 단위 240(vitest, 가짜 EngineBridge, 커버리지 순수 모듈 98%), 엔진 기능 36(실제 .node 와 wasm, 내보내기·저장·복구·적대 입력),
+    e2e 웹 18(1440·390), e2e 데스크톱 4(Electron+xvfb, 엔진 강제 종료 복구). `npm run test` = rust+unit+engine, `test:all` 에 e2e.
+  - 테스트가 드러낸 결함 수정: formatTimecode 경계 오차, rulerStep 24·25fps 눈금, pause 뒤 배율 표시, Scrubber aria.
+    엔진 입력 검증 느슨함 2건은 it.fails 로 남김(todo P3).
+  - docs/plans/0002-feature-roadmap.md: 참조 제품 8종 조사, 엔진 갭, 마일스톤 2~4 상세, 결정 필요 목록.
+  - prettier printWidth 160, Windows 엔진 cargo-xwin 경로를 build:win:xwin 으로 정리.
+- **검증**: unit 240 통과, engine 36 통과(+2 expected fail), e2e 웹 18 통과(메뉴 한글화에 맞게 1건 갱신), e2e 데스크톱 4 통과(강제 종료 복구
+  테스트는 CPU 경합 중 1회 120초 타임아웃, 단독·재실행 통과: todo P3 안정화). `npm run verify`, 스모크, Playwright 1440·390 확인.
+  Linux·Windows 엔진 재빌드(0.1.2), 인스톨러 SH-Video-Editor-Setup-0.1.2.exe 바탕화면 교체.
+- **다음**: 마일스톤 2 병렬 착수(텍스트·자막, 전환, 효과·필터, 속도, 오디오 재생·배경음악, 비율·SNS 프리셋) + 엔진 개선(실매체 호환, HW 디코드,
+  이벤트 통합·썸네일). 결정 필요: 한글 글꼴(Pretendard 로 진행), 음악 출처(CC0), Whisper 모델 배포 방식.
+
 ## 2026-10-14 - 마일스톤 1 병렬 구현 병합 (v0.1.1)
 
 - **요청**: 여러 에이전트로 병렬 작업, GitHub 는 private 으로 푸시, 끝나면 병합·검증·바탕화면 인스톨러.

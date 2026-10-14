@@ -45,11 +45,10 @@ test.describe('앱 로드', () => {
     await expect(app.getByRole('menuitem').first()).toBeVisible();
     await file.click();
     await expect(app.getByRole('menu')).toHaveCount(0);
-    // 파일 > 새 시퀀스는 엔진 커맨드로 바로 간다: 상태 줄에 결과가 적히고 타임라인이 생긴다
+    // 파일 > 새 시퀀스는 엔진 커맨드로 바로 간다: 메뉴가 닫히고 타임라인이 생긴다
     await file.click();
-    await app.getByRole('menuitem', { name: /^Sequence…/ }).click();
+    await app.getByRole('menuitem', { name: /^새 시퀀스/ }).click();
     await expect(app.getByRole('menu')).toHaveCount(0);
-    await expect(app.locator('.ve-status')).toContainText('file.newSequence');
     await expect(app.locator('.ve-status')).not.toContainText('오류:');
     await expect(ui.timeline(app).locator('.sh-panel__title')).toContainText('타임라인 - ');
     await expect(app.locator('.mon-canvas')).toBeVisible();

@@ -38,6 +38,7 @@ export const KEYMAP: ShortcutDef[] = [
   { id: 'play.stepForward5', keys: ['Shift+Right'], label: '5프레임 앞으로', scope: 'monitor' },
   { id: 'play.start', keys: ['Home'], label: '처음으로', scope: 'monitor' },
   { id: 'play.end', keys: ['End'], label: '끝으로', scope: 'monitor' },
+  { id: 'audio.toggleMute', keys: ['M'], label: '소리 끄기, 켜기', scope: 'monitor' },
   { id: 'clip.razor', keys: ['Ctrl+K'], label: '플레이헤드에서 자르기', scope: 'timeline' },
   { id: 'clip.razorAll', keys: ['Ctrl+Shift+K'], label: '모든 트랙 자르기', scope: 'timeline' },
   { id: 'clip.speed', keys: ['Ctrl+R'], label: '속도, 길이', scope: 'timeline' },

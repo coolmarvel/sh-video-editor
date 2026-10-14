@@ -11,6 +11,8 @@ import { monitorController } from '../monitor/registry';
 import { useProject } from '../project/store';
 import { useTimeline } from '../timeline/store';
 import { useShortcutsUi } from './store';
+import { useAudio } from '../audio/store';
+import { applyDucking, applyFade } from '../audio/ducking';
 
 type Params = Record<string, unknown>;
 
@@ -95,6 +97,41 @@ function monitor() {
   return monitorController();
 }
 
+/** 선택한 음성 클립의 첫 번째. 없으면 상태 줄에 안내 */
+function selectedAudioClip(): { seq: NonNullable<ReturnType<typeof useTimeline.getState>['sequence']>; clip: number } | null {
+  const seq = useTimeline.getState().sequence;
+  const clip = seq?.selection.find((id) => seq.audio.some((t) => t.items.some((c) => c.clip === id)));
+  if (!seq || clip === undefined) {
+    useEditor.setState({ status: '음성 트랙의 클립을 먼저 선택하세요' });
+    return null;
+  }
+  return { seq, clip };
+}
+
+async function audioFade(edge: 'in' | 'out'): Promise<void> {
+  const bridge = useEditor.getState().bridge;
+  const sel = selectedAudioClip();
+  if (!bridge || !sel) return;
+  try {
+    await applyFade(bridge, sel.seq, sel.clip, edge, 1);
+    await refreshAll(`페이드 ${edge === 'in' ? '인' : '아웃'} 1초를 걸었습니다`);
+  } catch (e) {
+    useEditor.setState({ error: `페이드를 걸 수 없습니다: ${message(e)}` });
+  }
+}
+
+async function audioDuck(): Promise<void> {
+  const bridge = useEditor.getState().bridge;
+  const sel = selectedAudioClip();
+  if (!bridge || !sel) return;
+  try {
+    const r = await applyDucking(bridge, sel.seq, sel.clip);
+    await refreshAll(`음성 구간 ${r.triggers}개를 찾아 키프레임 ${r.keyframes}개를 만들었습니다`);
+  } catch (e) {
+    useEditor.setState({ error: `자동 낮춤을 만들 수 없습니다: ${message(e)}` });
+  }
+}
+
 /** 선택한 클립의 켜짐·연결 상태를 바꾼 뒤 보여 줄 문구 */
 const TOGGLE_LABEL: Record<string, string> = {
   'clip.enable': '클립 켜짐 상태를 바꿨습니다',
@@ -161,6 +198,10 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'play.end': () => monitor()?.goToEnd(),
   'play.rate': (p) => monitor()?.setRate(Number(p?.['rate'] ?? 1)),
   'help.about': () => useShortcutsUi.getState().setAboutOpen(true),
+  'audio.toggleMute': () => useAudio.getState().toggleMuted(),
+  'audio.fadeIn': () => audioFade('in'),
+  'audio.fadeOut': () => audioFade('out'),
+  'audio.duck': audioDuck,
 };
 
 /** 동작 id 를 실행한다. 표에 없으면 엔진 커맨드로 본다 */

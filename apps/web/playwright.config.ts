@@ -5,7 +5,8 @@
  */
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4175;
+// 다른 작업 트리의 e2e 와 겹치지 않게 포트를 바꿀 수 있다: SH_E2E_PORT=4185 npx playwright test ...
+const PORT = Number(process.env['SH_E2E_PORT'] ?? 4175);
 
 export default defineConfig({
   testDir: './e2e',

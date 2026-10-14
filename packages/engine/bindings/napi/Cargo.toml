@@ -27,6 +27,7 @@ crate-type = ["cdylib"]
 [dependencies]
 filmcraft-engine = { workspace = true }
 filmcraft-time = { workspace = true }
+filmcraft-audio-dsp = { workspace = true }
 serde_json = { workspace = true }
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"

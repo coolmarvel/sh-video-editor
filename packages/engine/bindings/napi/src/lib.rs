@@ -11,6 +11,10 @@ use filmcraft_time::Tick;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
+/// 오디오 미리듣기·파형. wasm 바인딩과 같은 파일(bindings/shared/audio.rs).
+#[path = "../../shared/audio.rs"]
+mod audio;
+
 /// 이식한 기반 엔진의 출처·버전. 바인딩 버전은 `CARGO_PKG_VERSION`.
 pub const BASE_ENGINE: &str = "filmcraft 0.2.1";
 
@@ -140,6 +144,20 @@ impl Engine {
         let img = self.session.render_program_at(scale as f32, Tick(tick))?;
         let (w, h) = (u32::try_from(img.w).ok()?, u32::try_from(img.h).ok()?);
         Some(Frame { width: w, height: h, rgba: Buffer::from(img.over_black_rgba8()) })
+    }
+
+    /// 활성 시퀀스의 믹스를 `tick` 부터 `frames` 프레임, interleaved 스테레오 f32 PCM 으로(길이 `frames * 2`).
+    /// `sample_rate` 기본 48000(시퀀스 레이트와 다르면 리샘플). 시퀀스가 없으면 무음. 한 번에 최대 10초.
+    #[napi]
+    pub fn render_audio(&self, tick: i64, frames: u32, sample_rate: Option<u32>) -> Float32Array {
+        Float32Array::new(audio::render_audio(&self.session, tick, frames as usize, sample_rate.unwrap_or(audio::DEFAULT_SAMPLE_RATE)))
+    }
+
+    /// 미디어 항목 `item` 의 파형: 초당 `per_second` 칸의 min/max 피크(interleaved `[min, max]`). 소리가 없으면 빈 배열.
+    #[napi]
+    pub fn audio_peaks(&self, item: i64, per_second: u32) -> Float32Array {
+        let Ok(item) = u64::try_from(item) else { return Float32Array::new(Vec::new()) };
+        Float32Array::new(audio::audio_peaks(&self.session, item, per_second))
     }
 
     /// 엔진 이벤트(토스트·오류·진행률)를 비워 JSON 배열로.

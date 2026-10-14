@@ -145,7 +145,7 @@ domain: development
   - (b) features/speed: 속도 슬라이더(0.1x~10x)·리버스 토글·"이 프레임 고정" 버튼. 속도 램프 곡선은 M3
   - (c) 2배속 후 내보내기 길이가 절반, 리버스 첫 프레임이 원본 마지막 프레임
   - (d) S
-- [ ] **M2-6 오디오 재생·배경음악·덕킹**
+- [x] **M2-6 오디오 재생·배경음악·덕킹** (2026-10-14 feat/audio: 바인딩 renderAudio·audioPeaks, features/audio 재생기·인스펙터 탭·파형·음악 탭. 외부 CC0 음원 조달은 미정)
   - (a) 바인딩 신규 `renderAudio(tick, frames)`(믹스 결과 f32 PCM). 데스크톱은 렌더러 AudioWorklet 이 MessagePort 로 받음, 웹은 Worker -> AudioWorklet. `clip.audioGain`, `essentialSound.setType`(dialogue·music), `essentialSound.generateDucking`, `sequence.applyAudioTransition`(constant_power)
   - (b) features/audio: 볼륨 슬라이더·페이드 인/아웃 핸들·"음성 구간 자동 낮춤" 버튼, 파형(`clip.generateAudioWaveform`), 음악 라이브러리 패널(5절 조달)
   - (c) 재생 중 A/V 드리프트 1초에 1프레임 이하, 덕킹 적용 후 음성 구간 음악 -12dB(`loudness_radar` 또는 ffmpeg ebur128)

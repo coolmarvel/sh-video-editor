@@ -16,6 +16,8 @@ export type EngineMethod =
   | 'setPlayhead'
   | 'pumpJobs'
   | 'renderFrame'
+  | 'renderAudio'
+  | 'audioPeaks'
   | 'isDirty'
   | 'startAutosave'
   | 'pollPersistence'

@@ -7,6 +7,7 @@ import type { HostKind } from '../../App';
 import { DEMO_SCENES } from '../media/types';
 import { PLAYBACK_RATES, useMonitor } from '../monitor/store';
 import { useTimeline } from '../timeline/store';
+import { useAudio } from '../audio/store';
 
 export interface MenuItemDef {
   kind: 'item';
@@ -94,6 +95,10 @@ export const MENUS: MenuDef[] = [
       sep,
       item('켜기, 끄기', 'clip.enable', { enabledBy: 'clip.enable' }),
       item('영상, 소리 연결, 연결 해제', 'clip.link', { enabledBy: 'clip.link' }),
+      sep,
+      item('소리 페이드 인(1초)', 'audio.fadeIn', { enabledBy: 'sequence.applyAudioTransition' }),
+      item('소리 페이드 아웃(1초)', 'audio.fadeOut', { enabledBy: 'sequence.applyAudioTransition' }),
+      item('음성 구간 자동 낮춤(덕킹)', 'audio.duck', { enabledBy: 'essentialSound.generateDucking' }),
     ],
   },
   {
@@ -124,6 +129,7 @@ export const MENUS: MenuDef[] = [
       item('뒤로 재생', 'play.shuttleBack'),
       item('정지', 'play.stop'),
       item('앞으로 재생', 'play.shuttleForward'),
+      item('소리 끄기, 켜기', 'audio.toggleMute', { checked: () => useAudio.getState().muted }),
       {
         kind: 'sub',
         label: '재생 배율',

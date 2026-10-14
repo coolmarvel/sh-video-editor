@@ -31,6 +31,8 @@ export interface NapiEngine {
   setPlayhead(tick: number): void;
   pumpJobs(budgetMs: number): boolean;
   renderFrame(tick: number, scale: number): { width: number; height: number; rgba: Buffer } | null;
+  renderAudio(tick: number, frames: number, sampleRate?: number | null): Float32Array;
+  audioPeaks(item: number, perSecond: number): Float32Array;
   drainEvents(): string;
 }
 
@@ -74,6 +76,8 @@ export interface WasmEngine {
   setPlayhead(tick: bigint): void;
   pumpJobs(budgetMs: number): boolean;
   renderFrame(tick: bigint, scale: number): Uint8Array;
+  renderAudio(tick: bigint, frames: number, sampleRate?: number): Float32Array;
+  audioPeaks(item: number, perSecond: number): Float32Array;
   putFile(path: string, data: Uint8Array): void;
   removeFile(path: string): boolean;
   takeWrittenFile(path: string): Uint8Array | undefined;

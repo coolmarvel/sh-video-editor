@@ -21,6 +21,20 @@ export interface ClipInfo {
   enabled: boolean;
   /** 영상·음성이 연결된 클립끼리 같은 link id */
   link: number | null;
+  /** 클립 게인(dB). 음성 클립만 뜻이 있다(features/audio) */
+  gainDb?: number;
+  /** 역재생 클립 */
+  reverse?: boolean;
+}
+
+/** 트랙 트랜지션(inspect 의 transitions). 오디오 페이드는 from 또는 to 한쪽만 있는 전환이다(features/audio) */
+export interface TransitionInfo {
+  id: number;
+  effect: string;
+  start: number;
+  duration: number;
+  from: number | null;
+  to: number | null;
 }
 
 export interface TrackInfo {
@@ -32,6 +46,7 @@ export interface TrackInfo {
   muted: boolean;
   solo: boolean;
   syncLock: boolean;
+  transitions?: TransitionInfo[];
 }
 
 export interface FrameRate {

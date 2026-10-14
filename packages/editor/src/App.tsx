@@ -12,6 +12,8 @@ import { ProjectStatus } from './features/project/ProjectStatus';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
 import { InspectorPanel } from './features/inspector';
 import { useShortcuts } from './features/shortcuts';
+// 오디오 탭·음악 탭 등록(레지스트리 방식). 재생기는 모니터 툴바의 AudioToolbar 가 띄운다
+import './features/audio';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';

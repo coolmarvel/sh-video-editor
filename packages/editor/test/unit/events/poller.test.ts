@@ -11,6 +11,7 @@ import { useMonitor } from '@editor/features/monitor/store';
 import { useProject } from '@editor/features/project/store';
 import { FT30, FakeEngine, engineWithClips } from '../../fake-bridge';
 import { connect, resetStores } from '../../stores';
+import { neededRevision } from '../../../src/features/events/revision-gate';
 
 const ev = () => useEngineEvents.getState();
 let pollers: EnginePoller[] = [];
@@ -230,7 +231,10 @@ describe('onRestart (데스크톱 엔진 재시작)', () => {
     const before = ev();
     p.onRestart();
     const after = ev();
-    expect(after.revision).toBe(0);
+    // "모름"(-1): 구독자의 neededRevision 이 undefined 가 되어 크래시 전 revision 을 가진 store 도 반드시 다시 읽는다
+    expect(after.revision).toBe(-1);
+    expect(neededRevision(after.revision, before.revision)).toBeUndefined();
+    expect(neededRevision(after.revision, -1)).toBeUndefined();
     expect(after.openedSequence).toBeNull();
     expect(after.projectChanged).toBe(before.projectChanged + 1);
     expect(after.sequenceChanged).toBe(before.sequenceChanged + 1);

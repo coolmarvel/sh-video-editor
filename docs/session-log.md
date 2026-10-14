@@ -12,6 +12,23 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - 크래시 리포트, 워크플로 회귀, 한글 라벨, 이벤트·썸네일 정리 (M4, feat/ops-quality 병합, v0.1.6)
+
+- **수정**:
+  - M4-6: 엔진 utility process 가 비정상 종료하면 `<userData>/crash-reports/<일시>.json`(종료 코드·시그널, 앱·엔진 버전, OS, 마지막 커맨드
+    20개 + 편집 커맨드 20개 링 버퍼, 메모리). 토스트 "문제 보고 파일을 남겼습니다" + 폴더 열기, 도움말 > 문제 보고 폴더 열기. 서버 전송 없음.
+  - M4-1: `scripts/workflow-regression.mjs`(filmcraft-cli run: 데모 3클립, 자르기, 자막, 음악, 전환, 720p 내보내기 뒤 ffprobe 검사, 약 20초)를
+    `npm test`(verify) 에 포함, CI engine job 에도. `.mcp.json` 에 `filmcraft`(CLI 없으면 비활성 안내).
+  - M4-9: `features/i18n/labels.ko.ts` 커맨드 253 + 히스토리 161 + 효과 이름 15. 메뉴 경로가 있는 커맨드의 누락 0 을 엔진 테스트가 강제.
+    실행 취소·다시 실행 상태 줄이 한글.
+  - M4-8: `RevisionGate` 로 커맨드 뒤 직접 읽기와 폴러 이벤트 읽기가 겹치지 않게(sequence.inspect 9 에서 6, project.inspect 7 에서 4).
+    vendor `sequence.inspect` 에 `revision`. M4-7: Graphic 내부 항목 숨김, 텍스트·도형 클립은 썸네일 대신 아이콘.
+  - 병합 뒤 복구 회귀: 데스크톱 이벤트에 revision 이 없어 useEngineEvents.revision 이 -1 인 채로 재시작 때 0 이 되면 need=0 이 되고
+    크래시 전 revision 을 가진 store 가 읽기를 건너뛰어 옛 편집본이 남았다. 재시작 revision 을 -1("모름")로 바꿔 반드시 다시 읽게 함.
+- **병합 뒤 검증(v0.1.6, main)**: prettier, typecheck, clippy, 단위 685(커버리지 임계 유지), 엔진 기능 170(napi + wasm), 워크플로 회귀 13초,
+  웹 e2e 143 통과(skip 1, 9.8분. 클립 메뉴 항목 2개 추가로 기대값 갱신), 데스크톱 e2e 6 + 스모크(686 커맨드), vendor `cargo xtask ci`
+  (frame pool 테스트의 전역 reused 카운터 기대를 하한으로). Windows 엔진 0.1.6 크로스 빌드, 인스톨러 0.1.6 바탕화면(0.1.5 제거).
+
 ## 2026-10-14 - 오디오 정리·전사 편집, 속도 램프·크로마키·PIP·흔들림, HEVC (feat/audio-cleanup, motion-fx, hevc-export 병합, v0.1.6)
 
 - **요청**: 로드맵 M3 잔여(M3-2, M3-3, M3-5 HEVC, M3-7, M3-8, M3-9)와 M4 운영 품질을 워크트리 4개로 병렬.

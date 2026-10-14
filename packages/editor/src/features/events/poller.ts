@@ -80,8 +80,10 @@ export class EnginePoller {
    */
   onRestart(info: EngineRestartInfo = { exitCode: null, report: null }): void {
     this.fallbackRevision = -1;
+    // revision 은 "모름"(-1)으로: 0 으로 두면 이벤트 revision 을 한 번도 못 받은 호스트(-1)에서 0 > -1 이라 need=0 이 되고, 크래시 전
+    // 읽기(revision 4 등)를 가진 store 가 그 읽기를 건너뛰어 옛 편집본이 화면에 남는다(2026-10-15 데스크톱 복구 e2e)
     useEngineEvents.setState((s) => ({
-      revision: 0,
+      revision: -1,
       projectChanged: s.projectChanged + 1,
       openedSequence: null,
       sequenceChanged: s.sequenceChanged + 1,

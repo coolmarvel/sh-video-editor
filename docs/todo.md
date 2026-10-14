@@ -16,11 +16,13 @@ domain: development
 - [ ] 전환 params 도 JSON 모양으로(지금은 serde 태그), 전환 길이를 소스 핸들로 제한 (`vendor/.../sh_commands.rs`)
 - [ ] 키프레임 store 를 effects.keyframes 조회로 바꾸고 stale 추정 로직 제거 (`features/keyframes/store.ts`)
 - [ ] whisper-small 이 짧은 파일의 둘째 30초 창을 건너뜀 (vendor `speech/whisper` nospeech 임계) / 웹 STT(putModel·OPFS)
-- [ ] 미디어 패널에서 텍스트 클립의 내부 Graphic 항목 숨기기 (`features/media/types.ts`)
 - [ ] 웹 Worker 에 파일 등록 경로(`Engine.putFile`, Blob range reader) 연결, OPFS 복구 (`apps/web/src/engine.worker.ts`)
 
 ## P2 - 가까운 로드맵
 
+- [ ] 데스크톱 drainEvents 의 projectChanged 에 revision 이 없어(useEngineEvents.revision 이 -1 로 남음) RevisionGate 중복 제거가 데스크톱에서는 작동하지 않음. 웹(wasm)만 효과. engine-host 또는 napi 이벤트 JSON 에 revision 을 싣기 (`apps/desktop/src/engine-host`, `packages/engine/bindings/napi`)
+- [ ] 크래시 보고에 `history.list` 스냅샷(engine-host 가 주기적으로 main 에 보내야 함)과 패키지본 productName (`apps/desktop/src/main/crash-report.ts`)
+- [ ] 스모크(`SH_SMOKE`)가 실제 userData 에 crash-reports 파일을 남김. 스모크 때는 crashDir 비우기 (`apps/desktop/src/main/engine-supervisor.ts`)
 - [ ] VP9·HEVC 인코더가 단일 스레드라 1080p 는 4 fps·2.3 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`, `crates/hevcenc`)
 - [ ] 흔들림 줄이기 분석을 엔진 잡(`jobs.*`)으로 빼서 진행률·취소 (지금은 첫 renderFrame 안에서 동기, wasm 16초 클립 40~50초) (`vendor/.../render`, `features/motion-fx`)
 - [ ] 장면마다 자르기 진행률(`clip.sceneEditDetection wait:true` 동기) (`features/audio/cleanup.ts`)
@@ -31,8 +33,6 @@ domain: development
 - [ ] wasm 14.2MB 에서 12MB 로: interchange(AAF/OMF/FCPXML/OTIO 0.7MB)·image(tiff/gif/webp 0.5MB)·symphonia(0.4MB)·코덱 feature(1MB) 분리 (`docs/guides/wasm-performance.md`)
 - [ ] 웹 글꼴 5.2MB 가 매 시작마다 fetch(브라우저 캐시 의존). Service Worker 또는 OPFS 캐시 (`apps/web/src/fonts.ts`)
 - [ ] 데모 영상 생성기(`media/src/generators.rs` 픽셀별 fbm)가 wasm renderFrame 의 150ms 를 차지. 프레임 캐시 또는 저해상도 생성
-- [ ] 메뉴·커맨드 라벨 한글화 (`packages/editor/src/shell/MenuBar.tsx`, 엔진 `commands.rs` 의 label)
-- [ ] filmcraft-cli `mcp` 를 `.mcp.json` 에 등록해 에이전트가 헤드리스로 엔진을 검증하게
 - [ ] 편집기 전용 부품(타임라인 클립, 스크러버, 트랙 헤더) 계약을 DESIGN.md 4절에 추가
 
 ## P3 - 품질

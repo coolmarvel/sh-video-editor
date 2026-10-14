@@ -1,5 +1,5 @@
 /**
- * 첫 화면 안내 카드. 편집본이 없을 때 타임라인 영역에 크게 보이고(sh-panel 안), 도움말 > 사용 안내 대화상자에도 같은 내용이 들어간다.
+ * 첫 화면 안내 카드. 편집본이 없을 때 타임라인 영역에 크게 보인다(sh-panel 안). "자세히" 는 도움말 > 사용 안내(전체 사용법 문서)를 연다.
  * 타임라인 자리에서는 미디어 항목을 끌어다 놓는 대상이기도 하다: 놓으면 그 미디어 설정으로 편집본을 자동으로 만든다.
  */
 import { useState, type DragEvent } from 'react';
@@ -7,6 +7,7 @@ import { useEditor } from '../../store';
 import { hasMediaItem, readMediaItemIds } from '../timeline/dnd';
 import { runAction } from '../shortcuts/actions';
 import { addToTimeline, createDemoEdition } from './edition';
+import { useOnboarding } from './store';
 import './onboarding.css';
 
 export const GUIDE_STEPS: ReadonlyArray<{ title: string; text: string }> = [
@@ -82,6 +83,9 @@ export function OnboardingCard({ variant }: Props) {
         </button>
         <button type="button" className="sh-btn sh-btn--primary" disabled={!bridge} onClick={() => void createDemoEdition()}>
           데모 영상 넣기
+        </button>
+        <button type="button" className="sh-btn" title="전체 사용법(도움말 > 사용 안내)" onClick={() => useOnboarding.getState().setGuideOpen(true)}>
+          자세히
         </button>
       </div>
     </div>

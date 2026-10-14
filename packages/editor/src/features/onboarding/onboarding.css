@@ -72,3 +72,162 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* 도움말 > 사용 안내 (docs/guides/usage.md 번들). 왼쪽 목차 + 오른쪽 본문, 900 이하에서는 세로로. 값은 --sh-* 토큰만 */
+.sh-dialog.ve-dialog--usage {
+  width: 960px;
+}
+.sh-dialog .ve-dialog__body--usage {
+  padding: 0;
+  gap: 0;
+}
+.ve-usage {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 70vh;
+  min-height: 240px;
+}
+.ve-usage__toc {
+  overflow: auto;
+  padding: var(--sh-space-8) 0;
+  background: var(--sh-color-sunken);
+  border-right: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+}
+.ve-usage__toc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ve-usage__toc-link {
+  display: block;
+  width: 100%;
+  min-height: var(--sh-size-row);
+  padding: var(--sh-space-2) var(--sh-space-12);
+  border: 0;
+  background: transparent;
+  color: var(--sh-color-text);
+  font: inherit;
+  text-align: left;
+  line-height: var(--sh-font-line-height-normal);
+  word-break: keep-all;
+  cursor: default;
+}
+.ve-usage__toc-item--h3 .ve-usage__toc-link {
+  padding-left: var(--sh-space-24);
+  color: var(--sh-color-text-secondary);
+}
+.ve-usage__toc-link:hover {
+  background: var(--sh-color-hover);
+}
+.ve-usage__toc-link[aria-current='location'] {
+  background: var(--sh-color-accent-subtle);
+  color: var(--sh-color-text);
+  box-shadow: inset calc(var(--sh-space-2)) 0 0 var(--sh-color-accent);
+}
+.ve-usage__toc-link:focus-visible {
+  outline: var(--sh-border-width) dotted var(--sh-color-text);
+  outline-offset: calc(-1 * var(--sh-border-focus-offset));
+}
+.ve-usage__body {
+  position: relative;
+  overflow: auto;
+  padding: var(--sh-space-12) var(--sh-space-16);
+  line-height: var(--sh-font-line-height-normal);
+  word-break: keep-all;
+}
+.ve-usage__body h1 {
+  margin: 0 0 var(--sh-space-8);
+  font-size: var(--sh-font-size-heading);
+  font-weight: var(--sh-font-weight-bold);
+}
+.ve-usage__body h2 {
+  margin: var(--sh-space-20) 0 var(--sh-space-8);
+  padding-bottom: var(--sh-space-4);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-border);
+  font-size: var(--sh-font-size-title);
+  font-weight: var(--sh-font-weight-bold);
+}
+.ve-usage__body h3,
+.ve-usage__body h4 {
+  margin: var(--sh-space-16) 0 var(--sh-space-6);
+  font-size: var(--sh-font-size-emphasis);
+  font-weight: var(--sh-font-weight-bold);
+}
+.ve-usage__body p {
+  margin: 0 0 var(--sh-space-8);
+}
+.ve-usage__body ul,
+.ve-usage__body ol {
+  margin: 0 0 var(--sh-space-8);
+  padding-left: var(--sh-space-20);
+}
+.ve-usage__body li {
+  margin: 0 0 var(--sh-space-2);
+}
+.ve-usage__body code {
+  padding: 0 var(--sh-space-2);
+  background: var(--sh-color-sunken);
+  border: var(--sh-border-width) solid var(--sh-color-border);
+  font-family: var(--sh-font-family-mono);
+  font-size: var(--sh-font-size-caption);
+}
+.ve-usage__body pre {
+  margin: 0 0 var(--sh-space-8);
+  padding: var(--sh-space-8);
+  background: var(--sh-color-sunken);
+  border: var(--sh-border-width) solid var(--sh-color-border);
+  overflow: auto;
+}
+.ve-usage__body pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.ve-usage__table {
+  margin: 0 0 var(--sh-space-8);
+  max-width: 100%;
+  white-space: normal;
+}
+.ve-usage__table th,
+.ve-usage__table td {
+  height: auto;
+  padding: var(--sh-space-2) var(--sh-space-6);
+  vertical-align: top;
+  word-break: keep-all;
+}
+.ve-usage__source {
+  flex: 1;
+  align-self: center;
+  color: var(--sh-color-text-muted);
+  font-size: var(--sh-font-size-caption);
+  font-family: var(--sh-font-family-mono);
+}
+@media (max-width: 900px) {
+  .ve-usage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 72vh;
+  }
+  .ve-usage__toc {
+    max-height: calc(var(--sh-size-row) * 5);
+    border-right: 0;
+    border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  }
+  .ve-usage__toc ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sh-space-2);
+    padding: 0 var(--sh-space-4);
+  }
+  .ve-usage__toc-item--h3 {
+    display: none;
+  }
+  .ve-usage__toc-link {
+    width: auto;
+    padding: var(--sh-space-2) var(--sh-space-6);
+    border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  }
+  .ve-usage__source {
+    display: none;
+  }
+}

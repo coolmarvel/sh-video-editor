@@ -36,8 +36,7 @@ export const ui = {
   videoClips: (page: Page): Locator => page.locator('.tl-lane--video .tl-clip'),
   current: (page: Page): Locator => page.getByTestId('mon-current'),
   total: (page: Page): Locator => page.getByTestId('mon-total'),
-  tool: (page: Page, name: string): Locator =>
-    page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true }),
+  tool: (page: Page, name: string): Locator => page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true }),
 };
 
 /** 데모 영상(오로라)을 넣고 그 항목으로 시퀀스를 만든다. 끝나면 V1 에 클립 하나, A1 에 클립 하나. */

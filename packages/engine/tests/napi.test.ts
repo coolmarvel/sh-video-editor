@@ -455,17 +455,12 @@ d('renderFrame', () => {
 d('내보내기', () => {
   it('프리셋·형식 목록과 export.resolve', () => {
     const { engine } = withDemo();
-    const formats = exec<Array<{ id: string; available: boolean; video: boolean; audio: boolean; extension: string }>>(
-      engine,
-      'export.formats',
-    );
+    const formats = exec<Array<{ id: string; available: boolean; video: boolean; audio: boolean; extension: string }>>(engine, 'export.formats');
     const h264 = formats.find((f) => f.id === 'h264');
     expect(h264).toMatchObject({ available: true, video: true, audio: true, extension: 'mp4' });
-    const presets = exec<{ presets: Array<{ name: string; format: string; frameSize: [number, number] | null }> }>(
-      engine,
-      'export.presets.list',
-      { format: 'h264' },
-    );
+    const presets = exec<{ presets: Array<{ name: string; format: string; frameSize: [number, number] | null }> }>(engine, 'export.presets.list', {
+      format: 'h264',
+    });
     expect(presets.presets.length).toBeGreaterThan(3);
     expect(presets.presets.every((p) => p.format === 'h264')).toBe(true);
     expect(presets.presets.some((p) => p.frameSize?.[0] === 1920 && p.frameSize[1] === 1080)).toBe(true);
@@ -492,20 +487,16 @@ d('내보내기', () => {
     const { engine } = withDemo();
     const out = join(work, 'export-2s.mp4');
     const t0 = Date.now();
-    const added = exec<{ added: number[]; items: Array<{ id: number; job: number | null; status: string }> }>(
-      engine,
-      'export.queue.add',
-      {
-        format: 'h264',
-        width: 320,
-        height: 180,
-        path: out,
-        start: true,
-        range: 'custom',
-        startSeconds: 0,
-        endSeconds: 2,
-      },
-    );
+    const added = exec<{ added: number[]; items: Array<{ id: number; job: number | null; status: string }> }>(engine, 'export.queue.add', {
+      format: 'h264',
+      width: 320,
+      height: 180,
+      path: out,
+      start: true,
+      range: 'custom',
+      startSeconds: 0,
+      endSeconds: 2,
+    });
     expect(added.added).toHaveLength(1);
     const id = added.added[0]!;
     expect(added.items.find((i) => i.id === id)?.status).toBe('encoding');
@@ -577,10 +568,7 @@ d('내보내기', () => {
     let status = '';
     for (let i = 0; i < 200; i++) {
       engine.pumpJobs(16);
-      const list = exec<{ running: boolean; items: Array<{ id: number; status: string }> }>(
-        engine,
-        'export.queue.list',
-      );
+      const list = exec<{ running: boolean; items: Array<{ id: number; status: string }> }>(engine, 'export.queue.list');
       status = list.items.find((x) => x.id === id)!.status;
       if (status !== 'encoding' && !list.running) break;
       await sleep(30);
@@ -594,9 +582,7 @@ d('내보내기', () => {
     const engine = new mod.Engine();
     exec(engine, 'file.newProject', { name: 'empty' });
     expect(() => exec(engine, 'export.resolve', { format: 'h264' })).toThrow();
-    expect(() =>
-      exec(engine, 'export.queue.add', { format: 'h264', path: join(work, 'x.mp4'), start: true }),
-    ).toThrow();
+    expect(() => exec(engine, 'export.queue.add', { format: 'h264', path: join(work, 'x.mp4'), start: true })).toThrow();
   });
 });
 
@@ -617,11 +603,7 @@ d('저장과 열기', () => {
     expect(JSON.parse(text)).toMatchObject({ format: 'filmcraft.project' });
 
     const other = new mod.Engine();
-    const opened = exec<{ migrated: boolean; schemaVersion: number; missingMedia: number; path: string }>(
-      other,
-      'file.open',
-      { path },
-    );
+    const opened = exec<{ migrated: boolean; schemaVersion: number; missingMedia: number; path: string }>(other, 'file.open', { path });
     expect(opened).toMatchObject({ migrated: false, missingMedia: 0, path });
     expect(opened.schemaVersion).toBeGreaterThan(0);
     const a = inspect(engine);
@@ -742,15 +724,9 @@ d('적대적 입력', () => {
     const { engine, clips } = withDemo();
     expect(() => engine.execute('nope.cmd')).toThrow(/unknown command/);
     expect(() => engine.execute('timeline.razor', '{bad json')).toThrow(/params/);
-    expect(() => exec(engine, 'timeline.trim', { clip: 99_999, edge: 'out', mode: 'regular', deltaFrames: 1 })).toThrow(
-      /no such track item/,
-    );
-    expect(() => exec(engine, 'timeline.move', { moves: [{ clip: 99_999, track: 'V1', time: 0 }] })).toThrow(
-      /no such track item/,
-    );
-    expect(() => exec(engine, 'timeline.move', { moves: [{ clip: clips[0], track: 'V9', time: 0 }] })).toThrow(
-      /no track V9/,
-    );
+    expect(() => exec(engine, 'timeline.trim', { clip: 99_999, edge: 'out', mode: 'regular', deltaFrames: 1 })).toThrow(/no such track item/);
+    expect(() => exec(engine, 'timeline.move', { moves: [{ clip: 99_999, track: 'V1', time: 0 }] })).toThrow(/no such track item/);
+    expect(() => exec(engine, 'timeline.move', { moves: [{ clip: clips[0], track: 'V9', time: 0 }] })).toThrow(/no track V9/);
     expect(() => exec(engine, 'timeline.place', { item: 99_999, track: 'V1', time: 0 })).toThrow(/no such item/);
     const item = inspect(engine).video[0]!.items[0]!.item;
     expect(() => exec(engine, 'timeline.place', { item, track: 'Q1', time: 0 })).toThrow();
@@ -784,13 +760,9 @@ d('적대적 입력', () => {
     // 없는 데모 장면은 빈 결과({items: []})로 끝난다
     expect(() => exec(engine, 'file.importDemoFootage', { scene: 'Nope' })).toThrow();
     // 클립 길이보다 큰 트림은 거부 대신 클램프된다(delta 가 줄어든다)
-    expect(() =>
-      exec(engine, 'timeline.trim', { clip: clips[0], edge: 'out', mode: 'regular', deltaFrames: -100_000 }),
-    ).toThrow();
+    expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'out', mode: 'regular', deltaFrames: -100_000 })).toThrow();
     // trim 의 edge 가 'in'|'out' 이 아니어도 거부하지 않는다(delta 0 의 no-op)
-    expect(() =>
-      exec(engine, 'timeline.trim', { clip: clips[0], edge: 'sideways', mode: 'regular', deltaFrames: 1 }),
-    ).toThrow();
+    expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'sideways', mode: 'regular', deltaFrames: 1 })).toThrow();
   });
 
   /** timeline.select 는 없는 클립 id 도 선택 목록에 넣는다. 화면은 inspect 로 되돌아오는 selection 을 그대로 믿는다. */

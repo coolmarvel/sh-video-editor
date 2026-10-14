@@ -42,8 +42,7 @@ async function close(ctx: Ctx): Promise<void> {
 const status = (page: Page) => page.locator('.ve-status .sh-pane').first();
 const clips = (page: Page) => page.locator('.tl-clip');
 const videoClips = (page: Page) => page.locator('.tl-lane--video .tl-clip');
-const tool = (page: Page, name: string) =>
-  page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true });
+const tool = (page: Page, name: string) => page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true });
 
 async function makeDemoSequence(page: Page): Promise<void> {
   await page.getByRole('button', { name: '데모 영상' }).click();
@@ -76,14 +75,10 @@ test('창 제목, 엔진 상태 줄, 데스크톱 호스트 기능', async () =>
     await expect(page.getByRole('button', { name: '가져오기' })).toBeVisible();
     await expect(page.locator('.ve-status').getByTitle('자동 저장 켜짐')).toBeVisible({ timeout: 15_000 });
     // 렌더러가 엔진 프로세스와 직접 이어져 있다
-    const version = await page.evaluate(() =>
-      (window as unknown as { shEngine: { version(): Promise<string> } }).shEngine.version(),
-    );
+    const version = await page.evaluate(() => (window as unknown as { shEngine: { version(): Promise<string> } }).shEngine.version());
     expect(version).toContain('sh-video-engine');
     // 엔진 utility process: serviceName 은 node.mojom.NodeService, name 이 serviceName 옵션('SH Video Editor engine')
-    const metrics = await app.evaluate(({ app: a }) =>
-      a.getAppMetrics().map((m) => ({ type: m.type, name: m.name ?? '', service: m.serviceName ?? '' })),
-    );
+    const metrics = await app.evaluate(({ app: a }) => a.getAppMetrics().map((m) => ({ type: m.type, name: m.name ?? '', service: m.serviceName ?? '' })));
     expect(metrics.some((m) => m.type === 'Utility' && m.name === 'SH Video Editor engine')).toBe(true);
     expect(ctx.errors).toEqual([]);
   } finally {
@@ -179,9 +174,7 @@ test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 �
     const crashed = page.evaluate(
       () =>
         new Promise<number>((resolve) => {
-          (
-            window as unknown as { shEngine: { onCrashed(cb: (i: { code: number }) => void): () => void } }
-          ).shEngine.onCrashed((i) => resolve(i.code));
+          (window as unknown as { shEngine: { onCrashed(cb: (i: { code: number }) => void): () => void } }).shEngine.onCrashed((i) => resolve(i.code));
         }),
     );
     process.kill(before[0]!, 'SIGKILL');
@@ -200,9 +193,7 @@ test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 �
         { timeout: 20_000 },
       )
       .not.toEqual(before);
-    const version = await page.evaluate(() =>
-      (window as unknown as { shEngine: { version(): Promise<string> } }).shEngine.version(),
-    );
+    const version = await page.evaluate(() => (window as unknown as { shEngine: { version(): Promise<string> } }).shEngine.version());
     expect(version).toContain('sh-video-engine');
     // 화면은 살아 있고(새 엔진은 빈 세션) 다시 편집할 수 있다
     await expect(page.getByRole('menubar')).toBeVisible();

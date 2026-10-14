@@ -157,10 +157,7 @@ d('wasm 바인딩', () => {
     const started = Date.now();
     for (let i = 0; i < 100_000; i++) {
       engine.pumpJobs(16);
-      const list = exec<{ running: boolean; items: Array<{ id: number; status: string; error: string | null }> }>(
-        engine,
-        'export.queue.list',
-      );
+      const list = exec<{ running: boolean; items: Array<{ id: number; status: string; error: string | null }> }>(engine, 'export.queue.list');
       const item = list.items.find((x) => x.id === id)!;
       status = item.status;
       if (!list.running && status !== 'encoding' && status !== 'ready') {
@@ -218,9 +215,7 @@ d('wasm 바인딩', () => {
     expect(() => engine.startAutosave('/x', 0)).toThrow(/not available/);
     expect(() => engine.execute('nope.cmd')).toThrow(/unknown command/);
     expect(() => engine.execute('timeline.razor', '{bad')).toThrow(/params/);
-    expect(() =>
-      exec(engine, 'timeline.trim', { clip: 99_999, edge: 'out', mode: 'regular', deltaFrames: 1 }),
-    ).toThrow();
+    expect(() => exec(engine, 'timeline.trim', { clip: 99_999, edge: 'out', mode: 'regular', deltaFrames: 1 })).toThrow();
     expect(() => exec(engine, 'timeline.place', { item: 99_999, track: 'V1', time: 0 })).toThrow();
     expect(() => exec(engine, 'file.open', { path: '/nowhere.fcproj' })).toThrow();
     expect(exec(engine, 'timeline.razor', { time: -T })).toEqual({ cuts: 0 });

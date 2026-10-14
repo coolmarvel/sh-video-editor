@@ -41,9 +41,7 @@ export interface NapiModule {
 }
 
 export function hasNativeBinding(): boolean {
-  return existsSync(
-    join(NAPI_DIR, `engine-node.${process.platform}-${process.arch === 'x64' ? 'x64' : process.arch}-gnu.node`),
-  );
+  return existsSync(join(NAPI_DIR, `engine-node.${process.platform}-${process.arch === 'x64' ? 'x64' : process.arch}-gnu.node`));
 }
 
 export function loadNapi(): NapiModule {
@@ -92,11 +90,7 @@ export interface WasmModule {
 }
 
 /** JSON 왕복 커맨드 호출. napi 와 wasm 이 같은 모양이라 둘 다 쓴다. */
-export function exec<R = unknown>(
-  engine: { execute(id: string, p?: string | null): string },
-  id: string,
-  params?: Record<string, unknown>,
-): R {
+export function exec<R = unknown>(engine: { execute(id: string, p?: string | null): string }, id: string, params?: Record<string, unknown>): R {
   return JSON.parse(engine.execute(id, params ? JSON.stringify(params) : undefined)) as R;
 }
 
@@ -150,10 +144,7 @@ export function allClips(seq: SequenceInfo): ClipInfo[] {
  * 시퀀스 불변식: 트랙 안 클립은 정렬되어 있고 겹치지 않는다, 모든 클립은 양의 길이와 프레임 경계, duration 은
  * 가장 늦은 끝, 연결된 클립끼리는 시작·끝이 같다, 소스 구간 길이는 타임라인 길이와 같다(속도 1).
  */
-export function assertInvariants(
-  seq: SequenceInfo,
-  opts: { frameAligned?: boolean; linkedInSync?: boolean } = {},
-): void {
+export function assertInvariants(seq: SequenceInfo, opts: { frameAligned?: boolean; linkedInSync?: boolean } = {}): void {
   const frameAligned = opts.frameAligned ?? true;
   const linkedInSync = opts.linkedInSync ?? true;
   const ft = frameTicks(seq);

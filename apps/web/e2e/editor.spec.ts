@@ -2,16 +2,7 @@
  * 웹 편집기 e2e: 앱 로드와 wasm 엔진 준비, 데모 영상 넣기, 시퀀스 만들기, 타임라인 자르기·삭제·실행 취소,
  * 모니터 재생으로 타임코드 전진, 스크러버 탐색. 1440 과 390 뷰포트에서 같은 흐름을 돈다(playwright.config.ts).
  */
-import {
-  clickRuler,
-  enginePlayhead,
-  engineSequence,
-  expect,
-  makeDemoSequence,
-  test,
-  timecodeToFrames,
-  ui,
-} from './fixtures';
+import { clickRuler, enginePlayhead, engineSequence, expect, makeDemoSequence, test, timecodeToFrames, ui } from './fixtures';
 
 test.describe('앱 로드', () => {
   test('엔진이 준비되고 셸이 그려지며 가로 넘침이 없다', async ({ app, logs }) => {
@@ -28,9 +19,7 @@ test.describe('앱 로드', () => {
     const overflow = await app.evaluate(() => ({
       doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       body: document.body.scrollWidth - document.body.clientWidth,
-      root:
-        (document.querySelector('.ve-root') as HTMLElement).scrollWidth -
-        (document.querySelector('.ve-root') as HTMLElement).clientWidth,
+      root: (document.querySelector('.ve-root') as HTMLElement).scrollWidth - (document.querySelector('.ve-root') as HTMLElement).clientWidth,
     }));
     expect(overflow.doc, '문서 가로 넘침').toBeLessThanOrEqual(0);
     expect(overflow.body, 'body 가로 넘침').toBeLessThanOrEqual(0);
@@ -39,9 +28,7 @@ test.describe('앱 로드', () => {
   });
 
   test('QA 훅(window.shBridge)으로 엔진을 직접 부를 수 있다', async ({ app }) => {
-    const version = await app.evaluate(() =>
-      (window as unknown as { shBridge: { version(): Promise<string> } }).shBridge.version(),
-    );
+    const version = await app.evaluate(() => (window as unknown as { shBridge: { version(): Promise<string> } }).shBridge.version());
     expect(version).toContain('wasm');
     const count = await app.evaluate(async () => {
       const b = (window as unknown as { shBridge: { commands(): Promise<unknown[]> } }).shBridge;
@@ -179,9 +166,7 @@ test.describe('모니터', () => {
     const play = app.getByRole('button', { name: '재생', exact: true });
     await play.click();
     await expect(app.getByRole('button', { name: '정지', exact: true })).toBeVisible();
-    await expect
-      .poll(async () => timecodeToFrames(await ui.current(app).innerText()), { timeout: 10_000 })
-      .toBeGreaterThan(5);
+    await expect.poll(async () => timecodeToFrames(await ui.current(app).innerText()), { timeout: 10_000 }).toBeGreaterThan(5);
     await app.getByRole('button', { name: '정지', exact: true }).click();
     await expect(app.getByRole('button', { name: '재생', exact: true })).toBeVisible();
     const stopped = await ui.current(app).innerText();

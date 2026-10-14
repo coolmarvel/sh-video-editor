@@ -21,9 +21,7 @@ const wait = () => {
   engine.pollPersistence();
   const status = exec('file.autoSaveStatus');
   if (status.status.journalsWritten > 0 && status.status.journaledRevision > 0) {
-    process.stdout.write(
-      JSON.stringify({ ok: true, revision: status.status.journaledRevision, sessionDir: status.sessionDir }),
-    );
+    process.stdout.write(JSON.stringify({ ok: true, revision: status.status.journaledRevision, sessionDir: status.sessionDir }));
     // shutdown 을 부르지 않고 바로 죽는다
     process.exit(0);
   }

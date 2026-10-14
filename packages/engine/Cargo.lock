@@ -1082,7 +1082,7 @@ dependencies = [
 
 [[package]]
 name = "sh-video-engine-node"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "filmcraft-engine",
  "filmcraft-time",
@@ -1094,7 +1094,7 @@ dependencies = [
 
 [[package]]
 name = "sh-video-engine-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "console_error_panic_hook",
  "filmcraft-engine",

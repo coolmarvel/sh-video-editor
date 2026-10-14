@@ -36,7 +36,10 @@ domain: development
     멈추는 현상을 확인해 포트만 쓴다. Windows .node: napi 가 windows-gnu 를 거부(libnode.dll 요구)해 WSL gnu 크로스는 폐기.
     병합 시 자동 저장·종료(startAutosave·pollPersistence·shutdown)를 엔진 호스트 메서드로 옮기고 데이터 디렉토리는 env 로 전달.
 - **검증**: 각 브랜치에서 typecheck·prettier·web/desktop 빌드·Playwright(1440·390) 통과. 병합 후 main 에서 clippy, wasm 재빌드,
-  typecheck 통과. 최종 `npm run verify`·스모크·인스톨러 결과는 이 블록 끝에 추가.
+  typecheck 통과. 병합본 `npm run verify` 통과, 스모크 "smoke: ok (commands 675, restart after exit code 0)", Playwright 1440·390 에서
+  데모 프로젝트가 모니터·타임라인에 그려지고 넘침 없음. Windows 엔진은 WSL 에서 cargo-xwin + LLVM 23.1.3 으로 msvc 애드온 크로스 빌드
+  성공(2분 52초, PE32+ DLL 31MB). `npm run dist:win` 으로 SH-Video-Editor-Setup-0.1.1.exe(119MB, 패키지 안에 win32-x64-msvc .node 와
+  NOTICE 포함)를 만들어 바탕화면에 복사. 사용자 Windows PC 실행 확인은 대기.
 - **다음**: 마일스톤 2(자막·음악·전환). 알려진 구멍: 오디오 재생 없음, 웹 저장/내보내기 다운로드 UI 미연결(bridge 는 준비됨),
   미디어 썸네일 없음, 엔진 이벤트(drainEvents) 통합 전이라 패널 간 갱신은 폴링.
 

@@ -24,7 +24,8 @@
   "scripts": {
     "build": "napi build --platform --release --manifest-path ../../Cargo.toml -p sh-video-engine-node",
     "build:debug": "napi build --platform --manifest-path ../../Cargo.toml -p sh-video-engine-node",
-    "build:win": "napi build --platform --release --target x86_64-pc-windows-msvc --manifest-path ../../Cargo.toml -p sh-video-engine-node"
+    "build:win": "napi build --platform --release --target x86_64-pc-windows-msvc --manifest-path ../../Cargo.toml -p sh-video-engine-node",
+    "build:win:xwin": "napi build --platform --release --target x86_64-pc-windows-msvc -x --manifest-path ../../Cargo.toml -p sh-video-engine-node"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.10.0"

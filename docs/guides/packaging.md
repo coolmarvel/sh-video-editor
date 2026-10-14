@@ -35,9 +35,34 @@ npm run smoke -w apps/desktop    # xvfb 로 띄워 엔진 응답(utility process
 ## Windows 용 네이티브 엔진 (핵심 제약)
 
 exe 안에 들어갈 `.node` 는 **Windows 용으로 빌드한 것**이어야 한다. WSL 에서 만든 Linux `.node` 를 넣으면
-사용자 PC 에서 로드 실패한다. 2026-10-14 에 두 경로를 검증한 결과, **Windows PC 에서 msvc 로 빌드**하는 것만 된다.
+사용자 PC 에서 로드 실패한다. 2026-10-14 검증 결과 되는 경로는 두 가지다. windows-gnu 크로스는 안 된다(아래 기록).
 
-### 결론: Windows 에서 빌드한다 (절차)
+### 경로 1 (기본): WSL 에서 cargo-xwin 으로 msvc 타깃 크로스 빌드
+
+LLVM 의 `clang-cl`·`lld-link` 와 cargo-xwin(Windows SDK·CRT 를 Microsoft 에서 받아 캐시) 으로 WSL 에서 바로 msvc 애드온을 만든다.
+sudo 없이 되고, 2026-10-14 에 이 경로로 `engine-node.win32-x64-msvc.node`(31MB, PE32+ DLL) 를 2분 52초에 만들었다.
+
+준비(한 번):
+
+```bash
+rustup target add x86_64-pc-windows-msvc
+cargo install cargo-xwin                 # ~/.cargo/bin/cargo-xwin
+# LLVM 공식 바이너리를 ~/.local/llvm 에 푼다 (clang-cl, lld-link, llvm-lib 가 bin/ 에 있어야 한다). 2026-10-14 는 LLVM 23.1.3
+#   gh release download llvmorg-23.1.3 --repo llvm/llvm-project --pattern 'LLVM-23.1.3-Linux-X64.tar.xz' && tar -xJf ... --strip-components=1
+```
+
+빌드:
+
+```bash
+export PATH=$HOME/.local/llvm/bin:$PATH
+npm run build:win:xwin -w @sh-video-editor/engine-node   # = napi build --release --target x86_64-pc-windows-msvc -x
+npm run dist:win                                          # check:win-engine 통과 후 NSIS exe
+```
+
+첫 실행 때 cargo-xwin 이 Windows SDK/CRT 를 내려받는다(수백 MB, `~/.cache/cargo-xwin`). 메모리 7GB 환경에서는
+`CARGO_BUILD_JOBS=6` 정도로 돌린다. 실제 Windows PC 에서 로드·동작 검증은 이 파일 아래 "실기 검증" 에 기록한다.
+
+### 경로 2: Windows PC 에서 msvc 로 빌드 (경로 1 이 막힐 때)
 
 1. Windows PC 에 설치: Rust(`rustup`, 기본 툴체인 `stable-x86_64-pc-windows-msvc`), Visual Studio Build Tools
    ("C++ 를 사용한 데스크톱 개발" 워크로드, Windows 10/11 SDK 포함), Node 22 LTS.
@@ -66,10 +91,17 @@ exe 안에 들어갈 `.node` 는 **Windows 용으로 빌드한 것**이어야 �
 - gnu 타깃에서는 애드온이 `libnode.dll` 을 import 하도록 링크된다. Electron 은 Node-API 심볼을 `electron.exe` 가 export 하고
   msvc 애드온은 지연 로드 훅으로 그걸 받으므로, `libnode.dll` 을 구해 링크해도 Electron 안에서는 그 DLL 이 없어 로드에 실패한다.
   `@napi-rs/cli` 3.10.8 도 windows-gnu 를 크로스 컴파일(`--cross-compile`) 대상에서 제외하고 같은 `libnode.dll` 요구를 안내한다.
+- 반면 msvc 타깃은 cargo-xwin 이 `clang-cl` 로 C 코드(napi 의 delay-load 훅)를, `lld-link` 로 링크를 맡아 통과한다(경로 1).
 - 참고로 filmcraft `platform` 크레이트(Media Foundation/D3D11, `windows` 0.62) 자체는 gnu 타깃에서 컴파일된다
   (`cargo check --target x86_64-pc-windows-gnu -p filmcraft-platform` 통과. 링크는 mingw 가 없어 미검증). 현재 napi 바인딩은
   `filmcraft-platform` 에 의존하지 않아(`register()` 를 부르는 곳은 filmcraft-cli 뿐) Windows HW 디코드는 아직 바인딩에 안 들어 있다.
   넣을 때도 빌드는 위 msvc 절차 그대로다(`windows` 크레이트는 msvc 에서 import lib 를 자체 제공).
+
+### 실기 검증
+
+| 날짜       | 빌드 경로                        | Electron | 결과                                                    |
+| ---------- | -------------------------------- | -------- | ------------------------------------------------------- |
+| 2026-10-14 | 경로 1 (cargo-xwin, LLVM 23.1.3) | 44.7.2   | 빌드·패키징 성공. 사용자 Windows PC 에서 실행 확인 대기 |
 
 ## 배포 소스 보호
 

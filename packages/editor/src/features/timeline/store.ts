@@ -5,6 +5,9 @@
 import { create } from 'zustand';
 import type { EngineBridge } from '../../engine/bridge';
 import { useEditor } from '../../store';
+import { useMedia } from '../media/store';
+import { walkItems } from '../media/types';
+import { editionName } from '../onboarding/naming';
 import { DEFAULT_PX_PER_SEC, clampZoom, snapToFrame } from './geometry';
 import { findClip, type SequenceInfo, type TrackKind } from './types';
 
@@ -12,6 +15,11 @@ export interface ClipMove {
   clip: number;
   track: number;
   time: number;
+}
+
+/** Alt 드래그: 연결된 상대 클립(영상-소리)을 두고 이 클립만 움직인다 */
+export interface EditOptions {
+  linked?: boolean;
 }
 
 interface TimelineState {
@@ -28,7 +36,7 @@ interface TimelineState {
   busy: boolean;
   /** 마지막 커맨드 실패 메시지. 상태 줄에도 올린다 */
   lastError: string | null;
-  /** "시퀀스 전체 보기" 요청 횟수. Timeline 화면이 바뀜을 보고 줌을 맞춘다(화면 폭은 화면만 안다) */
+  /** "타임라인 전체 보기" 요청 횟수. Timeline 화면이 바뀜을 보고 줌을 맞춘다(화면 폭은 화면만 안다) */
   fitRequest: number;
 
   refresh(): Promise<void>;
@@ -44,8 +52,8 @@ interface TimelineState {
   deselectAll(): Promise<void>;
   razorAtPlayhead(): Promise<void>;
   deleteSelection(): Promise<void>;
-  moveClips(moves: ClipMove[]): Promise<void>;
-  trimClip(clipId: number, edge: 'in' | 'out', deltaFrames: number): Promise<void>;
+  moveClips(moves: ClipMove[], opts?: EditOptions): Promise<void>;
+  trimClip(clipId: number, edge: 'in' | 'out', deltaFrames: number, opts?: EditOptions): Promise<void>;
   placeItem(itemId: number, trackId: number, kind: TrackKind, time: number): Promise<void>;
   setTrack(trackId: number, patch: { locked?: boolean; muted?: boolean; enabled?: boolean }): Promise<void>;
   newSequence(): Promise<void>;
@@ -106,7 +114,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
         const [seq, playhead] = await Promise.all([bridge.execute('sequence.inspect') as Promise<SequenceInfo>, bridge.playhead()]);
         set({ sequence: seq, playhead });
       } catch {
-        // "no active sequence": 시퀀스가 없으면 빈 상태를 그린다
+        // "no active sequence": 편집본이 없으면 빈 상태를 그린다
         set({ sequence: null });
       }
     },
@@ -131,7 +139,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
       try {
         await bridge.setPlayhead(snapped);
       } catch {
-        /* 시퀀스가 없을 때는 엔진이 거부한다. 화면 값만 유지 */
+        /* 편집본이 없을 때는 엔진이 거부한다. 화면 값만 유지 */
       }
     },
 
@@ -171,9 +179,15 @@ export const useTimeline = create<TimelineState>((set, get) => {
       // 선택한 클립이 있으면 그 클립만, 없으면 플레이헤드 아래 모든 트랙을 자른다
       if (selection.length > 0) {
         let cuts = 0;
+        // 연결된 영상·소리는 엔진이 한 번에 자르므로 같은 묶음은 한 번만 보낸다(빈 실행 취소 항목을 남기지 않게)
+        const cutLinks = new Set<number>();
         for (const clip of selection) {
           const found = findClip(sequence, clip);
           if (!found || found.clip.start >= playhead || found.clip.end <= playhead) continue;
+          if (found.clip.link !== null) {
+            if (cutLinks.has(found.clip.link)) continue;
+            cutLinks.add(found.clip.link);
+          }
           const r = (await exec('timeline.razor', { time: playhead, clip }, '')) as { cuts?: number } | undefined;
           cuts += r?.cuts ?? 0;
         }
@@ -195,19 +209,32 @@ export const useTimeline = create<TimelineState>((set, get) => {
       else await exec('edit.clear', { clips }, `삭제: 클립 ${clips.length}개`);
     },
 
-    async moveClips(moves) {
+    async moveClips(moves, opts) {
       if (moves.length === 0) return;
-      await exec('timeline.move', { moves, insert: get().insert }, `이동: 클립 ${moves.length}개`);
+      const solo = opts?.linked === false;
+      await exec(
+        'timeline.move',
+        { moves, insert: get().insert, ...(solo ? { linked: false } : {}) },
+        `이동: 클립 ${moves.length}개${solo ? ' (이 클립만)' : ''}`,
+      );
     },
 
-    async trimClip(clipId, edge, deltaFrames) {
+    async trimClip(clipId, edge, deltaFrames, opts) {
       if (deltaFrames === 0) return;
       const mode = get().ripple ? 'ripple' : 'regular';
-      await exec(
-        'timeline.trim',
-        { clip: clipId, edge, mode, deltaFrames },
-        `${edge === 'in' ? '시작' : '끝'} 트림: ${deltaFrames > 0 ? '+' : ''}${deltaFrames}프레임`,
-      );
+      const solo = opts?.linked === false;
+      const bridge = bridgeOrNull();
+      // 엔진 timeline.trim 에는 linked 옵션이 없다. 연결 선택을 잠시 끄고 트림한 뒤 되돌린다
+      if (solo && bridge) await bridge.execute('sequence.linkedSelection', { on: false }).catch(() => undefined);
+      try {
+        await exec(
+          'timeline.trim',
+          { clip: clipId, edge, mode, deltaFrames },
+          `${edge === 'in' ? '시작' : '끝'} 트림: ${deltaFrames > 0 ? '+' : ''}${deltaFrames}프레임${solo ? ' (이 클립만)' : ''}`,
+        );
+      } finally {
+        if (solo && bridge) await bridge.execute('sequence.linkedSelection', { on: true }).catch(() => undefined);
+      }
     },
 
     async placeItem(itemId, trackId, kind, time) {
@@ -238,7 +265,13 @@ export const useTimeline = create<TimelineState>((set, get) => {
     },
 
     async newSequence() {
-      await exec('file.newSequence', { name: '시퀀스 1', width: 1920, height: 1080, fps: 30 }, '새 시퀀스를 만들었습니다');
+      const root = useMedia.getState().root;
+      const names = root ? [...walkItems(root)].filter((i) => i.type === 'Sequence').map((i) => i.name) : [];
+      await exec(
+        'file.newSequence',
+        { name: editionName(names), width: 1920, height: 1080, fps: 30 },
+        '새 편집본을 만들었습니다. 미디어를 타임라인에 넣으세요',
+      );
     },
 
     async undo() {

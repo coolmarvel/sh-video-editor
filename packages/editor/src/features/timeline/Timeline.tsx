@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../../store';
-import { hasMediaItem, readMediaItemId } from './dnd';
+import { clipMenu, laneMenu, openAt } from '../context-menu';
+import { OnboardingCard } from '../onboarding/OnboardingCard';
+import { hasMediaItem, readMediaItemIds } from './dnd';
 import { DRAG_THRESHOLD_PX, TAIL_SECONDS, clampZoom, fpsOf, frameTicks, pxToTick, snapDelta, snapToFrame, tickToPx, timecodeAt } from './geometry';
 import { Ruler } from './Ruler';
 import { useTimeline } from './store';
 import { Lane, TrackHeader, type ClipPart, type ClipPreview } from './Track';
-import { allClips, trackRows, type ClipInfo, type SequenceInfo, type TrackKind, type TrackRow } from './types';
+import { allClips, findClip, trackRows, type ClipInfo, type SequenceInfo, type TrackKind, type TrackRow } from './types';
 import './timeline.css';
 
 type Gesture =
@@ -23,6 +25,8 @@ type Gesture =
       started: boolean;
       add: boolean;
       toggle: boolean;
+      /** Alt: 연결된 상대 클립은 두고 이 클립만 */
+      alt: boolean;
     }
   | {
       kind: 'trim';
@@ -32,6 +36,7 @@ type Gesture =
       originX: number;
       dx: number;
       started: boolean;
+      alt: boolean;
     };
 
 interface DropHint {
@@ -219,6 +224,7 @@ export function Timeline() {
         started: false,
         add: e.shiftKey,
         toggle: e.ctrlKey || e.metaKey,
+        alt: e.altKey,
       };
     } else {
       gestureRef.current = {
@@ -229,6 +235,7 @@ export function Timeline() {
         originX: e.clientX,
         dx: 0,
         started: false,
+        alt: e.altKey,
       };
     }
   };
@@ -293,12 +300,12 @@ export function Timeline() {
       const track = g.targetTrack ?? g.trackId;
       const time = Math.max(0, Math.round(g.clip.start + dTick));
       if (track === g.trackId && Math.abs(dTick) < 1) return;
-      void state.moveClips([{ clip: g.clip.clip, track, time }]);
+      void state.moveClips([{ clip: g.clip.clip, track, time }], { linked: !g.alt });
       return;
     }
     if (!g.started) return;
     const deltaFrames = Math.round(pxToTick(g.dx, pxPerSec) / frameTicks(frameRate));
-    void state.trimClip(g.clip.clip, g.edge, deltaFrames);
+    void state.trimClip(g.clip.clip, g.edge, deltaFrames, { linked: !g.alt });
   };
 
   const onPointerCancel = (e: React.PointerEvent<HTMLElement>) => {
@@ -328,11 +335,42 @@ export function Timeline() {
     setDropHint((h) => (h && h.trackId === row.track.id ? null : h));
   };
   const onDrop = (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
-    const item = readMediaItemId(e.dataTransfer);
+    const items = readMediaItemIds(e.dataTransfer);
     setDropHint(null);
-    if (item === null || row.track.locked) return;
+    if (items.length === 0 || row.track.locked) return;
     e.preventDefault();
-    void useTimeline.getState().placeItem(item, row.track.id, row.kind, dropTickFor(e, row));
+    void placeItems(items, row, dropTickFor(e, row));
+  };
+
+  /** 여러 항목을 놓으면 첫 항목은 놓은 자리에, 나머지는 앞 클립 끝에 차례로 */
+  const placeItems = async (items: number[], row: TrackRow, at: number) => {
+    let time = at;
+    for (const item of items) {
+      const state = useTimeline.getState();
+      await state.placeItem(item, row.track.id, row.kind, time);
+      const s = useTimeline.getState().sequence;
+      const track = s ? [...s.video, ...s.audio].find((t) => t.id === row.track.id) : null;
+      const placed = track?.items.filter((c) => c.item === item && c.start >= time) ?? [];
+      time = placed.reduce((m, c) => Math.max(m, c.end), time);
+    }
+  };
+
+  // 우클릭 메뉴: 클립 위면 클립 메뉴(선택에 없으면 그 클립을 먼저 선택), 레인이면 타임라인 메뉴
+  const onContextMenu = (e: React.MouseEvent<HTMLElement>) => {
+    if (!seq) return;
+    const target = e.target as HTMLElement;
+    const clipEl = target.closest<HTMLElement>('[data-clip]');
+    if (clipEl) {
+      const id = Number(clipEl.dataset['clip']);
+      const found = findClip(seq, id);
+      if (!found) return;
+      // 항목은 선택하기 전에 만든다(selectClip 이 busy 를 올리면 항목이 전부 비활성이 된다)
+      const entries = clipMenu(found.clip);
+      if (!selection.includes(id)) void useTimeline.getState().selectClip(id);
+      openAt(e, `${found.clip.name} 메뉴`, entries);
+    } else if (target.closest('[data-lane]')) {
+      openAt(e, '타임라인 메뉴', laneMenu());
+    }
   };
 
   const fitToSequence = useCallback(() => {
@@ -345,7 +383,7 @@ export function Timeline() {
     el.scrollLeft = 0;
   }, []);
 
-  // 보기 메뉴·단축키의 "시퀀스 전체 보기"(store.requestFit)
+  // 보기 메뉴·단축키의 "타임라인 전체 보기"(store.requestFit)
   useEffect(() => {
     if (fitRequest > 0) fitToSequence();
   }, [fitRequest, fitToSequence]);
@@ -360,10 +398,12 @@ export function Timeline() {
       ref={sectionRef}
       className="sh-panel ve-timeline tl"
       aria-label="타임라인"
+      data-area="timeline"
       tabIndex={0}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onContextMenu={onContextMenu}
     >
       <div className="sh-panel__title">
         <span>타임라인{seq ? ` - ${seq.name}` : ''}</span>
@@ -423,7 +463,7 @@ export function Timeline() {
         <button type="button" className="sh-tool" title="확대 (+)" onClick={() => useTimeline.getState().setZoom(pxPerSec * 1.5)}>
           확대
         </button>
-        <button type="button" className="sh-tool" title="시퀀스 전체가 보이게" disabled={!seq || !hasClips} onClick={fitToSequence}>
+        <button type="button" className="sh-tool" title="타임라인 전체가 보이게" disabled={!seq || !hasClips} onClick={fitToSequence}>
           맞춤
         </button>
         <span className="sh-separator" />
@@ -463,15 +503,10 @@ export function Timeline() {
             ))}
             <div className="tl-playhead" style={{ left: `calc(var(--tl-header-w) + ${tickToPx(playhead, pxPerSec)}px)` }} />
           </div>
-          {!hasClips && <p className="tl-empty ve-hint">미디어 패널의 항목을 트랙으로 끌어다 놓으세요.</p>}
+          {!hasClips && <p className="tl-empty ve-hint">미디어 패널의 항목을 트랙으로 끌어다 놓거나 더블클릭하세요.</p>}
         </div>
       ) : (
-        <div className="tl-none">
-          <p className="ve-hint">시퀀스가 없습니다. 새 시퀀스를 만들면 여기에 클립을 놓을 수 있습니다.</p>
-          <button type="button" className="sh-btn" disabled={!bridge} onClick={() => void useTimeline.getState().newSequence()}>
-            새 시퀀스 만들기
-          </button>
-        </div>
+        <OnboardingCard variant="timeline" />
       )}
     </section>
   );

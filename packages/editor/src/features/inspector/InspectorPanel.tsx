@@ -25,7 +25,7 @@ export function InspectorPanel() {
     <section className="sh-panel ve-inspector" aria-label="속성">
       <div className="sh-panel__title">속성</div>
       {!ctx ? (
-        <p className="ve-inspector__hint">열린 시퀀스가 없습니다.</p>
+        <p className="ve-inspector__hint">타임라인이 비어 있습니다.</p>
       ) : shown.length === 0 ? (
         <p className="ve-inspector__hint">{ctx.clips.length === 0 ? '타임라인에서 클립을 선택하세요.' : '이 선택에 쓸 수 있는 속성이 없습니다.'}</p>
       ) : (

@@ -1,0 +1,11 @@
+/* 컨텍스트 메뉴 자리. 부품 모양(sh-menu, sh-menu__item)은 sh-classic.css, 값은 --sh-* 토큰만 (DESIGN.md 4.17). */
+.ve-ctx {
+  position: fixed;
+  z-index: 300;
+  max-height: calc(100vh - var(--sh-space-16));
+  overflow-y: auto;
+}
+/* 삭제류 항목: 글자만 danger 색. hover 면은 다른 항목과 같다 */
+.ve-ctx__item--danger:not(:disabled) {
+  color: var(--sh-color-danger);
+}

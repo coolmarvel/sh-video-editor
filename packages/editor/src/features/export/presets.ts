@@ -52,7 +52,7 @@ export function buildUiPresets(presets: EnginePreset[]): UiPreset[] {
       params: { preset: hd.name, width: 1080, height: 1080, bitrateKbps: 12000 },
     });
   }
-  if (source) out.push({ id: 'source', label: '시퀀스 원본 크기', params: { preset: source.name } });
+  if (source) out.push({ id: 'source', label: '편집본 원본 크기', params: { preset: source.name } });
   return out;
 }
 

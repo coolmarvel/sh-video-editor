@@ -844,6 +844,28 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
   "미리보기와 타임라인 높이 조절"). 툴팁 title 에 "더블클릭하면 기본 크기".
 - 저장: `localStorage` 키 `sh-video-editor.layout.v1` 에 `{ mediaWidth, timelineHeight }`(px, null 은 기본값). 읽기·쓰기는 try/catch.
 
+### 4.17 컨텍스트 메뉴·토스트·안내 카드 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/context-menu/` (`ContextMenu.tsx`, `store.ts`, `context-menu.css`, 항목은 `media-menu.ts`·`clip-menu.ts`),
+`features/project/` (토스트 `ProjectHost.tsx`, `project.css`), `features/onboarding/` (안내 카드 `OnboardingCard.tsx`, `onboarding.css`).
+값은 전부 `--sh-*` 토큰이다. 사용자에게 보이는 문구에 "시퀀스" 를 쓰지 않는다: 엔진의 sequence 는 "편집본", 메뉴와 패널은 "타임라인".
+
+- 컨텍스트 메뉴: 4.3 의 `sh-menu sh-menu--float` 그대로, `position: fixed` 로 포인터 자리에 연다. 오른쪽·아래로 넘치면 안쪽·위로.
+  Esc, 바깥 클릭, 창 크기 변경에 닫힌다. 위아래 화살표, Home, End, Enter. 삭제류 항목은 글자만 `--sh-color-danger`
+  (hover 면은 다른 항목과 같다). 메뉴바에도 있는 동작은 오른쪽에 같은 단축키를 적는다. 우클릭한 대상이 선택에 없으면 그것을 먼저
+  선택하고, 선택 안에 있으면 선택 전체가 대상이다. 미디어 트리(항목·편집본·폴더·빈 자리)와 타임라인(클립·빈 레인)에 있다.
+- 작은 대화상자: 이름 바꾸기·폴더 만들기는 한 칸 입력 대화상자(4.9, 폭 400, Enter 확인, Esc 취소, 빈 값은 주 버튼 비활성).
+  되돌리기 어려운 삭제(미디어 항목·열린 편집본·폴더)는 `alertdialog` 확인 대화상자, 주 버튼은 빨강 채움 "삭제".
+- 토스트: 4.13 의 알림 띠를 오른쪽 아래에 쌓는다(폭 320, 최대 3개). 글 + "닫기" 작은 버튼 한 줄. 정보·성공·경고는 6초 뒤 저절로
+  닫히고, 오류(danger)는 닫기 버튼으로만 닫힌다(`role="alert"`). 패널 안에 인라인 알림을 두지 않는다. 상태 줄 문구는 그대로다.
+- 첫 화면 안내 카드: 편집본이 없을 때 타임라인 패널 본문을 채운다. 점선 1px border-strong 상자(canvas 면), 머리글 13px bold,
+  네 단계(번호는 24px accent 사각 + 흰 숫자, 제목 bold + 설명 secondary)를 `auto-fit` 격자로, 아래에 버튼 "파일 가져오기"(기본)와
+  "데모 영상 넣기"(주). 미디어 항목을 끌어다 놓는 대상이기도 하다(놓이면 accent 점선 + accent-subtle 면). 도움말 > 사용 안내는 같은
+  카드를 4.9 대화상자에 넣어 보인다(끌어다 놓기 없음). 900 이하에서는 단계를 한 열로.
+- 미디어 트리의 편집본: 아이콘을 accent 색으로, 이름 옆에 칩 모양(4.13) "편집본" 표시. 영상과 같은 이름이어도 구분된다.
+- 타임라인 클립의 연결 표시: 영상·소리가 연결된 클립은 이름 앞 12px 연결 아이콘(currentColor). 트림 핸들 툴팁 "끌어서 길이 조절.
+  Alt 를 누르면 소리/영상만". Alt+드래그(이동·트림)는 연결 상대를 두고 그 클립만 움직인다.
+
 ## 5. Elevation
 
 그림자는 세 가지뿐이고 짧고 옅다. 다른 곳에는 그림자가 없다.

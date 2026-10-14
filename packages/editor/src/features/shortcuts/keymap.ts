@@ -15,6 +15,12 @@ export interface ShortcutDef {
   scope: ShortcutScope;
 }
 
+/**
+ * 포커스 영역: 마지막 pointerdown 이 있었던 패널(요소의 `data-area`, 'media' | 'timeline' | ...). Delete 처럼 패널마다 뜻이
+ * 다른 키가 어디를 향하는지 정한다. useShortcuts 가 갱신하고 actions 가 읽는다. 기본은 타임라인.
+ */
+export const focusArea = { current: 'timeline' };
+
 export const KEYMAP: ShortcutDef[] = [
   { id: 'edit.undo', keys: ['Ctrl+Z'], label: '실행 취소', scope: 'global' },
   { id: 'edit.redo', keys: ['Ctrl+Y', 'Ctrl+Shift+Z'], label: '다시 실행', scope: 'global' },
@@ -47,7 +53,7 @@ export const KEYMAP: ShortcutDef[] = [
   { id: 'clip.rippleDelete', keys: ['Shift+Delete'], label: '리플 삭제(뒤 클립 당김)', scope: 'timeline' },
   { id: 'timeline.zoomIn', keys: ['=', '+'], label: '타임라인 확대', scope: 'timeline' },
   { id: 'timeline.zoomOut', keys: ['-'], label: '타임라인 축소', scope: 'timeline' },
-  { id: 'timeline.fit', keys: ['\\'], label: '시퀀스 전체 보기', scope: 'timeline' },
+  { id: 'timeline.fit', keys: ['\\'], label: '타임라인 전체 보기', scope: 'timeline' },
   { id: 'timeline.snap', keys: ['S'], label: '스냅 켜기, 끄기', scope: 'timeline' },
   { id: 'markers.in', keys: ['I'], label: '인 점 표시', scope: 'timeline' },
   { id: 'markers.out', keys: ['O'], label: '아웃 점 표시', scope: 'timeline' },

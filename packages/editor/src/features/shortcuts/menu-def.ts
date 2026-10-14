@@ -60,7 +60,9 @@ export const MENUS: MenuDef[] = [
         label: '데모 영상 넣기',
         items: [...DEMO_SCENES.map((d) => item(d.label, 'file.importDemo', { params: { scene: d.scene } })), sep, item('전부 넣기', 'file.importDemoAll')],
       },
-      item('새 시퀀스', 'file.newSequence'),
+      item('타임라인에 넣기', 'file.addToTimeline'),
+      item('새 편집본(빈 타임라인)', 'file.newSequence'),
+      item('데모 편집본', 'file.demoEdition'),
       sep,
       item('내보내기...', 'file.export'),
       sep,
@@ -90,15 +92,18 @@ export const MENUS: MenuDef[] = [
     label: '클립',
     items: [
       item('플레이헤드에서 자르기', 'clip.razor', { enabledBy: 'sequence.inspect' }),
+      item('복제', 'clip.duplicate', { enabledBy: 'clip.enable' }),
+      item('이름 바꾸기...', 'clip.rename', { enabledBy: 'clip.enable' }),
       item('속도, 길이...', 'clip.speed', { enabledBy: 'clip.speedDuration' }),
       sep,
       item('켜기, 끄기', 'clip.enable', { enabledBy: 'clip.enable' }),
-      item('영상, 소리 연결, 연결 해제', 'clip.link', { enabledBy: 'clip.link' }),
+      item('소리 분리, 다시 연결', 'clip.link', { enabledBy: 'clip.link' }),
+      item('소리로 싱크 맞추기', 'clip.sync', { enabledBy: 'clip.synchronize' }),
     ],
   },
   {
     id: 'sequence',
-    label: '시퀀스',
+    label: '타임라인',
     items: [
       item('모든 트랙 자르기', 'clip.razorAll', { enabledBy: 'sequence.addEditAllTracks' }),
       item('트랙 추가', 'sequence.addTracks', { enabledBy: 'sequence.addTracks' }),
@@ -118,7 +123,7 @@ export const MENUS: MenuDef[] = [
     items: [
       item('타임라인 확대', 'timeline.zoomIn'),
       item('타임라인 축소', 'timeline.zoomOut'),
-      item('시퀀스 전체 보기', 'timeline.fit'),
+      item('타임라인 전체 보기', 'timeline.fit'),
       sep,
       item('재생, 정지', 'play.toggle'),
       item('뒤로 재생', 'play.shuttleBack'),
@@ -139,7 +144,7 @@ export const MENUS: MenuDef[] = [
   {
     id: 'help',
     label: '도움말',
-    items: [item('SH Video Editor 정보', 'help.about')],
+    items: [item('사용 안내', 'help.guide'), sep, item('SH Video Editor 정보', 'help.about')],
   },
 ];
 

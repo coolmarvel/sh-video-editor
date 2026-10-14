@@ -15,6 +15,18 @@
   white-space: normal;
   word-break: break-all;
 }
+/* 토스트: 글 + 닫기 버튼 한 줄. 글은 줄바꿈하고 버튼은 오른쪽에 고정 (DESIGN.md 4.17) */
+.ve-toast {
+  align-items: flex-start;
+}
+.ve-toast__text {
+  flex: 1;
+  min-width: 0;
+  line-height: var(--sh-font-line-height-normal, 1.45);
+}
+.ve-toast .sh-btn--sm {
+  flex: none;
+}
 .ve-dialog--narrow {
   width: 400px;
 }

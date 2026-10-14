@@ -17,9 +17,10 @@ export interface RecoveryCandidate {
   cleanExit: boolean;
 }
 
+/** 토스트 알림 한 건. 6초 뒤 자동으로 닫히고(오류는 닫기 버튼으로만), 닫기 버튼으로 바로 닫을 수 있다 */
 export interface Notice {
   id: number;
-  kind: 'success' | 'warning' | 'danger';
+  kind: 'info' | 'success' | 'warning' | 'danger';
   text: string;
 }
 
@@ -54,12 +55,15 @@ interface ProjectState {
   discardRecovery(id: string): Promise<void>;
   cancelConfirm(): void;
   notify(kind: Notice['kind'], text: string): void;
+  dismiss(id: number): void;
 }
 
 export const PROJECT_FILTER = [{ name: 'SH Video Editor 프로젝트', extensions: ['fcproj'] }];
 const UNTITLED = '제목 없음';
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 let noticeSeq = 0;
+/** 토스트가 저절로 닫히기까지(ms). 오류(danger)는 저절로 닫히지 않는다 */
+export const NOTICE_TTL_MS = 6000;
 
 export const useProject = create<ProjectState>((set, get) => {
   const bridge = (): EngineBridge | null => useEditor.getState().bridge;
@@ -266,7 +270,11 @@ export const useProject = create<ProjectState>((set, get) => {
     notify(kind, text) {
       const id = ++noticeSeq;
       set((s) => ({ notices: [...s.notices.slice(-2), { id, kind, text }] }));
-      setTimeout(() => set((s) => ({ notices: s.notices.filter((n) => n.id !== id) })), 6000);
+      if (kind !== 'danger') setTimeout(() => get().dismiss(id), NOTICE_TTL_MS);
+    },
+
+    dismiss(id) {
+      if (get().notices.some((n) => n.id === id)) set((s) => ({ notices: s.notices.filter((n) => n.id !== id) }));
     },
   };
 });

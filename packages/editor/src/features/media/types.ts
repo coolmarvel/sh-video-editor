@@ -39,8 +39,8 @@ const TYPE_KO: Record<string, string> = {
   Movie: '영상',
   Audio: '음악',
   'Still Image': '사진',
-  'Image Sequence': '이미지 시퀀스',
-  Sequence: '시퀀스',
+  'Image Sequence': '연속 이미지',
+  Sequence: '편집본',
   Synthetic: '생성 영상',
   Subclip: '서브클립',
   Graphic: '그래픽',
@@ -53,7 +53,7 @@ export function typeLabelKo(type: string): string {
   return TYPE_KO[type] ?? type;
 }
 
-/** 시퀀스로 만들 수 있는 항목인지(시퀀스 자체는 제외) */
+/** 타임라인에 넣을 수 있는 항목인지(편집본 자체는 제외) */
 export function isClipLike(item: MediaItem): boolean {
   return !/Sequence|Merged Clip/.test(item.type);
 }
@@ -67,4 +67,22 @@ export function findItem(root: MediaBin | null, id: number | null): MediaItem | 
   if (!root || id === null) return null;
   for (const it of walkItems(root)) if (it.id === id) return it;
   return null;
+}
+
+export function* walkBins(node: MediaNode): Generator<MediaBin> {
+  if (node.kind === 'bin') {
+    yield node;
+    for (const c of node.children) yield* walkBins(c);
+  }
+}
+
+export function findBin(root: MediaBin | null, id: number | null): MediaBin | null {
+  if (!root || id === null) return null;
+  for (const b of walkBins(root)) if (b.id === id) return b;
+  return null;
+}
+
+/** 편집본(엔진 Sequence) 항목인지 */
+export function isEdition(item: MediaItem): boolean {
+  return item.type === 'Sequence';
 }

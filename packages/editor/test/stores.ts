@@ -5,6 +5,9 @@ import { useExport } from '../src/features/export/store';
 import { useMedia } from '../src/features/media/store';
 import { useMonitor } from '../src/features/monitor/store';
 import { useProject } from '../src/features/project/store';
+import { useContextMenu } from '../src/features/context-menu/store';
+import { useOnboarding } from '../src/features/onboarding/store';
+import { focusArea } from '../src/features/shortcuts/keymap';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -14,6 +17,9 @@ export function resetStores(): void {
   useMedia.setState(useMedia.getInitialState(), true);
   useMonitor.setState(useMonitor.getInitialState(), true);
   useProject.setState(useProject.getInitialState(), true);
+  useContextMenu.setState(useContextMenu.getInitialState(), true);
+  useOnboarding.setState(useOnboarding.getInitialState(), true);
+  focusArea.current = 'timeline';
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

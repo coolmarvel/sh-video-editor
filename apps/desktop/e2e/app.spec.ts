@@ -45,10 +45,10 @@ const videoClips = (page: Page) => page.locator('.tl-lane--video .tl-clip');
 const tool = (page: Page, name: string) => page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true });
 
 async function makeDemoSequence(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '데모 영상' }).click();
+  await page.getByRole('button', { name: '데모 영상', exact: true }).click();
   await page.getByRole('menuitem', { name: '바다 노을' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다.' })).toBeVisible();
-  await page.getByRole('button', { name: '시퀀스 만들기', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다' })).toBeVisible();
+  await page.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
   await expect(clips(page)).toHaveCount(2);
   // 바다 노을 데모는 18초
   await expect(page.getByTestId('mon-total')).toHaveText('00:00:18:00');
@@ -197,7 +197,7 @@ test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 �
     expect(version).toContain('sh-video-engine');
     // 화면은 살아 있고(새 엔진은 빈 세션) 다시 편집할 수 있다
     await expect(page.getByRole('menubar')).toBeVisible();
-    await expect(page.getByText('열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.')).toBeVisible({
+    await expect(page.getByText('타임라인이 비어 있습니다. 미디어를 타임라인에 넣으면 여기에 보입니다.')).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.locator('.ve-status')).not.toContainText('오류:', { timeout: 20_000 });

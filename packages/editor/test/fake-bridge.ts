@@ -52,6 +52,14 @@ export interface FakeItem {
   label: string;
   hasAudio: boolean;
   fps?: number;
+  /** 들어 있는 폴더(bin) id. 없으면 루트 */
+  bin?: number | null;
+}
+
+export interface FakeBin {
+  id: number;
+  name: string;
+  parent: number | null;
 }
 
 export interface FakeRecovery {
@@ -84,10 +92,15 @@ interface State {
   dirty: boolean;
   revision: number;
   items: FakeItem[];
+  bins: FakeBin[];
   selectedItems: number[];
   sequence: FakeSequence | null;
+  /** 열려 있는 시퀀스들(id). sequence 는 그중 활성 */
+  sequences: FakeSequence[];
   playhead: number;
   snap: boolean;
+  /** 연결 선택(엔진 sequence.linkedSelection). 꺼지면 trim 이 연결 상대를 두고 간다 */
+  linkedSelection: boolean;
 }
 
 export interface FakeBridgeOptions {
@@ -241,10 +254,13 @@ export class FakeEngine {
       dirty: false,
       revision: 0,
       items: [],
+      bins: [],
       selectedItems: [],
       sequence: null,
+      sequences: [],
       playhead: 0,
       snap: true,
+      linkedSelection: true,
     };
   }
 
@@ -288,7 +304,7 @@ export class FakeEngine {
     return item;
   }
 
-  newSequence(opts: { name?: string; width?: number; height?: number; fps?: number } = {}): FakeSequence {
+  newSequence(opts: { name?: string; width?: number; height?: number; fps?: number; bin?: number | null } = {}): FakeSequence {
     const id = this.nextId++;
     const mk = (prefix: string, i: number): FakeTrack => ({
       id: this.nextId++,
@@ -319,33 +335,38 @@ export class FakeEngine {
       duration: 0,
       label: 'Forest',
       hasAudio: true,
+      bin: opts.bin ?? null,
     });
     this.state.sequence = seq;
+    this.state.sequences.push(seq);
     this.state.playhead = 0;
     this.touch();
     return seq;
   }
 
   /** 영상 트랙 V1 에 클립을 놓는다(연결된 소리 클립은 A1). */
-  place(item: FakeItem, time: number, trackIndex = 0, insert = true): FakeClip[] {
+  place(item: FakeItem, time: number, trackIndex = 0, insert = true, range: { sourceIn?: number; duration?: number } = {}): FakeClip[] {
     const seq = this.sequence;
     const video = seq.video[trackIndex];
     if (!video) throw new FakeEngineError('no such track');
-    const link = item.hasAudio ? this.nextLink++ : null;
+    const link = item.hasAudio && item.type !== 'Audio' ? this.nextLink++ : null;
+    const duration = range.duration ?? item.duration;
     const mkClip = (): FakeClip => ({
       clip: this.nextId++,
       item: item.item,
       name: item.name,
       start: time,
-      end: time + item.duration,
-      sourceIn: 0,
+      end: time + duration,
+      sourceIn: range.sourceIn ?? 0,
       link,
       enabled: true,
     });
     const out: FakeClip[] = [];
-    const v = mkClip();
-    this.insertClip(video, v, insert);
-    out.push(v);
+    if (item.type !== 'Audio') {
+      const v = mkClip();
+      this.insertClip(video, v, insert);
+      out.push(v);
+    }
     if (item.hasAudio) {
       const a = mkClip();
       const audio = seq.audio[0];
@@ -501,6 +522,10 @@ export class FakeEngine {
 
   inspectProject(): unknown {
     const s = this.state;
+    const bin = (id: number | null): unknown[] => [
+      ...s.bins.filter((b) => b.parent === id).map((b) => ({ id: b.id, name: b.name, children: bin(b.id) })),
+      ...s.items.filter((it) => (it.bin ?? null) === id).map((it) => ({ item: it.item, name: it.name, type: it.type, duration: it.duration, label: it.label })),
+    ];
     return {
       name: s.name,
       path: s.path,
@@ -508,18 +533,22 @@ export class FakeEngine {
       revision: s.revision,
       activeSequence: s.sequence?.id ?? null,
       sourceItem: null,
-      root: {
-        id: 0,
-        name: s.name,
-        children: s.items.map((it) => ({
-          item: it.item,
-          name: it.name,
-          type: it.type,
-          duration: it.duration,
-          label: it.label,
-        })),
-      },
+      root: { id: 0, name: s.name, children: bin(null) },
     };
+  }
+
+  private binById(id: unknown): FakeBin {
+    const b = this.state.bins.find((x) => x.id === id);
+    if (!b) throw new FakeEngineError('no such bin');
+    return b;
+  }
+
+  private linkFollow(p: Record<string, unknown>): boolean {
+    return typeof p['linked'] === 'boolean' ? p['linked'] : this.state.linkedSelection;
+  }
+
+  private findClipById(id: number): { clip: FakeClip; track: FakeTrack; kind: 'video' | 'audio' } {
+    return this.findClip(this.sequence, id);
   }
 
   private findTrack(seq: FakeSequence, ref: unknown): { track: FakeTrack; kind: 'video' | 'audio' } {
@@ -548,8 +577,8 @@ export class FakeEngine {
     throw new FakeEngineError(`edit failed: no such track item ClipId(${id})`);
   }
 
-  private linkedOf(seq: FakeSequence, clip: FakeClip): FakeClip[] {
-    if (clip.link === null) return [clip];
+  private linkedOf(seq: FakeSequence, clip: FakeClip, follow = true): FakeClip[] {
+    if (clip.link === null || !follow) return [clip];
     return [...seq.video, ...seq.audio].flatMap((t) => t.items).filter((c) => c.link === clip.link);
   }
 
@@ -618,14 +647,164 @@ export class FakeEngine {
         this.state.revision = s.revision + 1;
         return null;
       case 'file.newSequence': {
+        const from = typeof p['fromItem'] === 'number' ? s.items.find((it) => it.item === p['fromItem']) : undefined;
+        if (typeof p['fromItem'] === 'number' && !from) throw new FakeEngineError('invalid parameters for `file.newSequence`: no such item');
         this.snapshot('New Sequence');
         const seq = this.newSequence({
           name: p['name'] as string | undefined,
           width: p['width'] as number | undefined,
           height: p['height'] as number | undefined,
-          fps: p['fps'] as number | undefined,
+          fps: (p['fps'] as number | undefined) ?? from?.fps,
+          bin: from?.bin ?? null,
         });
+        // 엔진처럼 fromItem 은 그 항목을 0 에 놓는다(소리만 있는 항목은 A1)
+        if (from) {
+          if (from.type === 'Audio') {
+            const a: FakeClip = { clip: this.nextId++, item: from.item, name: from.name, start: 0, end: from.duration, sourceIn: 0, link: null, enabled: true };
+            this.insertClip(seq.audio[0]!, a, true);
+            seq.selection = [a.clip];
+          } else this.place(from, 0);
+        }
         return { sequence: seq.id };
+      }
+      case 'sequence.open': {
+        const seq = s.sequences.find((q) => q.id === p['item']);
+        if (!seq) throw new FakeEngineError('invalid parameters for `sequence.open`: no such sequence');
+        s.sequence = seq;
+        s.playhead = 0;
+        return null;
+      }
+      case 'sequence.linkedSelection':
+        s.linkedSelection = typeof p['on'] === 'boolean' ? p['on'] : !s.linkedSelection;
+        return { linkedSelection: s.linkedSelection };
+      case 'file.newBin': {
+        this.snapshot('New Bin');
+        const b: FakeBin = { id: this.nextId++, name: (p['name'] as string | undefined) ?? 'New Bin', parent: (p['parent'] as number | undefined) ?? null };
+        if (b.parent !== null) this.binById(b.parent);
+        s.bins.push(b);
+        this.touch();
+        return { bin: b.id };
+      }
+      case 'project.renameBin': {
+        const b = this.binById(p['bin']);
+        const name = (p['name'] as string | undefined)?.trim();
+        if (!name) throw new FakeEngineError('invalid parameters for `project.renameBin`: need a non-empty `name`');
+        this.snapshot('Rename Bin');
+        b.name = name;
+        this.touch();
+        return null;
+      }
+      case 'project.moveToBin': {
+        const ids = (p['items'] as number[] | undefined) ?? s.selectedItems;
+        if (ids.length === 0) throw new FakeEngineError('invalid parameters for `project.moveToBin`: need `items` (or a Project panel selection)');
+        const bin = p['bin'] === null || p['bin'] === undefined ? null : this.binById(p['bin']).id;
+        this.snapshot('Move to Bin');
+        let moved = 0;
+        for (const it of s.items) {
+          if (ids.includes(it.item)) {
+            it.bin = bin;
+            moved += 1;
+          }
+        }
+        this.touch();
+        return { moved };
+      }
+      case 'clip.rename': {
+        const name = p['name'] as string | undefined;
+        if (!name) throw new FakeEngineError('invalid parameters for `clip.rename`: need `name`');
+        this.snapshot('Rename');
+        if (typeof p['item'] === 'number') {
+          const it = s.items.find((x) => x.item === p['item']);
+          if (!it) throw new FakeEngineError('invalid parameters for `clip.rename`: no such item');
+          it.name = name;
+          const q = s.sequences.find((x) => x.id === it.item);
+          if (q) q.name = name;
+        } else {
+          const id = (p['clip'] as number | undefined) ?? this.sequence.selection[0];
+          if (id === undefined) throw new FakeEngineError('invalid parameters for `clip.rename`: no such clip');
+          this.findClipById(id).clip.name = name;
+        }
+        this.touch();
+        return null;
+      }
+      case 'project.delete': {
+        const asked = (p['items'] as number[] | undefined) ?? s.selectedItems;
+        if (asked.length === 0 || (asked.some((id) => s.bins.some((b) => b.id === id)) && s.selectedItems.length === 0))
+          throw new FakeEngineError('command `project.delete` is not available right now: select an item in the Project panel');
+        this.snapshot('Clear');
+        const bins = new Set<number>();
+        const collect = (id: number) => {
+          bins.add(id);
+          for (const b of s.bins) if (b.parent === id) collect(b.id);
+        };
+        for (const id of asked) if (s.bins.some((b) => b.id === id)) collect(id);
+        const items = new Set<number>(asked.filter((id) => s.items.some((it) => it.item === id)));
+        for (const it of s.items) if (it.bin !== null && it.bin !== undefined && bins.has(it.bin)) items.add(it.item);
+        s.bins = s.bins.filter((b) => !bins.has(b.id));
+        s.items = s.items.filter((it) => !items.has(it.item));
+        s.sequences = s.sequences.filter((q) => !items.has(q.id));
+        for (const q of s.sequences) {
+          for (const t of [...q.video, ...q.audio]) t.items = t.items.filter((c) => !items.has(c.item));
+          q.selection = q.selection.filter((c) => [...q.video, ...q.audio].some((t) => t.items.some((x) => x.clip === c)));
+        }
+        if (s.sequence && items.has(s.sequence.id)) s.sequence = s.sequences[0] ?? null;
+        s.selectedItems = [];
+        this.touch();
+        return { items: items.size, bins: bins.size };
+      }
+      case 'clip.link': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        if (ids.length === 0) throw new FakeEngineError('command `clip.link` is not available right now: no clips selected');
+        const clips = ids.map((id) => this.findClip(seq, id).clip);
+        const linked = clips.every((c) => c.link !== null);
+        this.snapshot(linked ? 'Unlink' : 'Link');
+        const l = linked ? null : this.nextLink++;
+        for (const c of clips) c.link = l;
+        this.touch();
+        return { linked: !linked };
+      }
+      case 'clip.synchronize': {
+        const seq = this.sequence;
+        if (p['method'] !== 'audio') throw new FakeEngineError('invalid parameters for `clip.synchronize`: unsupported method');
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        const clips = ids.map((id) => this.findClip(seq, id).clip);
+        const groups = new Map<string, FakeClip[]>();
+        for (const c of clips) {
+          const k = c.link === null ? `c${c.clip}` : `l${c.link}`;
+          groups.set(k, [...(groups.get(k) ?? []), c]);
+        }
+        if (groups.size < 2) throw new FakeEngineError('invalid parameters for `clip.synchronize`: select clips from at least two different sources');
+        const refId = (p['reference'] as number | undefined) ?? clips[0]!.clip;
+        const ref = clips.find((c) => c.clip === refId);
+        if (!ref) throw new FakeEngineError('invalid parameters for `clip.synchronize`: `reference` is not among the clips');
+        for (const c of clips) if (!s.items.find((it) => it.item === c.item)?.hasAudio) throw new FakeEngineError(`${c.name} has no audio to synchronize by`);
+        this.snapshot('Synchronize (Audio)');
+        // 같은 소스끼리는 소스 시각(start - sourceIn)이 같도록 옮긴다(실제 엔진은 파형 상관으로 찾는다)
+        const origin = ref.start - ref.sourceIn;
+        let moved = 0;
+        const report: unknown[] = [];
+        for (const [, group] of groups) {
+          const rep = group[0]!;
+          const delta = rep.link === ref.link && rep.clip === ref.clip ? 0 : origin - (rep.start - rep.sourceIn);
+          if (delta !== 0) {
+            moved += 1;
+            for (const c of group) {
+              c.start += delta;
+              c.end += delta;
+            }
+          }
+          report.push({
+            item: rep.item,
+            name: rep.name,
+            start: rep.start,
+            startFrame: Math.round(rep.start / frameTicksOf(seq)),
+            anchor: 0,
+            audio: rep.clip === ref.clip ? null : { lagSamples: 0, lagFine: 0, confidence: 50, distinct: 5, reliable: true, inverted: false },
+          });
+        }
+        this.touch();
+        return { moved, reference: 0, clips: report };
       }
       case 'file.importDemoFootage': {
         const scene = p['scene'] as string;
@@ -676,8 +855,9 @@ export class FakeEngine {
         const time = (p['time'] as number) ?? 0;
         if (time < 0) throw new FakeEngineError('invalid parameters for `timeline.place`: negative time');
         this.snapshot('Place Clip');
+        const range = { sourceIn: p['sourceIn'] as number | undefined, duration: p['duration'] as number | undefined };
         if (kind === 'video') {
-          const clips = this.place(item, time, seq.video.indexOf(track), p['insert'] !== false);
+          const clips = this.place(item, time, seq.video.indexOf(track), p['insert'] !== false, range);
           this.touch();
           return { clips: clips.map((c) => c.clip) };
         }
@@ -686,8 +866,8 @@ export class FakeEngine {
           item: item.item,
           name: item.name,
           start: time,
-          end: time + item.duration,
-          sourceIn: 0,
+          end: time + (range.duration ?? item.duration),
+          sourceIn: range.sourceIn ?? 0,
           link: null,
           enabled: true,
         };
@@ -741,6 +921,17 @@ export class FakeEngine {
       case 'edit.deselectAll':
         this.sequence.selection = [];
         return null;
+      case 'clip.enable': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        if (ids.length === 0) throw new FakeEngineError('command `clip.enable` is not available right now: no clips selected');
+        this.snapshot('Enable');
+        const clips = ids.map((id) => this.findClip(seq, id).clip);
+        const target = !clips.every((c) => c.enabled);
+        for (const c of clips) c.enabled = target;
+        this.touch();
+        return null;
+      }
       case 'edit.clear':
       case 'edit.rippleDelete': {
         const seq = this.sequence;
@@ -756,13 +947,14 @@ export class FakeEngine {
         const moves = p['moves'] as Array<{ clip: number; track: unknown; time: number }>;
         this.snapshot('Move Clips');
         const moved: number[] = [];
+        const follow = this.linkFollow(p);
         for (const m of moves) {
           const { clip, track, kind } = this.findClip(seq, m.clip);
           if (m.time < 0) throw new FakeEngineError('edit failed: negative time');
           const delta = m.time - clip.start;
           const dest = this.findTrack(seq, m.track);
           if (dest.kind !== kind) throw new FakeEngineError('edit failed: track kind mismatch');
-          for (const c of this.linkedOf(seq, clip)) {
+          for (const c of this.linkedOf(seq, clip, follow)) {
             c.start += delta;
             c.end += delta;
             moved.push(c.clip);
@@ -786,7 +978,7 @@ export class FakeEngine {
         if ((edge === 'in' && delta >= len) || (edge === 'out' && -delta >= len))
           throw new FakeEngineError('edit failed: clip would be shorter than one frame');
         this.snapshot('Trim Edit');
-        for (const c of this.linkedOf(seq, clip)) {
+        for (const c of this.linkedOf(seq, clip, s.linkedSelection)) {
           if (edge === 'in') {
             c.start += delta;
             c.sourceIn += delta;

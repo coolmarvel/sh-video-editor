@@ -19,6 +19,7 @@ export function ProjectHost() {
   const name = useProject((s) => s.name);
   const dirty = useProject((s) => s.dirty);
   const notices = useProject((s) => s.notices);
+  const dismiss = useProject((s) => s.dismiss);
 
   useEffect(() => {
     if (!bridge || !version) return;
@@ -44,8 +45,11 @@ export function ProjectHost() {
       {notices.length > 0 && (
         <div className="ve-toasts" aria-live="polite">
           {notices.map((n) => (
-            <div key={n.id} className={`sh-alert sh-alert--${n.kind}`} role="status">
-              {n.text}
+            <div key={n.id} className={`sh-alert ve-toast${n.kind === 'info' ? '' : ` sh-alert--${n.kind}`}`} role={n.kind === 'danger' ? 'alert' : 'status'}>
+              <span className="ve-toast__text">{n.text}</span>
+              <button type="button" className="sh-btn sh-btn--sm" aria-label="알림 닫기" onClick={() => dismiss(n.id)}>
+                닫기
+              </button>
             </div>
           ))}
         </div>

@@ -29,17 +29,21 @@ describe('App', () => {
     expect(screen.getByText('데모 영상 메뉴에서 생성 영상을 넣어 바로 시험할 수 있습니다.')).toBeInTheDocument();
   });
 
-  it('데모 영상을 넣고 시퀀스를 만들면 타임라인과 모니터가 채워진다', async () => {
+  it('데모 영상을 넣고 타임라인에 넣으면 편집본이 생기고 타임라인과 모니터가 채워진다', async () => {
     const engine = new FakeEngine({ desktop: true });
     render(<App bridge={engine.bridge} host="desktop" />);
     await vi.waitFor(() => expect(screen.getByText(/^준비됨/)).toBeInTheDocument());
-    expect(screen.getByText('열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.')).toBeInTheDocument();
+    expect(screen.getByText('타임라인이 비어 있습니다. 미디어를 타임라인에 넣으면 여기에 보입니다.')).toBeInTheDocument();
+    // 편집본이 없으면 타임라인 자리에 안내 카드가 있다
+    expect(screen.getByLabelText('사용 안내')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '데모 영상' }));
     fireEvent.click(screen.getByRole('menuitem', { name: '오로라' }));
-    await vi.waitFor(() => expect(screen.getByText('데모 영상을 넣었습니다.')).toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.getByText(/데모 영상을 넣었습니다/)).toBeInTheDocument());
     expect(engine.callsOf('file.importDemoFootage')).toEqual([{ scene: 'Aurora' }]);
-    fireEvent.click(screen.getByRole('button', { name: '시퀀스 만들기' }));
-    await vi.waitFor(() => expect(screen.getByText('타임라인 - Aurora_Timelapse')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '타임라인에 넣기' }));
+    // 편집본 이름은 프로젝트 이름(제목 없음)을 따른다
+    await vi.waitFor(() => expect(screen.getByText('타임라인 - 제목 없음')).toBeInTheDocument());
+    expect(engine.callsOf('file.newSequence')).toEqual([{ name: '제목 없음', fromItem: engine.state.items[0]!.item }]);
     const timeline = screen.getByRole('region', { name: '타임라인' });
     await vi.waitFor(() => expect(timeline.querySelectorAll('.tl-clip')).toHaveLength(2));
     await vi.waitFor(() => expect(screen.getByTestId('mon-total')).toHaveTextContent('00:00:16:00'));
@@ -58,12 +62,13 @@ describe('App', () => {
     expect(screen.getByText('엔진 없음')).toBeInTheDocument();
   });
 
-  it('타임라인 키보드: 새 시퀀스 뒤 Ctrl+K 자르기 안내, S 로 스냅 토글', async () => {
+  it('타임라인 키보드: 새 편집본 뒤 Ctrl+K 자르기 안내, S 로 스냅 토글', async () => {
     const engine = new FakeEngine();
     render(<App bridge={engine.bridge} host="web" />);
     await vi.waitFor(() => expect(screen.getByText(/^준비됨/)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: '새 시퀀스 만들기' }));
-    await vi.waitFor(() => expect(screen.getByText('타임라인 - 시퀀스 1')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /새 편집본/ }));
+    await vi.waitFor(() => expect(screen.getByText('타임라인 - 제목 없음')).toBeInTheDocument());
     const timeline = screen.getByRole('region', { name: '타임라인' });
     fireEvent.keyDown(timeline, { key: 'k', ctrlKey: true });
     await vi.waitFor(() => expect(screen.getByText('플레이헤드 아래에 클립이 없습니다')).toBeInTheDocument());

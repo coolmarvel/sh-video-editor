@@ -117,6 +117,17 @@ interface ClipBlockProps {
   onPointerDown(e: React.PointerEvent<HTMLDivElement>, clip: ClipInfo, part: ClipPart): void;
 }
 
+/** 영상·소리가 연결되어 있음을 알리는 작은 아이콘(16px, currentColor). Alt 드래그면 한쪽만 움직인다 */
+function LinkIcon() {
+  return (
+    <svg className="tl-clip__link" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
+      <path d="M6.5 9.5l3-3M5 7L3.5 8.5a2.1 2.1 0 0 0 3 3L8 10M8 6l1.5-1.5a2.1 2.1 0 0 1 3 3L11 9" />
+    </svg>
+  );
+}
+
+const HANDLE_TITLE = '끌어서 길이 조절. Alt 를 누르면 소리/영상만';
+
 function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPointerDown }: ClipBlockProps) {
   const left = tickToPx(clip.start, pxPerSec) + (preview?.dxStart ?? 0);
   const width = Math.max(1, tickToPx(clip.end - clip.start, pxPerSec) + (preview?.dxEnd ?? 0) - (preview?.dxStart ?? 0));
@@ -133,12 +144,13 @@ function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPoint
       className={classes.join(' ')}
       data-clip={clip.clip}
       style={{ left: `${left}px`, width: `${width}px` }}
-      title={clip.name}
+      title={clip.link !== null ? `${clip.name} (영상, 소리 연결됨. Alt 드래그로 한쪽만 이동)` : clip.name}
       onPointerDown={(e) => part(e, 'body')}
     >
-      <div className="tl-clip__handle tl-clip__handle--in" onPointerDown={(e) => part(e, 'in')} />
+      <div className="tl-clip__handle tl-clip__handle--in" title={HANDLE_TITLE} onPointerDown={(e) => part(e, 'in')} />
+      {clip.link !== null && <LinkIcon />}
       <span className="tl-clip__name">{clip.name}</span>
-      <div className="tl-clip__handle tl-clip__handle--out" onPointerDown={(e) => part(e, 'out')} />
+      <div className="tl-clip__handle tl-clip__handle--out" title={HANDLE_TITLE} onPointerDown={(e) => part(e, 'out')} />
     </div>
   );
 }

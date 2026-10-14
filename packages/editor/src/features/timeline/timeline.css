@@ -216,6 +216,12 @@
   white-space: nowrap;
   pointer-events: none;
 }
+/* 연결 아이콘: 이름 앞 12px, 글자색 그대로(선택·비활성 색을 따른다) */
+.tl-clip__link {
+  flex: none;
+  margin-left: var(--sh-space-2);
+  pointer-events: none;
+}
 .tl-clip__handle {
   flex: none;
   width: var(--tl-handle-w);
@@ -238,7 +244,7 @@
   pointer-events: none;
 }
 
-/* 빈 상태 */
+/* 빈 상태. 편집본이 없을 때는 features/onboarding 의 안내 카드(.ve-guide--timeline)가 이 자리를 채운다 */
 .tl-empty {
   position: absolute;
   left: var(--tl-header-w);
@@ -247,16 +253,6 @@
   margin: 0;
   text-align: center;
   pointer-events: none;
-}
-.tl-none {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sh-space-8);
-  padding: var(--sh-space-12);
-  text-align: center;
 }
 
 /* 데스크톱: 트랙 6줄이 다 보이는 높이. layout.css 의 220px 기본값을 토큰 조합으로 대신한다 */

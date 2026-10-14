@@ -1,4 +1,4 @@
-/* 미디어 패널 전용 배치. 값은 전부 --sh-* 토큰. 부품 모양(sh-tree, sh-toolbar, sh-menu, sh-alert)은 sh-classic.css 가 정한다. */
+/* 미디어 패널 전용 배치. 값은 전부 --sh-* 토큰. 부품 모양(sh-tree, sh-toolbar, sh-menu)은 sh-classic.css 가 정한다. 알림은 토스트(features/project). */
 .ve-media-toolbar {
   flex: none;
   min-width: 0;
@@ -59,17 +59,19 @@
   font-size: var(--sh-font-size-caption);
   color: var(--sh-color-text-secondary);
 }
-.ve-media-notice {
+/* 편집본 항목: 이름 옆 작은 "편집본" 표시(칩 모양, 4.13)로 같은 이름의 영상과 구분한다 */
+.ve-media-kind {
   flex: none;
-  margin: var(--sh-space-4);
-  min-width: 0;
+  margin-left: var(--sh-space-4);
+  padding: 0 var(--sh-space-4);
+  font-size: var(--sh-font-size-caption);
+  line-height: calc(var(--sh-size-tree-row) - var(--sh-space-6));
+  color: var(--sh-color-accent);
+  background: var(--sh-color-accent-subtle);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
 }
-.ve-media-notice span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
+.ve-media-label--edition .ve-media-icon {
+  color: var(--sh-color-accent);
 }
 .ve-media-details {
   flex: none;

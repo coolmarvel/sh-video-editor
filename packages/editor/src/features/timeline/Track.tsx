@@ -15,6 +15,7 @@ function ClipThumb({ clip }: { clip: ClipInfo }) {
   return url ? <img className="tl-clip__thumb" src={url} alt="" draggable={false} /> : null;
 }
 import { ClipWaveform } from '../audio/ClipWaveform';
+import { ClipKeyframeMarkers } from '../keyframes/ClipKeyframeMarkers';
 
 /** 드래그 중 미리보기. 엔진에 보내기 전 화면만 먼저 움직인다 */
 export interface ClipPreview {
@@ -169,6 +170,7 @@ function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPoint
       {clip.link !== null && <LinkIcon />}
       <span className="tl-clip__name">{clip.name}</span>
       <SpeedBadge clip={clip} />
+      {!audio && <ClipKeyframeMarkers clip={clip} pxPerSec={pxPerSec} />}
       <div className="tl-clip__handle tl-clip__handle--out" title={HANDLE_TITLE} onPointerDown={(e) => part(e, 'out')} />
     </div>
   );

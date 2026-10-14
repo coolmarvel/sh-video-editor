@@ -117,6 +117,11 @@ export interface EngineBridge {
    * 읽을 수 있다.
    */
   registerFiles?(files: File[]): Promise<string[]>;
+  /**
+   * 바이트를 호스트의 임시 파일로 써서 엔진이 읽을 수 있는 경로를 돌려준다(데스크톱: OS 임시 폴더). 화면이 만든 그림(스티커 PNG)을
+   * `file.import`·`graphics.newFromFile` 에 넘길 때 쓴다. 웹은 registerFiles 로 같은 일을 하므로 이 메서드가 없다.
+   */
+  writeTempFile?(name: string, bytes: Uint8Array): Promise<string>;
 
   /**
    * [웹 전용] 엔진이 파일을 쓸 때(내보내기 결과, 저장한 프로젝트) 알림을 받는다. 웹 엔진은 파일시스템이 없어

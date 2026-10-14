@@ -47,6 +47,8 @@ export interface FakeEffect {
   enabled: boolean;
   masks: number;
   params: Record<string, { keyframes: number; value: string }>;
+  /** 파라미터별 키프레임 미디어 시각·보간(실제 엔진처럼 inspect 에는 개수만 나간다) */
+  kf?: Record<string, Array<{ time: number; interp: string }>>;
 }
 
 /** 가짜 엔진이 아는 효과 카탈로그(실제 effects.list 의 일부). 값은 기본값 */
@@ -500,6 +502,11 @@ export class FakeEngine {
       opacity: v(float(g.opacity)),
       scale: v(float(g.scale)),
     };
+  }
+
+  /** 시퀀스 시각 -> 클립 미디어 시각(실제 엔진 source_time_at 의 속도 1 경우). 클립 밖은 안으로 자른다 */
+  private fakeMediaTime(clip: FakeClip, t: number): number {
+    return clip.sourceIn + Math.min(Math.max(t, clip.start), Math.max(clip.start, clip.end - 1)) - clip.start;
   }
 
   private graphicOf(clip: number | undefined): { clip: number; g: FakeGraphic } {
@@ -1667,6 +1674,16 @@ export class FakeEngine {
         const merge = p['merge'] === true && p['begin'] !== true && this.mergeKey === key;
         if (!merge) this.snapshot('Change Effect Parameter');
         this.mergeKey = p['merge'] === true ? key : null;
+        const kfTimes = fx.kf?.[param];
+        if (kfTimes && kfTimes.length > 0) {
+          // 애니메이션 중: time(없으면 플레이헤드)의 키프레임을 추가·갱신한다. 정적 값은 그대로(실제 엔진 Param::set_at)
+          const mt = this.fakeMediaTime(clip, (p['time'] as number | undefined) ?? this.state.playhead);
+          if (!kfTimes.some((k) => k.time === mt)) kfTimes.push({ time: mt, interp: [...kfTimes].filter((k) => k.time < mt).pop()?.interp ?? 'linear' });
+          kfTimes.sort((a, b) => a.time - b.time);
+          fx.params[param] = { keyframes: kfTimes.length, value: fx.params[param]?.value ?? fakeParamValue(p['value']) };
+          this.touch();
+          return null;
+        }
         fx.params[param] = { keyframes: 0, value: fakeParamValue(p['value']) };
         this.touch();
         return null;
@@ -1765,6 +1782,8 @@ export class FakeEngine {
           sourceIn: 0,
           link: null,
           enabled: true,
+          // 실제 엔진처럼 그래픽 클립도 고정 효과(motion, opacity)를 가진다(키프레임 커맨드용. inspect 는 graphic_text 만 보인다)
+          effects: [fakeEffect('motion'), fakeEffect('opacity'), fakeEffect('time_remap')],
         };
         track.items.push(clip);
         track.items.sort((a, b) => a.start - b.start);
@@ -2009,6 +2028,130 @@ export class FakeEngine {
         this.files.set(path, body);
         this.written.set(path, new TextEncoder().encode(body));
         return { bytes: body.length, captions: t.captions.length, format: 'SubRip (SRT)', path };
+      }
+      // ----- 키프레임(실제 엔진 effects.* 키프레임 커맨드의 흉내: 미디어 시각으로 찾는다) -----
+      case 'effects.addKeyframe':
+      case 'effects.deleteKeyframe':
+      case 'effects.moveKeyframe':
+      case 'effects.setInterpolation':
+      case 'effects.setKeyframe':
+      case 'effects.toggleAnimation': {
+        const seq = this.sequence;
+        const { clip } = this.findClip(seq, p['clip'] as number);
+        const list = clip.effects ?? [];
+        const ref = p['effect'] ?? 'motion';
+        const fx = typeof ref === 'number' ? list[ref] : list.find((e) => e.effect === ref);
+        if (!fx) throw new FakeEngineError(`invalid parameters for \`keyframe\`: no such effect`);
+        const param = String(p['param']);
+        const entry = fx.params[param];
+        if (!entry) throw new FakeEngineError(`invalid parameters for \`keyframe\`: no such param`);
+        const kf = (fx.kf ??= {});
+        const times = (kf[param] ??= []);
+        const mtNow = this.fakeMediaTime(clip, (p['time'] as number | undefined) ?? this.state.playhead);
+        const mediaTime = p['mediaTime'] as number | undefined;
+        const label =
+          id === 'effects.addKeyframe'
+            ? 'Add Keyframe'
+            : id === 'effects.deleteKeyframe'
+              ? 'Delete Keyframe'
+              : id === 'effects.moveKeyframe'
+                ? 'Move Keyframe'
+                : id === 'effects.setKeyframe'
+                  ? 'Edit Keyframe'
+                  : id === 'effects.toggleAnimation'
+                    ? 'Toggle Animation'
+                    : 'Keyframe Interpolation';
+        this.snapshot(label);
+        if (id === 'effects.addKeyframe') {
+          const at = times.findIndex((k) => k.time === mtNow);
+          if (at >= 0) times.splice(at, 1);
+          else times.push({ time: mtNow, interp: 'linear' });
+        } else if (id === 'effects.deleteKeyframe') {
+          if (mediaTime === undefined) throw new FakeEngineError('invalid parameters for `keyframe`: need `mediaTime`');
+          const at = times.findIndex((k) => k.time === mediaTime);
+          if (at >= 0) times.splice(at, 1);
+        } else if (id === 'effects.moveKeyframe') {
+          const to = p['to'] as number | undefined;
+          if (mediaTime === undefined || to === undefined) throw new FakeEngineError('invalid parameters for `keyframe`: need `mediaTime` and `to`');
+          const at = times.findIndex((k) => k.time === mediaTime);
+          if (at >= 0) {
+            const [k] = times.splice(at, 1);
+            const dup = times.findIndex((x) => x.time === to);
+            if (dup >= 0) times.splice(dup, 1);
+            times.push({ time: to, interp: k?.interp ?? 'linear' });
+          }
+        } else if (id === 'effects.toggleAnimation') {
+          times.length = 0;
+        } else {
+          const at = mediaTime ?? mtNow;
+          const k = times.find((x) => x.time === at);
+          if (!k) throw new FakeEngineError('invalid parameters for `keyframe`: no keyframe at that time');
+          if (id === 'effects.setInterpolation') k.interp = String(p['interpolation'] ?? 'linear');
+          else if (p['value'] !== undefined) entry.value = fakeParamValue(p['value']);
+        }
+        times.sort((a, b) => a.time - b.time);
+        entry.keyframes = times.length;
+        this.mergeKey = null;
+        this.touch();
+        return null;
+      }
+      case 'file.newColorMatte': {
+        const seconds = (p['seconds'] as number | undefined) ?? 5;
+        this.snapshot('New Color Matte');
+        const item = this.addItem({ name: 'Color Matte', type: 'Synthetic', hasAudio: false, duration: seconds * T, label: 'Lavender' });
+        return { item: item.item };
+      }
+      case 'graphics.newFromFile': {
+        const seq = this.sequence;
+        const path = String(p['path']);
+        const time = (p['time'] as number | undefined) ?? this.state.playhead;
+        this.snapshot('Import');
+        const name = path.split(/[\\/]/).pop() ?? path;
+        const item = this.addItem({ name, type: 'Still Image', hasAudio: false, duration: 5 * T });
+        this.snapshot('New Layer from File');
+        let track = seq.video.find((t) => !t.items.some((c) => c.start < time + 5 * T && time < c.end));
+        if (!track) {
+          track = {
+            id: this.nextId++,
+            name: `Video ${seq.video.length + 1}`,
+            items: [],
+            enabled: true,
+            locked: false,
+            muted: false,
+            solo: false,
+            syncLock: true,
+          };
+          seq.video.push(track);
+        }
+        const clips = this.place(item, time, seq.video.indexOf(track), false, { duration: 5 * T });
+        this.touch();
+        return { clip: clips[0]?.clip, item: item.item };
+      }
+      case 'graphics.alignFrame.left':
+      case 'graphics.alignFrame.hcenter':
+      case 'graphics.alignFrame.right':
+      case 'graphics.alignFrame.top':
+      case 'graphics.alignFrame.vcenter':
+      case 'graphics.alignFrame.bottom': {
+        const { clip, g } = this.graphicOf(p['clip'] as number | undefined);
+        const seq = this.sequence;
+        this.snapshot('Align Layers');
+        const q = FakeEngine.textQuad(g);
+        const xs = q.map((v) => v[0]);
+        const ys = q.map((v) => v[1]);
+        const w = Math.max(...xs) - Math.min(...xs);
+        const h = Math.max(...ys) - Math.min(...ys);
+        const dx = g.position[0] - Math.min(...xs);
+        const dy = g.position[1] - Math.min(...ys);
+        const how = id.slice('graphics.alignFrame.'.length);
+        if (how === 'left') g.position = [dx, g.position[1]];
+        else if (how === 'hcenter') g.position = [(seq.width - w) / 2 + dx, g.position[1]];
+        else if (how === 'right') g.position = [seq.width - w + dx, g.position[1]];
+        else if (how === 'top') g.position = [g.position[0], dy];
+        else if (how === 'vcenter') g.position = [g.position[0], (seq.height - h) / 2 + dy];
+        else g.position = [g.position[0], seq.height - h + dy];
+        this.touch();
+        return { clip, layers: [0] };
       }
       default:
         throw new FakeEngineError(`unknown command \`${id}\``);

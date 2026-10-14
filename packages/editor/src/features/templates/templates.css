@@ -1,0 +1,87 @@
+/* 템플릿 갤러리(미디어 패널 탭, DESIGN.md 4.23). 값은 전부 --sh-* 토큰 */
+.tpl-gallery {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.tpl-hint {
+  padding-top: var(--sh-space-4);
+  padding-bottom: var(--sh-space-4);
+}
+.tpl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--sh-space-6) var(--sh-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-6);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.tpl-card {
+  display: grid;
+  grid-template-columns: var(--sh-space-48) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sh-space-8);
+  padding: var(--sh-space-6);
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  background: var(--sh-gradient-bevel);
+  min-width: 0;
+}
+.tpl-card__pic {
+  width: var(--sh-space-48);
+  height: var(--sh-space-48);
+  background: var(--sh-color-stage-image);
+  border: var(--sh-border-width) solid var(--sh-color-border);
+}
+.tpl-pic__frame {
+  fill: var(--sh-color-sunken);
+  stroke: var(--sh-color-border-strong);
+}
+.tpl-pic__title {
+  fill: var(--sh-color-text);
+}
+.tpl-pic__sub {
+  fill: var(--sh-color-text-secondary);
+}
+.tpl-pic__slide {
+  fill: var(--sh-color-accent-subtle);
+  stroke: var(--sh-color-accent-pressed);
+}
+.tpl-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-2);
+  min-width: 0;
+}
+.tpl-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+}
+.tpl-card__aspect {
+  font-size: var(--sh-font-size-caption);
+}
+.tpl-card__desc,
+.tpl-card__hint {
+  margin: 0;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+  line-height: var(--sh-font-line-height-normal);
+  word-break: keep-all;
+}
+.tpl-card__hint {
+  color: var(--sh-color-text-muted);
+}
+@media (max-width: 900px) {
+  .tpl-card {
+    grid-template-columns: var(--sh-space-48) minmax(0, 1fr);
+  }
+  .tpl-card__make {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

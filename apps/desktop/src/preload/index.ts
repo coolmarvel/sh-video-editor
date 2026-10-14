@@ -37,6 +37,7 @@ const shEngine = {
   pathForFile: (file: File): string | null => webUtils.getPathForFile(file) || null,
   pickSavePath: (defaultName: string, filters?: FileFilter[]) => ipcRenderer.invoke('dialog:pickSavePath', defaultName, filters) as Promise<string | null>,
   pickOpenPath: (filters?: FileFilter[]) => ipcRenderer.invoke('dialog:pickOpenPath', filters) as Promise<string | null>,
+  writeTempFile: (name: string, bytes: Uint8Array) => ipcRenderer.invoke('host:writeTempFile', name, bytes) as Promise<string>,
 };
 
 contextBridge.exposeInMainWorld('shEngine', shEngine);

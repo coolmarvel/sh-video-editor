@@ -12,6 +12,13 @@
 - `crates/ui-egui`, `apps/filmcraft`, `apps/filmcraft-web`(egui 웹 러너), `docs/images`, `docs/brand`(ArtCraft 상표), `plan/` 은 복사하지 않았다.
 - `xtask` 의 `web`·`bench` 서브커맨드는 ui-egui 가 없어 동작하지 않는다. `ci`(fmt, clippy, test, assets, layers, wasm) 중 `wasm` 은
   `WEB_CRATES` 가 ui-egui 를 가리키므로 손봐야 한다(todo P2).
+- 커맨드 보강(2026-10-14, `docs/guides/engine-commands.md`): 우리 커맨드는 `crates/engine/src/sh_commands.rs`(+`sh_commands_tests.rs`)
+  에 모아 `commands.rs` 의 `build()` 끝에서 등록한다. 상류 파일에 들어간 최소 수정: `crates/edit/src/lib.rs`(고아 전환 정리의 인접성,
+  일반 트림 뒤 정리, `remove_transition`, `set_transition_span`), `crates/engine/src/lib.rs`(`History.transaction`, `validate_params`·
+  `validate_clips` 호출, 트랜잭션 중 undo 금지), `crates/engine/src/commands.rs`(`with_partners`, `clip.enable`/`clip.link`/`timeline.trim` 의
+  `linked`, inspect 파라미터 `{kind, value}`, 입력 검증, 모르는 데모 장면 거부, `file.import` 의 `warnings`), `crates/engine/src/color.rs`
+  (`lumetri.applyPreset {replace}`), `crates/render/src/{lib,plan}.rs`(`frame_time`: 역방향 디코드 시각), `crates/media/src/lib.rs`
+  (`MediaSource::warnings` 기본 구현), `crates/codecs/src/mp4.rs`(잘린 파일 경고). 상류를 다시 가져올 때 이 목록으로 diff 를 맞춘다.
 
 ## 상류 갱신
 

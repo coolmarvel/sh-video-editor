@@ -1,5 +1,6 @@
 import type { EngineBridge, EngineEvent, Frame } from '@editor';
 import type { OpfsStore } from '@editor/engine/bridge';
+import { createIdbCache } from './cache';
 
 type Res = { id: number; ok: boolean; result?: unknown; error?: string };
 type Event = { event: 'fileWritten'; path: string; bytes: Uint8Array };
@@ -16,7 +17,7 @@ export interface WebBridgeDiag {
   }>;
 }
 
-/** Worker 안의 wasm 엔진을 EngineBridge 모양으로 감싼다. 웹 전용 선택 메서드(파일 등록·내보내기 수신·OPFS)도 여기서. */
+/** Worker 안의 wasm 엔진을 EngineBridge 모양으로 감싼다. 웹 전용 선택 메서드(파일 등록·내보내기 수신·OPFS·IndexedDB 캐시)도 여기서. */
 export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
   const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
   let seq = 0;
@@ -87,5 +88,8 @@ export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
   if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.getDirectory === 'function') {
     bridge.opfs = opfs;
   }
+  // 호스트 캐시(썸네일·파형·최근 프로젝트): IndexedDB. 없으면 화면이 메모리 캐시만 쓴다
+  const cache = createIdbCache();
+  if (cache) bridge.cache = cache;
   return bridge;
 }

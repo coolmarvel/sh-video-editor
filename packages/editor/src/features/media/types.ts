@@ -13,6 +13,8 @@ export interface MediaItem {
   fps?: number;
   videoInfo?: string;
   audioInfo?: string;
+  /** 미디어 파일 경로(media.status). 생성 미디어·편집본은 없다. 호스트 캐시 키(features/cache) */
+  path?: string;
 }
 
 export interface MediaBin {

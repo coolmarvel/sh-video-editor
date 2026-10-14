@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useEditor } from '../../store';
 import { formatEta } from './presets';
 import { useExport } from './store';
+import { isWebExport } from './web-download';
 import { RatioBar, SnsPresets } from '../ratio';
 import './export.css';
 
@@ -20,10 +21,12 @@ export function ExportDialog() {
   const outcome = useExport((s) => s.outcome);
   const { hide, setPreset, setFormat, browse, start, cancel } = useExport.getState();
   const canPick = useEditor((s) => Boolean(s.bridge?.pickSavePath));
+  // 웹: 저장 위치 없이 완료되면 브라우저 다운로드로 받는다
+  const web = useEditor((s) => isWebExport(s.bridge));
   const primaryRef = useRef<HTMLButtonElement>(null);
 
   const busy = job?.status === 'encoding' || job?.status === 'ready';
-  const canStart = !loading && !busy && !problem && canPick && path !== '' && resolved !== null;
+  const canStart = !loading && !busy && !problem && (canPick || web) && path !== '' && resolved !== null;
 
   useEffect(() => {
     if (open && !busy) primaryRef.current?.focus();
@@ -60,9 +63,9 @@ export function ExportDialog() {
               {problem}
             </div>
           )}
-          {!canPick && (
+          {!canPick && !web && (
             <div className="sh-alert sh-alert--warning" role="status">
-              웹 내보내기는 준비 중입니다. 데스크톱 앱에서 내보내 주세요.
+              이 환경에서는 내보내기를 지원하지 않습니다.
             </div>
           )}
           <RatioBar />
@@ -84,19 +87,28 @@ export function ExportDialog() {
                 </option>
               ))}
             </select>
-            <label htmlFor="ve-export-path">저장 위치</label>
+            <label htmlFor="ve-export-path">{web ? '파일 이름' : '저장 위치'}</label>
             <div className="ve-path">
               <input
                 id="ve-export-path"
                 className="sh-input"
                 readOnly
-                value={path}
-                placeholder={canPick ? '찾아보기를 눌러 저장할 파일을 정하세요' : '데스크톱 앱에서만 고를 수 있습니다'}
+                value={web ? path.split('/').pop() : path}
+                placeholder={canPick ? '찾아보기를 눌러 저장할 파일을 정하세요' : '이 환경에서는 고를 수 없습니다'}
+                title={web ? '완료되면 브라우저 다운로드로 받습니다' : undefined}
               />
-              <button type="button" className="sh-btn" disabled={!canPick || busy} onClick={() => void browse()}>
-                찾아보기
-              </button>
+              {!web && (
+                <button type="button" className="sh-btn" disabled={!canPick || busy} onClick={() => void browse()}>
+                  찾아보기
+                </button>
+              )}
             </div>
+            {web && (
+              <>
+                <span />
+                <span className="ve-hint">완료되면 브라우저 다운로드 폴더에 저장됩니다. 파일은 서버에 올라가지 않습니다.</span>
+              </>
+            )}
             <span>결과</span>
             <span className="sh-tnum">{summary}</span>
           </div>

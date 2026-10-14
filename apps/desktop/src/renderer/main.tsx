@@ -44,6 +44,8 @@ const bridge: EngineBridge = {
       void api.version().then(() => cb());
     }),
   audioPeaks: (item, perSecond) => api.audioPeaks(item, perSecond),
+  // 호스트 캐시(main 의 cache.sqlite, ADR-0004). IPC 의 Uint8Array·Float32Array 는 구조적 복제로 그대로 온다
+  cache: api.cache,
 };
 
 const el = document.getElementById('root');

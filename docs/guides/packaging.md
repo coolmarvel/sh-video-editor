@@ -127,6 +127,12 @@ napi 바인딩은 Windows·macOS 타깃에서만 `filmcraft-platform` 에 의존
 | 2026-10-14 | 경로 1 (cargo-xwin, LLVM 23.1.3)                                   | 44.7.2   | 빌드·패키징 성공. 사용자 Windows PC 에서 실행 확인 대기                                                                                                                                                                                                                                      |
 | 2026-10-14 | 경로 1 + `filmcraft-platform`(Media Foundation 디코드, NVENC) 링크 | 44.7.2   | 크로스 빌드 성공(31.5MB). 실기 대기: 앱에서 `engineVersion()` 이 `hw: Media Foundation` 인지, 1080p H.264 클립 재생 뒤 `perf.stats` 의 `decode.hardware.frames` 가 0 보다 큰지, HEVC(iPhone) 파일이 열리는지(HEVC Video Extensions 없으면 자체 디코더), N 에디션·GPU 없는 VM 에서도 켜지는지 |
 
+## 호스트 캐시(SQLite)는 내장 모듈
+
+캐시 DB(`userData/cache.sqlite`, ADR-0004)는 Node 내장 `node:sqlite` 로 연다. 네이티브 애드온(`better-sqlite3` 등)을 쓰지
+않으므로 electron-builder 의 rebuild 나 Windows 용 `.node` 추가가 없다. 패키징에 필요한 네이티브 파일은 엔진 애드온 하나뿐이다.
+electron-vite 는 `node:` 빌트인을 외부 모듈로 두므로 `out/main/index.js` 에 `require("node:sqlite")` 가 그대로 남아야 한다.
+
 ## 배포 소스 보호
 
 `apps/desktop/scripts/obfuscate.cjs` 가 `out/` 의 JS 를 난독화한다(`controlFlowFlattening`·`deadCodeInjection`·

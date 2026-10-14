@@ -133,7 +133,7 @@ describe('openProject', () => {
     await pj().openProject();
     expect(lastNotice()).toMatchObject({
       kind: 'warning',
-      text: '웹에서는 프로젝트 열기를 준비 중입니다. 데스크톱 앱을 이용해 주세요.',
+      text: '이 환경에서는 프로젝트 열기를 지원하지 않습니다.',
     });
     expect(engine.callsOf('file.open')).toEqual([]);
   });
@@ -180,7 +180,7 @@ describe('save / saveAs', () => {
     expect(await pj().save()).toBe(false);
     expect(lastNotice()).toMatchObject({
       kind: 'warning',
-      text: '웹에서는 프로젝트 저장을 준비 중입니다. 데스크톱 앱을 이용해 주세요.',
+      text: '이 환경에서는 프로젝트 저장을 지원하지 않습니다.',
     });
     expect(engine.callsOf('file.save')).toEqual([]);
   });

@@ -35,3 +35,78 @@
   line-height: var(--sh-font-line-height-normal, 1.45);
   word-break: keep-all;
 }
+/* 웹 파일 대화상자: 브라우저 안 프로젝트 표(4.7), 찾을 수 없는 파일 목록 */
+.ve-webfiles-list {
+  max-height: 240px;
+  overflow: auto;
+  margin-top: var(--sh-space-8);
+}
+.ve-webfiles-table {
+  width: 100%;
+}
+.ve-webfiles-table tbody tr {
+  cursor: default;
+}
+.ve-webfiles-table__act {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.ve-webfiles-missing {
+  margin: var(--sh-space-8) 0 0;
+  padding-left: var(--sh-space-16);
+  max-height: 200px;
+  overflow: auto;
+  line-height: var(--sh-font-line-height-normal, 1.45);
+}
+/* 첫 화면 안내 카드의 최근 프로젝트(표 4.7, 행을 누르면 연다) */
+.ve-recent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4);
+  min-width: 0;
+}
+.ve-recent__title {
+  margin: 0;
+  font-weight: var(--sh-font-weight-bold);
+}
+.ve-recent__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--sh-border-width) solid var(--sh-color-border);
+  max-width: 480px;
+}
+.ve-recent__item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sh-space-8);
+  width: 100%;
+  height: 22px;
+  padding: 0 var(--sh-space-4);
+  border: 0;
+  border-bottom: var(--sh-border-width) solid var(--sh-color-grid);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.ve-recent__list li:last-child .ve-recent__item {
+  border-bottom: 0;
+}
+.ve-recent__item:hover,
+.ve-recent__item:focus-visible {
+  background: var(--sh-color-hover);
+}
+.ve-recent__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ve-recent__date {
+  flex: none;
+  color: var(--sh-color-text-secondary);
+}

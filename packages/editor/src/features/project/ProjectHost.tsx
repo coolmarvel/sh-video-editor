@@ -8,6 +8,8 @@ import { useEditor } from '../../store';
 import { useEngineEvents } from '../events/store';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RecoveryDialog } from './RecoveryDialog';
+import { WebFilesDialog } from './WebFilesDialog';
+import { useRecent } from './recent';
 import { useProject } from './store';
 import '../export/export.css';
 import './project.css';
@@ -26,6 +28,7 @@ export function ProjectHost() {
     if (!bridge || !version) return;
     const p = useProject.getState();
     void p.refresh().then(() => p.startAutosave());
+    void useRecent.getState().refresh();
     return useEngineEvents.subscribe((s, prev) => {
       if (s.projectChanged !== prev.projectChanged) void useProject.getState().refresh();
     });
@@ -38,6 +41,7 @@ export function ProjectHost() {
   return (
     <>
       <RecoveryDialog />
+      <WebFilesDialog />
       <ConfirmDialog />
       {notices.length > 0 && (
         <div className="ve-toasts" aria-live="polite">

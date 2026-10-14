@@ -5,6 +5,10 @@
 import { create } from 'zustand';
 import type { EngineBridge } from '../../engine/bridge';
 import { useEditor } from '../../store';
+import { useRecent } from './recent';
+import { isOpfsPath, isWebFiles, isWebRecoveryId } from './web-files';
+import { afterWebSave, discardWeb, recoverWeb, startWebSession, webRecoveryCandidates, webSaveRedirect } from './web-session';
+import { useWebFiles } from './web-store';
 
 /** file.recoveryList 의 한 항목. */
 export interface RecoveryCandidate {
@@ -47,6 +51,8 @@ interface ProjectState {
   startAutosave(): Promise<void>;
   newProject(): Promise<void>;
   openProject(): Promise<void>;
+  /** 경로의 프로젝트를 연다(대화상자 없이). 최근 목록·안내 카드가 부른다. 열었으면 true */
+  openPath(path: string): Promise<boolean>;
   save(): Promise<boolean>;
   saveAs(): Promise<boolean>;
   openRecovery(): Promise<void>;
@@ -94,7 +100,7 @@ export const useProject = create<ProjectState>((set, get) => {
   async function loadCandidates() {
     const b = bridge();
     if (!b) return;
-    const list = (await b.execute('file.recoveryList')) as RecoveryCandidate[];
+    const list = isWebFiles(b) ? await webRecoveryCandidates(b) : ((await b.execute('file.recoveryList')) as RecoveryCandidate[]);
     set({ candidates: list, recoveryOpen: list.length > 0 });
   }
 
@@ -133,6 +139,18 @@ export const useProject = create<ProjectState>((set, get) => {
     async startAutosave() {
       const b = bridge();
       if (!b?.startAutosave) {
+        // 웹: 엔진 저널 대신 화면이 OPFS 에 주기적으로 스냅샷을 남긴다(web-files.ts)
+        if (isWebFiles(b)) {
+          try {
+            startWebSession(b);
+            set({ autosave: 'on' });
+            await loadCandidates();
+          } catch (e) {
+            set({ autosave: 'unavailable' });
+            get().notify('warning', `자동 저장을 시작하지 못했습니다: ${message(e)}`);
+          }
+          return;
+        }
         set({ autosave: 'unavailable' });
         return;
       }
@@ -164,37 +182,60 @@ export const useProject = create<ProjectState>((set, get) => {
       const b = bridge();
       if (!b) return;
       if (!b.pickOpenPath) {
-        get().notify('warning', '웹에서는 프로젝트 열기를 준비 중입니다. 데스크톱 앱을 이용해 주세요.');
+        if (!isWebFiles(b)) {
+          get().notify('warning', '이 환경에서는 프로젝트 열기를 지원하지 않습니다.');
+          return;
+        }
+        // 웹: 브라우저 안(OPFS) 목록 또는 내 컴퓨터의 파일 고르기 대화상자
+        await guardDirty('프로젝트 열기', () => useWebFiles.getState().showOpen());
         return;
       }
       await guardDirty('프로젝트 열기', async () => {
         const path = await b.pickOpenPath?.(PROJECT_FILTER);
         if (!path) return;
-        try {
-          const r = (await b.execute('file.open', { path })) as {
-            migrated: boolean;
-            schemaVersion: number;
-            missingMedia: number;
-          };
-          await get().refresh();
-          const notes: string[] = [];
-          if (r.migrated) notes.push('이전 형식이라 올려서 읽었습니다. 저장하면 원본은 백업으로 남습니다');
-          if (r.missingMedia > 0) notes.push(`찾을 수 없는 미디어 ${r.missingMedia}개`);
-          get().notify(notes.length ? 'warning' : 'success', `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`);
-        } catch (e) {
-          get().notify('danger', `파일을 열 수 없습니다: ${message(e)}`);
-        }
+        await get().openPath(path);
       });
+    },
+
+    async openPath(path) {
+      const b = bridge();
+      if (!b || !path) return false;
+      try {
+        const r = (await b.execute('file.open', { path })) as {
+          migrated: boolean;
+          schemaVersion: number;
+          missingMedia: number;
+        };
+        await get().refresh();
+        const notes: string[] = [];
+        if (r.migrated) notes.push('이전 형식이라 올려서 읽었습니다. 저장하면 원본은 백업으로 남습니다');
+        if (r.missingMedia > 0) notes.push(`찾을 수 없는 미디어 ${r.missingMedia}개`);
+        get().notify(notes.length ? 'warning' : 'success', `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`);
+        // 최근 목록: 데스크톱은 OS 경로, 웹은 OPFS 경로만(브라우저 File 은 web-store 가 OPFS 로 복사한 뒤 기록한다)
+        if (!isWebFiles(b) || isOpfsPath(get().path)) void useRecent.getState().touch(get().path ?? path, get().name);
+        // 웹: 새로고침 뒤에는 File 핸들이 없으므로 다시 고르게 안내한다
+        if (r.missingMedia > 0 && isWebFiles(b)) void useWebFiles.getState().showRelink();
+        return true;
+      } catch (e) {
+        get().notify('danger', `파일을 열 수 없습니다: ${message(e)}`);
+        return false;
+      }
     },
 
     async save() {
       const b = bridge();
       if (!b) return false;
       await get().refresh();
-      if (!get().path) return get().saveAs();
+      // 복구한 스냅샷은 원래 이름으로 저장한다(웹). 경로가 없으면 다른 이름으로 저장
+      if (!get().path || webSaveRedirect()) return get().saveAs();
       try {
         await b.execute('file.save');
+        if (isWebFiles(b)) {
+          await b.opfs.flush();
+          await afterWebSave(b);
+        }
         await get().refresh();
+        void useRecent.getState().touch(get().path ?? '', get().name);
         get().notify('success', `저장했습니다: ${get().name}`);
         return true;
       } catch (e) {
@@ -207,8 +248,13 @@ export const useProject = create<ProjectState>((set, get) => {
       const b = bridge();
       if (!b) return false;
       if (!b.pickSavePath) {
-        get().notify('warning', '웹에서는 프로젝트 저장을 준비 중입니다. 데스크톱 앱을 이용해 주세요.');
-        return false;
+        if (!isWebFiles(b)) {
+          get().notify('warning', '이 환경에서는 프로젝트 저장을 지원하지 않습니다.');
+          return false;
+        }
+        // 웹: 브라우저 안(OPFS)에 저장하거나 내 컴퓨터로 받는 대화상자
+        await get().refresh();
+        return useWebFiles.getState().showSave(webSaveRedirect() ?? get().name ?? UNTITLED);
       }
       const picked = await b.pickSavePath(`${get().name || UNTITLED}.fcproj`, PROJECT_FILTER);
       if (!picked) return false;
@@ -216,6 +262,7 @@ export const useProject = create<ProjectState>((set, get) => {
       try {
         await b.execute('file.saveAs', { path });
         await get().refresh();
+        void useRecent.getState().touch(get().path ?? path, get().name);
         get().notify('success', `저장했습니다: ${path}`);
         return true;
       } catch (e) {
@@ -242,7 +289,7 @@ export const useProject = create<ProjectState>((set, get) => {
       if (!b) return;
       set({ recoveryOpen: false });
       try {
-        const r = (await b.execute('file.recover', { id })) as { name: string; savedAt: string };
+        const r = isWebRecoveryId(id) ? await recoverWeb(b, id) : ((await b.execute('file.recover', { id })) as { name: string; savedAt: string });
         await get().refresh();
         get().notify('success', `'${r.name}' 의 저장하지 않은 변경을 되살렸습니다 (${r.savedAt}). 저장하면 원본 파일에 씁니다.`);
       } catch (e) {
@@ -256,7 +303,8 @@ export const useProject = create<ProjectState>((set, get) => {
       const b = bridge();
       if (!b) return;
       try {
-        await b.execute('file.discardRecovery', { id });
+        if (isWebRecoveryId(id)) await discardWeb(b, id);
+        else await b.execute('file.discardRecovery', { id });
       } catch (e) {
         get().notify('danger', `버리지 못했습니다: ${message(e)}`);
       }

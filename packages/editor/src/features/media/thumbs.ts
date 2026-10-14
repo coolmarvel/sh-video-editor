@@ -1,10 +1,12 @@
 /**
  * 미디어 썸네일. 엔진(bridge.renderItemThumbnail)이 RGBA 프레임을 만들고, 여기서 data URL 로 바꿔 메모리 LRU 에 둔다.
- * 저장소를 나중에 SQLite(데스크톱)·OPFS(웹)로 옮길 수 있게 캐시(LruCache)·인코더(Encode)·로더(ThumbnailLoader)를
- * 분리했다. 화면은 useThumbnail 훅만 쓴다. 엔진 호출은 한 번에 하나씩(직렬)이라 모니터 프레임 요청을 오래 막지 않는다.
+ * 메모리 LRU 앞단에 호스트 캐시(bridge.cache: 데스크톱 SQLite, 웹 IndexedDB. ADR-0004)를 끼워 세션을 넘어 PNG 를 남긴다.
+ * 캐시(LruCache)·인코더(Encode)·로더(ThumbnailLoader)를 분리했다. 화면은 useThumbnail 훅만 쓴다. 엔진 호출은 한 번에 하나씩(직렬)이라 모니터 프레임 요청을 오래 막지 않는다.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import type { EngineBridge, Frame } from '../../engine/bridge';
+import type { CacheStore, EngineBridge, Frame } from '../../engine/bridge';
+import { hostCache, mediaPathOf } from '../cache/keys';
+import { pngBytesFromDataUrl, pngDataUrlFromBytes } from '../cache/png';
 
 /** 화면 표시 폭 48px 의 2배(HiDPI). 높이는 원본 비율을 따른다 */
 export const THUMB_WIDTH = 96;
@@ -87,6 +89,10 @@ export interface ThumbnailLoaderOptions {
   width?: number;
   capacity?: number;
   encode?: Encode;
+  /** 호스트 캐시(세션을 넘어 남는 PNG). 메모리 LRU 앞단에 끼운다. 없으면 메모리만 */
+  store?: CacheStore | null;
+  /** 항목의 미디어 파일 경로(호스트 캐시 키). null 이면 그 항목은 호스트 캐시를 거치지 않는다 */
+  pathOf?: (item: number) => string | null;
 }
 
 /** 썸네일 하나의 상태: 아직 없음(undefined), 실패(null), URL */
@@ -96,12 +102,16 @@ export class ThumbnailLoader {
   readonly cache: LruCache<string | null>;
   readonly width: number;
   private readonly encode: Encode;
+  private readonly store: CacheStore | null;
+  private readonly pathOf: (item: number) => string | null;
   private readonly inflight = new Map<string, Promise<string | null>>();
   private readonly listeners = new Set<() => void>();
   /** 엔진 호출을 직렬화하는 꼬리 */
   private queue: Promise<unknown> = Promise.resolve();
   /** 진단: 엔진에 실제로 요청한 횟수 */
   requests = 0;
+  /** 진단: 호스트 캐시에서 받은 횟수 */
+  storeHits = 0;
 
   constructor(
     private readonly bridge: EngineBridge,
@@ -110,6 +120,15 @@ export class ThumbnailLoader {
     this.width = opts.width ?? THUMB_WIDTH;
     this.cache = new LruCache(opts.capacity ?? THUMB_CAPACITY);
     this.encode = opts.encode ?? encodeWithCanvas;
+    this.store = opts.store ?? null;
+    this.pathOf = opts.pathOf ?? (() => null);
+  }
+
+  /** 호스트 캐시 키. 포스터 프레임(음수 tick)은 -1 로 고정한다 */
+  private storeKey(item: number, tick: number, salt: number) {
+    if (!this.store || salt !== 0) return null;
+    const path = this.pathOf(item);
+    return path ? { store: this.store, key: { path, tick: tick < 0 ? POSTER_TICK : tick, width: this.width } } : null;
   }
 
   /** 호스트가 썸네일을 지원하는지 */
@@ -131,12 +150,25 @@ export class ThumbnailLoader {
     if (pending) return pending;
     const render = this.bridge.renderItemThumbnail;
     if (!render) return Promise.resolve(null);
+    const hostKey = this.storeKey(item, tick, salt);
     const p = this.queue
       .then(async () => {
+        if (hostKey) {
+          const png = await hostKey.store.getThumb(hostKey.key).catch(() => null);
+          if (png && png.length > 0) {
+            this.storeHits += 1;
+            return pngDataUrlFromBytes(png);
+          }
+        }
         this.requests += 1;
         try {
           const frame = await render.call(this.bridge, item, tick, this.width);
-          return this.encode(frame);
+          const url = this.encode(frame);
+          if (hostKey) {
+            const png = pngBytesFromDataUrl(url);
+            if (png) void hostKey.store.putThumb(hostKey.key, png).catch(() => undefined);
+          }
+          return url;
         } catch {
           return null;
         }
@@ -175,7 +207,9 @@ let current: { bridge: EngineBridge; loader: ThumbnailLoader } | null = null;
 
 /** bridge 하나에 로더 하나. bridge 가 바뀌면(재연결) 새로 만든다 */
 export function thumbnailLoader(bridge: EngineBridge, opts?: ThumbnailLoaderOptions): ThumbnailLoader {
-  if (!current || current.bridge !== bridge) current = { bridge, loader: new ThumbnailLoader(bridge, opts) };
+  if (!current || current.bridge !== bridge) {
+    current = { bridge, loader: new ThumbnailLoader(bridge, { store: hostCache(bridge), pathOf: mediaPathOf, ...opts }) };
+  }
   return current.loader;
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@sh-video-editor/engine-node",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "sh-video-editor Rust 엔진의 Node-API 애드온 (napi-rs). Electron 이 require 한다",
   "author": "이성현",

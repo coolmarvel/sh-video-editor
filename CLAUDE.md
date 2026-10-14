@@ -82,7 +82,7 @@ Chrome 에서 같은 결과. 상세는 `docs/brief.md`, 스택은 ADR-0002, 엔�
 ```bash
 npm install
 npm run build:engine              # napi .node + wasm pkg. 엔진(Rust)을 고치면 다시
-npm run dev:desktop               # Electron 개발 실행 (엔진은 메인 프로세스의 .node)
+npm run dev:desktop               # Electron 개발 실행 (엔진은 utility process 의 .node, 렌더러와 MessagePort 직결)
 npm run dev:web                   # http://localhost:5174 (엔진은 Worker 의 wasm)
 npm run verify                    # 전체 검증 (변경 후 자동 규칙 2)
 npm run check:engine              # cargo check (빠른 엔진 확인)
@@ -115,7 +115,9 @@ cd packages/engine/vendor/filmcraft && cargo run -p filmcraft-cli -- commands   
 
 - wasm 에서 도는 코드는 `std::time::Instant`·`std::thread`·`std::env::temp_dir` 를 부르면 패닉한다(`web_time`, `filmcraft_engine::temp_dir`).
 - napi 의 `i64` 는 JS `number` 로 오고, wasm-bindgen 의 `i64` 는 `BigInt` 로 온다. worker 가 변환한다.
-- Windows 인스톨러에는 Windows 용 `.node` 가 필요하다. WSL 의 Linux `.node` 를 넣으면 사용자 PC 에서 로드 실패(`docs/guides/packaging.md`).
+- Windows 인스톨러에는 Windows 용 `.node`(`engine-node.win32-x64-msvc.node`) 가 필요하다. napi 는 windows-gnu 크로스를 지원하지 않는다. 경로는 `docs/guides/packaging.md`.
+- Electron 44 에서 utility process 가 `parentPort.postMessage` 로 보내면 main 이벤트 루프가 멈춘다. 자식에서 main 으로는 MessagePortMain 만.
+- 엔진 프리셋 이름에 en dash·곱셈 기호가 있다. 코드 리터럴로 적지 말고 id·크기로 고른다.
 
 ## 디자인 시스템 (sh-classic)
 

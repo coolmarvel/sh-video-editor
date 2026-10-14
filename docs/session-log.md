@@ -12,6 +12,34 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - 마일스톤 1 병렬 구현 병합 (v0.1.1)
+
+- **요청**: 여러 에이전트로 병렬 작업, GitHub 는 private 으로 푸시, 끝나면 병합·검증·바탕화면 인스톨러.
+- **방법**: feat/* 워크트리 6개(미디어 패널, 타임라인, 모니터 재생, 내보내기·저장·복구, 데스크톱 인프라, 웹 파일)에
+  에이전트 한 명씩. 파일 경계(features/<이름>/ 아래, 공유 파일은 줄 추가만)를 지켜 충돌은 bridge.ts·App.tsx·main/index.ts 의
+  "같은 자리 줄 추가" 뿐이었고 양쪽을 모두 살려 해결.
+- **수정**(브랜치별 요약, 상세는 각 features 디렉토리 주석):
+  - 미디어 패널(features/media): project.inspect + project.items 트리, 가져오기(데스크톱 파일 대화상자 pickFiles, 드롭은 webUtils
+    경로), 데모 영상 6종, 선택 항목으로 시퀀스 만들기(project.select 선행 필요). 썸네일 커맨드는 엔진에 없음.
+  - 타임라인(features/timeline): 눈금자·트랙·클립 블록·플레이헤드, 자르기(timeline.razor)·이동(timeline.move)·트림(timeline.trim)·
+    삭제·리플·스냅·줌·미디어 드롭(timeline.place). DESIGN.md 4.15 타임라인 계약, docs/guides/timeline.md 추가.
+  - 모니터(features/monitor): rAF 재생 루프, 프레임 요청 1건 제한, 적응형 배율(0.25/0.5/1), 스크러버, 타임코드, 단축키.
+    실측 1080p scale 0.5 renderFrame: 네이티브 24ms, wasm 194ms(약 8배). 오디오 재생은 미구현.
+  - 내보내기·프로젝트(features/export, features/project): 프리셋 5종(h264 mp4), 진행률·ETA·취소, 저장·열기·다른 이름·새 프로젝트,
+    dirty 가드, 자동 저장과 크래시 복구(바인딩에 startAutosave·pollPersistence·shutdown 추가). 실측: 1080p 30fps 16초 내보내기
+    47.6초 40MB(ffprobe h264+aac 16.0초).
+  - 웹 파일(apps/web, bindings/wasm): Blob 범위 읽기(FileReaderSync, 1MiB 청크 LRU 64MiB), registerFiles/onFileWritten/
+    takeWrittenFile/opfs 선택 메서드, opfs:/ 접두 경로 스테이징. 25.6MB 파일 가져오기에 9.9% 만 읽음. WebCodecs 등록 지점은
+    vendor codecs 의 register_video_decoder 로 남아 있음.
+  - 데스크톱 인프라(apps/desktop): 엔진을 utility process(engine-host)로 격리, 렌더러와 MessagePortMain 직결, 크래시 자동 재시작과
+    onCrashed 알림. 렌더러 기준 renderFrame 왕복 8.4~9.7ms(격리 전 8.8~13.7ms). Electron 44 의 parentPort.postMessage 가 main 루프를
+    멈추는 현상을 확인해 포트만 쓴다. Windows .node: napi 가 windows-gnu 를 거부(libnode.dll 요구)해 WSL gnu 크로스는 폐기.
+    병합 시 자동 저장·종료(startAutosave·pollPersistence·shutdown)를 엔진 호스트 메서드로 옮기고 데이터 디렉토리는 env 로 전달.
+- **검증**: 각 브랜치에서 typecheck·prettier·web/desktop 빌드·Playwright(1440·390) 통과. 병합 후 main 에서 clippy, wasm 재빌드,
+  typecheck 통과. 최종 `npm run verify`·스모크·인스톨러 결과는 이 블록 끝에 추가.
+- **다음**: 마일스톤 2(자막·음악·전환). 알려진 구멍: 오디오 재생 없음, 웹 저장/내보내기 다운로드 UI 미연결(bridge 는 준비됨),
+  미디어 썸네일 없음, 엔진 이벤트(drainEvents) 통합 전이라 패널 간 갱신은 폴링.
+
 ## 2026-10-14 - 킥오프 완료: sh-video-editor v0.1.0 (마일스톤 0)
 
 - **요청**: craft-opensource 의 filmcraft·effectcraft·soundcraft 를 토대로 엔진을 저장소 안에 소스로 두고 개선해, CapCut·VLLO·Clideo

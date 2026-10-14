@@ -155,8 +155,8 @@ describe.skipIf(!hasNativeBinding())('키프레임·스티커(napi)', () => {
     exec(engine, 'effects.setParam', { clip: id, effect: 'motion', param: 'position', value: [200, 540], time: 0 });
     exec(engine, 'effects.setParam', { clip: id, effect: 'motion', param: 'position', value: [1720, 540], time: 4 * T });
     expect(param(id, 'motion', 'position').keyframes).toBe(2);
-    // inspect 의 value 는 정적 값이라 애니메이션 값을 주지 않는다(화면이 목록을 따로 가지는 이유)
-    expect(param(id, 'motion', 'position').value).toBe('Vec2(Vec2 { x: 960.0, y: 540.0 })');
+    // inspect 의 value 는 플레이헤드(0) 시점의 보간값을 JSON 으로 준다(엔진 커맨드 보강 뒤). 전체 목록은 effects.keyframes
+    expect(param(id, 'motion', 'position').value).toEqual([200, 540]);
     const start = centroid(0);
     const mid = centroid(2 * T);
     const quarter = centroid(T);

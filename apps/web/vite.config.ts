@@ -13,8 +13,8 @@ export default defineConfig({
     alias: {
       '@editor': resolve(__dirname, '../../packages/editor/src'),
       '@tokens': resolve(__dirname, '../../design-tokens'),
-      // Rust 엔진 wasm-pack 산출물 (npm run build:engine:wasm)
-      '@engine': resolve(__dirname, '../../packages/engine/bindings/wasm/pkg'),
+      // Rust 엔진 wasm-pack 산출물 (npm run build:engine:wasm). SH_ENGINE_PKG 로 다른 pkg 를 꽂을 수 있다(scripts/bench-wasm.mjs 비교용)
+      '@engine': process.env['SH_ENGINE_PKG'] ?? resolve(__dirname, '../../packages/engine/bindings/wasm/pkg'),
     },
   },
   // 엔진 워커는 ESM import 를 쓴다(wasm-bindgen 글루)

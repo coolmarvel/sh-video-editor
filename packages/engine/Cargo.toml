@@ -23,6 +23,10 @@ filmcraft-media = { path = "vendor/filmcraft/crates/media" }
 filmcraft-platform = { path = "vendor/filmcraft/crates/platform" }
 filmcraft-audio-dsp = { path = "vendor/filmcraft/crates/audio-dsp" }
 filmcraft-speech = { path = "vendor/filmcraft/crates/speech" }
+filmcraft-text = { path = "vendor/filmcraft/crates/text" }
+filmcraft-codecs = { path = "vendor/filmcraft/crates/codecs" }
+filmcraft-isobmff = { path = "vendor/filmcraft/crates/isobmff" }
+filmcraft-frame = { path = "vendor/filmcraft/crates/frame" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 thiserror = "2"
@@ -49,3 +53,45 @@ opt-level = 2
 opt-level = 3
 lto = "thin"
 codegen-units = 1
+
+# wasm 바인딩 전용 프로파일 (napi 는 위 release 그대로). `wasm-pack build --profile wasm-release` 가 쓴다.
+# 크기가 지배하는 크레이트(engine·project·interchange·serde 등)는 opt-level "s", 디코더·렌더·DSP 같은 핫 루프 크레이트는
+# 3 으로 둔다. 수치와 근거는 docs/guides/wasm-performance.md.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+codegen-units = 1
+panic = "abort"
+
+[profile.wasm-release.package.filmcraft-h264]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-hevc]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-vp9]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-av1]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-h264enc]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-aac]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-opus]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-codecs]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-media]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-frame]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-color]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-geom]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-render]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-export]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-audio-dsp]
+opt-level = 3
+[profile.wasm-release.package.filmcraft-text]
+opt-level = 3

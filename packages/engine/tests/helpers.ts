@@ -58,12 +58,24 @@ export function hasWasm(): boolean {
   return existsSync(join(WASM_PKG, 'sh_video_engine_wasm_bg.wasm'));
 }
 
-/** `--target web` 산출물을 Node 에서 직접 올린다(fetch 없이 바이트로 initSync). */
-export async function loadWasm(): Promise<WasmModule> {
+/** wasm32 빌드가 안에 품지 않는 번들 글꼴이 있는 곳(웹 호스트가 시작 시 넣는다: apps/web/src/fonts.ts) */
+export const FONTS_DIR = join(ROOT, 'vendor', 'filmcraft', 'assets', 'fonts');
+
+/**
+ * `--target web` 산출물을 Node 에서 직접 올린다(fetch 없이 바이트로 initSync). wasm 에는 Inter Regular 만 들어 있으므로
+ * 웹 Worker 가 하듯 나머지 번들 글꼴(`hostFontFiles`)을 `addFontData` 로 넣어 데스크톱과 같은 글꼴 목록으로 맞춘다
+ * (`hostFonts: false` 면 넣지 않는다: 그 경로 자체를 보는 테스트용).
+ */
+export async function loadWasm(opts: { hostFonts?: boolean } = {}): Promise<WasmModule> {
   const mod = (await import(join(WASM_PKG, 'sh_video_engine_wasm.js'))) as WasmModule & {
     initSync(opts: { module: Uint8Array }): unknown;
+    addFontData(data: Uint8Array): number;
+    hostFontFiles(): string;
   };
   mod.initSync({ module: readFileSync(join(WASM_PKG, 'sh_video_engine_wasm_bg.wasm')) });
+  if (opts.hostFonts !== false) {
+    for (const f of JSON.parse(mod.hostFontFiles()) as string[]) mod.addFontData(new Uint8Array(readFileSync(join(FONTS_DIR, f))));
+  }
   return mod;
 }
 

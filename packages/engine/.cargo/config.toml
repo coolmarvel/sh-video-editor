@@ -1,0 +1,5 @@
+# wasm 빌드(wasm-pack, `npm run build:engine:wasm`)에 쓰는 타깃별 플래그. 네이티브(napi) 빌드에는 영향이 없다.
+# simd128: 브라우저가 모두 지원하는 wasm SIMD(Chrome 91+, Firefox 89+, Safari 16.4+). 디코더·스케일·색변환 루프가
+# 자동 벡터화된다. 수치는 docs/guides/wasm-performance.md. RUSTFLAGS 환경 변수가 있으면 이 값은 무시된다.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

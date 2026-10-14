@@ -15,16 +15,43 @@ use skrifa::{FontRef, MetadataProvider};
 use crate::sfnt::{FaceNames, read_faces, read_faces_bytes};
 
 /// Bundled fonts (SIL OFL 1.1; see `assets/fonts/*.attribution` and ATTRIBUTION.md).
+///
+/// Inter Regular (the fallback face of [`resolve`]) is compiled in on every target. Native builds
+/// compile in the rest as well; the web build (wasm32) leaves them out to keep the wasm download
+/// small (about 5 MB of font data) and the host registers the same files at startup with
+/// [`add_font_data`] before it reports the engine ready (sh-video-editor `apps/web/src/engine.worker.ts`,
+/// `docs/guides/wasm-performance.md`), so the family list is the same on both.
 pub static INTER_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Inter-Regular.ttf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static INTER_MEDIUM: &[u8] = include_bytes!("../../../assets/fonts/Inter-Medium.ttf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static INTER_SEMIBOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static INTER_BOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-Bold.ttf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static INTER_ITALIC: &[u8] = include_bytes!("../../../assets/fonts/Inter-Italic.ttf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static JETBRAINS_MONO_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Regular.ttf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static NOTO_SERIF_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/NotoSerif-Regular.ttf");
-/// Korean (Hangul) coverage for titles and captions, also on the web (sh-video-editor M2-1).
+/// Korean (Hangul) coverage for titles and captions (sh-video-editor M2-1); on the web, host-supplied.
+#[cfg(not(target_arch = "wasm32"))]
 pub static PRETENDARD_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Pretendard-Regular.otf");
+#[cfg(not(target_arch = "wasm32"))]
 pub static PRETENDARD_BOLD: &[u8] = include_bytes!("../../../assets/fonts/Pretendard-Bold.otf");
+
+/// The bundled font files a wasm32 build leaves out (file names under `assets/fonts`), for the web
+/// host to serve and register with [`add_font_data`] at startup. Native builds compile these in.
+pub const HOST_SUPPLIED_FONTS: &[&str] = &[
+    "Inter-Medium.ttf",
+    "Inter-SemiBold.ttf",
+    "Inter-Bold.ttf",
+    "Inter-Italic.ttf",
+    "JetBrainsMono-Regular.ttf",
+    "NotoSerif-Regular.ttf",
+    "Pretendard-Regular.otf",
+    "Pretendard-Bold.otf",
+];
 
 /// A font from the optional craft-fonts build input (empty unless built with `CRAFT_FONTS_DIR`; see
 /// `build.rs` and storytold/craft-fonts `docs/integration.md`).
@@ -260,7 +287,8 @@ fn db() -> &'static RwLock<Db> {
     static DB: OnceLock<RwLock<Db>> = OnceLock::new();
     DB.get_or_init(|| {
         let mut db = Db { faces: Vec::new(), scanned: false };
-        for b in [
+        #[cfg(not(target_arch = "wasm32"))]
+        let bundled: &[&[u8]] = &[
             INTER_REGULAR,
             INTER_MEDIUM,
             INTER_SEMIBOLD,
@@ -270,7 +298,11 @@ fn db() -> &'static RwLock<Db> {
             NOTO_SERIF_REGULAR,
             PRETENDARD_REGULAR,
             PRETENDARD_BOLD,
-        ] {
+        ];
+        // the web host registers HOST_SUPPLIED_FONTS with `add_font_data` at startup
+        #[cfg(target_arch = "wasm32")]
+        let bundled: &[&[u8]] = &[INTER_REGULAR];
+        for b in bundled.iter().copied() {
             for n in read_faces_bytes(b) {
                 push(&mut db, info_from(n, FaceData::Static(b), "bundled"));
             }

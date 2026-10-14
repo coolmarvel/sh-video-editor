@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "build:engine:node": "npm run build -w @sh-video-editor/engine-node",
-    "build:engine:wasm": "wasm-pack build packages/engine/bindings/wasm --target web --out-dir pkg --release",
+    "build:engine:wasm": "wasm-pack build packages/engine/bindings/wasm --target web --out-dir pkg --profile wasm-release",
     "build:engine": "npm run build:engine:node && npm run build:engine:wasm",
     "check:engine": "cargo check --manifest-path packages/engine/Cargo.toml --workspace",
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:tests",

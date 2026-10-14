@@ -31,6 +31,8 @@ use wasm_bindgen::prelude::*;
 /// 오디오 미리듣기·파형. napi 바인딩과 같은 파일(bindings/shared/audio.rs).
 #[path = "../../shared/audio.rs"]
 mod audio;
+/// 브라우저 WebCodecs 디코더 등록(웹 전용).
+pub mod webcodecs;
 
 pub const BASE_ENGINE: &str = "filmcraft 0.2.1";
 
@@ -350,9 +352,32 @@ pub fn start() {
     console_error_panic_hook::set_once();
 }
 
+/// 끝에 `hw: WebCodecs` 가 붙으면(`setWebCodecsHooks` 뒤) 브라우저 디코더가 레지스트리 앞에 있다. napi 의 `hw: ...` 와 같은 자리.
 #[wasm_bindgen]
 pub fn engine_version() -> String {
-    format!("sh-video-engine {} (base {BASE_ENGINE}, wasm)", env!("CARGO_PKG_VERSION"))
+    let hw = if webcodecs::enabled() { ", hw: WebCodecs" } else { "" };
+    format!("sh-video-engine {} (base {BASE_ENGINE}, wasm{hw})", env!("CARGO_PKG_VERSION"))
+}
+
+/// 호스트의 WebCodecs 훅(apps/web/src/webcodecs.ts)을 설치해 브라우저 디코더를 엔진 디코더 앞에 둔다. 프로세스 전역이라
+/// 엔진을 만들기 전에 한 번 부른다. `undefined`/`null` 이면 뗀다. 설계는 `webcodecs` 모듈 머리 주석.
+#[wasm_bindgen(js_name = setWebCodecsHooks)]
+pub fn set_web_codecs_hooks(hooks: Option<webcodecs::WebCodecsHooks>) {
+    webcodecs::set_hooks(hooks);
+}
+
+/// 글꼴 파일 바이트를 글꼴 데이터베이스(프로세스 전역)에 등록한다. 등록된 face 수를 돌려준다(글꼴이 아니면 0).
+/// wasm32 빌드는 Inter Regular 만 안에 품고(`filmcraft_text::fonts::HOST_SUPPLIED_FONTS`), 나머지는 호스트(Worker)가
+/// 시작 시 받아 이 함수로 넣는다. 자세한 설계는 docs/guides/wasm-performance.md.
+#[wasm_bindgen(js_name = addFontData)]
+pub fn add_font_data(data: &[u8]) -> u32 {
+    u32::try_from(filmcraft_text::fonts::add_font_data(data.to_vec()).len()).unwrap_or(u32::MAX)
+}
+
+/// wasm32 빌드가 안에 품지 않는 번들 글꼴 파일 이름(JSON 배열). 호스트가 같은 파일을 서빙해 `addFontData` 로 넣는다.
+#[wasm_bindgen(js_name = hostFontFiles)]
+pub fn host_font_files() -> String {
+    serde_json::Value::Array(filmcraft_text::fonts::HOST_SUPPLIED_FONTS.iter().map(|f| serde_json::Value::String((*f).to_string())).collect()).to_string()
 }
 
 #[wasm_bindgen]

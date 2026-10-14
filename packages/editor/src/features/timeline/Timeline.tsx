@@ -1,0 +1,561 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEditor } from '../../store';
+import { hasMediaItem, readMediaItemId } from './dnd';
+import {
+  DRAG_THRESHOLD_PX,
+  TAIL_SECONDS,
+  clampZoom,
+  fpsOf,
+  frameTicks,
+  pxToTick,
+  snapDelta,
+  snapToFrame,
+  tickToPx,
+  timecodeAt,
+} from './geometry';
+import { Ruler } from './Ruler';
+import { useTimeline } from './store';
+import { Lane, TrackHeader, type ClipPart, type ClipPreview } from './Track';
+import { allClips, trackRows, type ClipInfo, type SequenceInfo, type TrackKind, type TrackRow } from './types';
+import './timeline.css';
+
+type Gesture =
+  | { kind: 'scrub'; pointerId: number }
+  | {
+      kind: 'move';
+      pointerId: number;
+      clip: ClipInfo;
+      trackKind: TrackKind;
+      trackId: number;
+      originX: number;
+      originY: number;
+      dx: number;
+      targetTrack: number | null;
+      started: boolean;
+      add: boolean;
+      toggle: boolean;
+    }
+  | {
+      kind: 'trim';
+      pointerId: number;
+      clip: ClipInfo;
+      edge: 'in' | 'out';
+      originX: number;
+      dx: number;
+      started: boolean;
+    };
+
+interface DropHint {
+  trackId: number;
+  kind: TrackKind;
+  tick: number;
+}
+
+/** 클립 가장자리·플레이헤드·0 처럼 드래그가 들러붙는 지점들. 끌고 있는 클립과 그 연결 클립은 뺀다 */
+function snapTargets(seq: SequenceInfo, playhead: number, exclude: ClipInfo | null): number[] {
+  const targets = [0, playhead];
+  for (const c of allClips(seq)) {
+    if (exclude && (c.clip === exclude.clip || (exclude.link !== null && c.link === exclude.link))) continue;
+    targets.push(c.start, c.end);
+  }
+  return targets;
+}
+
+function laneAt(x: number, y: number, kind: TrackKind): number | null {
+  for (const el of document.elementsFromPoint(x, y)) {
+    if (el instanceof HTMLElement && el.dataset.lane !== undefined && el.dataset.kind === kind) {
+      return Number(el.dataset.trackId);
+    }
+  }
+  return null;
+}
+
+/**
+ * 타임라인 본체. 트랙 머리 + 눈금자 + 클립 레인, 플레이헤드, 줌·스크롤, 클립 선택·이동·트림·자르기·삭제,
+ * 미디어 끌어다 놓기. 모든 편집은 store 를 거쳐 엔진 커맨드로 간다.
+ */
+export function Timeline() {
+  const bridge = useEditor((s) => s.bridge);
+  const seq = useTimeline((s) => s.sequence);
+  const playhead = useTimeline((s) => s.playhead);
+  const pxPerSec = useTimeline((s) => s.pxPerSec);
+  const ripple = useTimeline((s) => s.ripple);
+  const insert = useTimeline((s) => s.insert);
+  const snapping = useTimeline((s) => s.snapping);
+  const busy = useTimeline((s) => s.busy);
+
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rulerRowRef = useRef<HTMLDivElement>(null);
+  const gestureRef = useRef<Gesture | null>(null);
+  const pendingPlayhead = useRef<number | null>(null);
+  const rafRef = useRef(0);
+
+  const [preview, setPreview] = useState<ClipPreview | null>(null);
+  const [dropHint, setDropHint] = useState<DropHint | null>(null);
+  const [view, setView] = useState({ scrollLeft: 0, width: 0 });
+
+  const frameRate = seq?.settings.frame_rate ?? { num: 30, den: 1 };
+  const fps = fpsOf(frameRate);
+  const rows = useMemo(() => (seq ? trackRows(seq) : []), [seq]);
+  const hasClips = useMemo(() => (seq ? allClips(seq).length > 0 : false), [seq]);
+  const selection = seq?.selection ?? [];
+
+  // 엔진이 연결되면 읽고, 메뉴 등 다른 곳의 커맨드 실행(상태 줄 변화) 뒤에도 다시 읽는다
+  useEffect(() => {
+    if (!bridge) return;
+    const { refresh } = useTimeline.getState();
+    void refresh();
+    let timer = 0;
+    const unsubscribe = useEditor.subscribe((s, prev) => {
+      if (s.status === prev.status) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void useTimeline.getState().refresh(), 60);
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [bridge]);
+
+  // 플레이헤드는 모니터 재생 등 다른 곳에서도 움직이므로 가볍게 폴링한다
+  useEffect(() => {
+    if (!bridge) return;
+    const id = window.setInterval(() => {
+      if (gestureRef.current || document.hidden) return;
+      void useTimeline.getState().syncPlayhead();
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [bridge]);
+
+  // 보이는 구간 추적(눈금은 보이는 만큼만 그린다)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setView({ scrollLeft: el.scrollLeft, width: el.clientWidth });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    el.addEventListener('scroll', update, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener('scroll', update);
+    };
+  }, [seq === null]);
+
+  // Ctrl+휠 줌(커서 아래 시간을 고정). React onWheel 은 passive 라 preventDefault 가 안 돼 직접 건다
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const row = rulerRowRef.current;
+      const origin = row ? row.getBoundingClientRect().left + headerWidth(row) : el.getBoundingClientRect().left;
+      const { pxPerSec: pps, setZoom } = useTimeline.getState();
+      const under = pxToTick(e.clientX - origin, pps);
+      const next = clampZoom(pps * Math.exp(-e.deltaY * 0.002));
+      setZoom(next);
+      el.scrollLeft += tickToPx(under, next) - tickToPx(under, pps);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [seq === null]);
+
+  const flushPlayhead = useCallback(() => {
+    rafRef.current = 0;
+    const tick = pendingPlayhead.current;
+    pendingPlayhead.current = null;
+    if (tick !== null) void useTimeline.getState().setPlayhead(tick);
+  }, []);
+
+  const scheduleSetPlayhead = useCallback(
+    (tick: number) => {
+      pendingPlayhead.current = Math.max(0, tick);
+      if (!rafRef.current) rafRef.current = window.requestAnimationFrame(flushPlayhead);
+    },
+    [flushPlayhead],
+  );
+
+  /** 포인터 x 를 레인 기준 tick 으로. 눈금자 행의 콘텐츠 시작점이 0 */
+  const tickAtClientX = useCallback((clientX: number) => {
+    const row = rulerRowRef.current;
+    if (!row) return 0;
+    const origin = row.getBoundingClientRect().left + headerWidth(row);
+    return Math.max(0, pxToTick(clientX - origin, useTimeline.getState().pxPerSec));
+  }, []);
+
+  const capture = (e: React.PointerEvent) => {
+    sectionRef.current?.setPointerCapture(e.pointerId);
+    sectionRef.current?.focus({ preventScroll: true });
+  };
+
+  const onRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !seq) return;
+    e.preventDefault();
+    capture(e);
+    gestureRef.current = { kind: 'scrub', pointerId: e.pointerId };
+    scheduleSetPlayhead(tickAtClientX(e.clientX));
+  };
+
+  const onLanePointerDown = (e: React.PointerEvent<HTMLDivElement>, _row: TrackRow) => {
+    if (e.button !== 0 || !seq) return;
+    e.preventDefault();
+    capture(e);
+    gestureRef.current = { kind: 'scrub', pointerId: e.pointerId };
+    scheduleSetPlayhead(tickAtClientX(e.clientX));
+    void useTimeline.getState().deselectAll();
+  };
+
+  const onClipPointerDown = (e: React.PointerEvent<HTMLDivElement>, clip: ClipInfo, part: ClipPart) => {
+    if (e.button !== 0 || !seq) return;
+    e.preventDefault();
+    capture(e);
+    const lane = (e.currentTarget as HTMLElement).closest<HTMLElement>('[data-lane]');
+    const trackKind = (lane?.dataset.kind as TrackKind | undefined) ?? 'video';
+    const trackId = Number(lane?.dataset.trackId ?? 0);
+    if (part === 'body') {
+      gestureRef.current = {
+        kind: 'move',
+        pointerId: e.pointerId,
+        clip,
+        trackKind,
+        trackId,
+        originX: e.clientX,
+        originY: e.clientY,
+        dx: 0,
+        targetTrack: null,
+        started: false,
+        add: e.shiftKey,
+        toggle: e.ctrlKey || e.metaKey,
+      };
+    } else {
+      gestureRef.current = {
+        kind: 'trim',
+        pointerId: e.pointerId,
+        clip,
+        edge: part,
+        originX: e.clientX,
+        dx: 0,
+        started: false,
+      };
+    }
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId || !seq) return;
+    const state = useTimeline.getState();
+    if (g.kind === 'scrub') {
+      scheduleSetPlayhead(tickAtClientX(e.clientX));
+      return;
+    }
+    const dxRaw = e.clientX - g.originX;
+    if (
+      !g.started &&
+      Math.abs(dxRaw) < DRAG_THRESHOLD_PX &&
+      Math.abs(e.clientY - (g.kind === 'move' ? g.originY : 0)) < DRAG_THRESHOLD_PX
+    ) {
+      return;
+    }
+    g.started = true;
+    const targets = state.snapping ? snapTargets(seq, state.playhead, g.clip) : [];
+    if (g.kind === 'move') {
+      let dTick = pxToTick(dxRaw, pxPerSec);
+      const snap = snapDelta([g.clip.start + dTick, g.clip.end + dTick], targets, pxPerSec);
+      if (snap !== null) dTick += snap;
+      dTick = Math.max(-g.clip.start, snapToFrame(g.clip.start + dTick, frameRate) - g.clip.start);
+      g.dx = tickToPx(dTick, pxPerSec);
+      g.targetTrack = laneAt(e.clientX, e.clientY, g.trackKind);
+      setPreview({ clip: g.clip.clip, dxStart: g.dx, dxEnd: g.dx, targetTrack: g.targetTrack });
+    } else {
+      let dTick = pxToTick(dxRaw, pxPerSec);
+      const edgeTick = g.edge === 'in' ? g.clip.start : g.clip.end;
+      const snap = snapDelta([edgeTick + dTick], targets, pxPerSec);
+      if (snap !== null) dTick += snap;
+      dTick = snapToFrame(edgeTick + dTick, frameRate) - edgeTick;
+      const ft = frameTicks(frameRate);
+      const length = g.clip.end - g.clip.start;
+      // 한 프레임보다 짧아지지 않게
+      if (g.edge === 'in') dTick = Math.min(dTick, length - ft);
+      else dTick = Math.max(dTick, ft - length);
+      g.dx = tickToPx(dTick, pxPerSec);
+      setPreview(
+        g.edge === 'in'
+          ? { clip: g.clip.clip, dxStart: g.dx, dxEnd: 0, targetTrack: null }
+          : { clip: g.clip.clip, dxStart: 0, dxEnd: g.dx, targetTrack: null },
+      );
+    }
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    gestureRef.current = null;
+    setPreview(null);
+    sectionRef.current?.releasePointerCapture(e.pointerId);
+    const state = useTimeline.getState();
+    if (g.kind === 'scrub') {
+      flushPlayhead();
+      return;
+    }
+    if (g.kind === 'move') {
+      if (!g.started) {
+        void state.selectClip(g.clip.clip, { add: g.add, toggle: g.toggle });
+        return;
+      }
+      const dTick = pxToTick(g.dx, pxPerSec);
+      const track = g.targetTrack ?? g.trackId;
+      const time = Math.max(0, Math.round(g.clip.start + dTick));
+      if (track === g.trackId && Math.abs(dTick) < 1) return;
+      void state.moveClips([{ clip: g.clip.clip, track, time }]);
+      return;
+    }
+    if (!g.started) return;
+    const deltaFrames = Math.round(pxToTick(g.dx, pxPerSec) / frameTicks(frameRate));
+    void state.trimClip(g.clip.clip, g.edge, deltaFrames);
+  };
+
+  const onPointerCancel = (e: React.PointerEvent<HTMLElement>) => {
+    if (gestureRef.current?.pointerId !== e.pointerId) return;
+    gestureRef.current = null;
+    setPreview(null);
+  };
+
+  // 미디어 패널에서 끌어오기(dnd.ts 계약)
+  const dropTickFor = (e: React.DragEvent, row: TrackRow): number => {
+    const state = useTimeline.getState();
+    let tick = tickAtClientX(e.clientX);
+    if (state.snapping && seq) {
+      const snap = snapDelta([tick], snapTargets(seq, state.playhead, null), pxPerSec);
+      if (snap !== null) tick += snap;
+    }
+    return snapToFrame(tick, frameRate);
+  };
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
+    if (!hasMediaItem(e.dataTransfer) || row.track.locked) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    const tick = dropTickFor(e, row);
+    setDropHint((h) =>
+      h && h.trackId === row.track.id && h.tick === tick ? h : { trackId: row.track.id, kind: row.kind, tick },
+    );
+  };
+  const onDragLeave = (_e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
+    setDropHint((h) => (h && h.trackId === row.track.id ? null : h));
+  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
+    const item = readMediaItemId(e.dataTransfer);
+    setDropHint(null);
+    if (item === null || row.track.locked) return;
+    e.preventDefault();
+    void useTimeline.getState().placeItem(item, row.track.id, row.kind, dropTickFor(e, row));
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+    const state = useTimeline.getState();
+    const ctrl = e.ctrlKey || e.metaKey;
+    const ft = frameTicks(frameRate);
+    let handled = true;
+    if (ctrl && e.key.toLowerCase() === 'k') void state.razorAtPlayhead();
+    else if (!ctrl && (e.key === 'Delete' || e.key === 'Backspace')) void state.deleteSelection();
+    else if (ctrl && !e.shiftKey && e.key.toLowerCase() === 'z') void state.undo();
+    else if (ctrl && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) void state.redo();
+    else if (!ctrl && (e.key === '=' || e.key === '+')) state.setZoom(state.pxPerSec * 1.25);
+    else if (!ctrl && e.key === '-') state.setZoom(state.pxPerSec / 1.25);
+    else if (e.key === 'Home') void state.setPlayhead(0);
+    else if (e.key === 'End' && seq) void state.setPlayhead(seq.duration);
+    else if (e.key === 'ArrowLeft') void state.setPlayhead(state.playhead - ft * (e.shiftKey ? 5 : 1));
+    else if (e.key === 'ArrowRight') void state.setPlayhead(state.playhead + ft * (e.shiftKey ? 5 : 1));
+    else if (!ctrl && e.key.toLowerCase() === 's') void state.toggleSnapping();
+    else handled = false;
+    if (handled) e.preventDefault();
+  };
+
+  const fitToSequence = () => {
+    const el = scrollRef.current;
+    const row = rulerRowRef.current;
+    if (!el || !row || !seq || seq.duration <= 0) return;
+    const avail = Math.max(50, el.clientWidth - headerWidth(row) - 24);
+    useTimeline.getState().setZoom((avail / seq.duration) * 254_016_000_000);
+    el.scrollLeft = 0;
+  };
+
+  const contentPx = seq ? tickToPx(seq.duration, pxPerSec) + TAIL_SECONDS * pxPerSec : 0;
+  const visibleFrom = pxToTick(Math.max(0, view.scrollLeft - 120), pxPerSec);
+  const visibleTo = pxToTick(view.scrollLeft + view.width + 120, pxPerSec);
+  const timecode = timecodeAt(playhead, frameRate);
+
+  return (
+    <section
+      ref={sectionRef}
+      className="sh-panel ve-timeline tl"
+      aria-label="타임라인"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+    >
+      <div className="sh-panel__title">
+        <span>타임라인{seq ? ` - ${seq.name}` : ''}</span>
+        <span className="sh-tnum tl-title__tc">{timecode}</span>
+      </div>
+      <div className="sh-toolbar tl-toolbar" role="toolbar" aria-label="타임라인 도구">
+        <button
+          type="button"
+          className="sh-tool"
+          title="플레이헤드 위치에서 자르기 (Ctrl+K)"
+          disabled={!seq || busy}
+          onClick={() => void useTimeline.getState().razorAtPlayhead()}
+        >
+          자르기
+        </button>
+        <button
+          type="button"
+          className="sh-tool"
+          title="선택한 클립 삭제 (Delete)"
+          disabled={!seq || selection.length === 0 || busy}
+          onClick={() => void useTimeline.getState().deleteSelection()}
+        >
+          삭제
+        </button>
+        <span className="sh-separator" />
+        <button
+          type="button"
+          className="sh-tool"
+          aria-pressed={ripple}
+          title="리플: 삭제·트림 때 뒤 클립을 당깁니다"
+          onClick={() => useTimeline.getState().toggleRipple()}
+        >
+          리플
+        </button>
+        <button
+          type="button"
+          className="sh-tool"
+          aria-pressed={insert}
+          title="삽입: 놓기·이동 때 겹치는 클립을 밀어냅니다. 끄면 덮어씁니다"
+          onClick={() => useTimeline.getState().toggleInsert()}
+        >
+          삽입
+        </button>
+        <button
+          type="button"
+          className="sh-tool"
+          aria-pressed={snapping}
+          title="스냅: 끌 때 클립 가장자리와 플레이헤드에 맞춥니다 (S)"
+          onClick={() => void useTimeline.getState().toggleSnapping()}
+        >
+          스냅
+        </button>
+        <span className="sh-separator" />
+        <button
+          type="button"
+          className="sh-tool"
+          title="축소 (-)"
+          onClick={() => useTimeline.getState().setZoom(pxPerSec / 1.5)}
+        >
+          축소
+        </button>
+        <button
+          type="button"
+          className="sh-tool"
+          title="확대 (+)"
+          onClick={() => useTimeline.getState().setZoom(pxPerSec * 1.5)}
+        >
+          확대
+        </button>
+        <button
+          type="button"
+          className="sh-tool"
+          title="시퀀스 전체가 보이게"
+          disabled={!seq || !hasClips}
+          onClick={fitToSequence}
+        >
+          맞춤
+        </button>
+        <span className="sh-separator" />
+        <button
+          type="button"
+          className="sh-tool"
+          title="실행 취소 (Ctrl+Z)"
+          disabled={!bridge}
+          onClick={() => void useTimeline.getState().undo()}
+        >
+          실행 취소
+        </button>
+        <button
+          type="button"
+          className="sh-tool"
+          title="다시 실행 (Ctrl+Shift+Z)"
+          disabled={!bridge}
+          onClick={() => void useTimeline.getState().redo()}
+        >
+          다시 실행
+        </button>
+        <span className="tl-toolbar__zoom sh-tnum" title="픽셀/초">
+          {Math.round(pxPerSec)} px/s
+        </span>
+      </div>
+      {seq ? (
+        <div ref={scrollRef} className="tl-scroll sh-scroll">
+          <div className="tl-canvas" style={{ width: `calc(var(--tl-header-w) + ${Math.ceil(contentPx)}px)` }}>
+            <div ref={rulerRowRef} className="tl-row tl-row--ruler">
+              <div className="tl-head tl-corner">{fps % 1 === 0 ? `${fps}fps` : `${fps.toFixed(2)}fps`}</div>
+              <Ruler
+                pxPerSec={pxPerSec}
+                frameRate={frameRate}
+                from={visibleFrom}
+                to={visibleTo}
+                playhead={playhead}
+                onPointerDown={onRulerPointerDown}
+              />
+            </div>
+            {rows.map((row) => (
+              <div key={`${row.kind}-${row.track.id}`} className={`tl-row tl-row--${row.kind}`}>
+                <TrackHeader row={row} onToggle={(id, patch) => void useTimeline.getState().setTrack(id, patch)} />
+                <Lane
+                  row={row}
+                  pxPerSec={pxPerSec}
+                  selection={selection}
+                  preview={preview}
+                  dropTick={dropHint && dropHint.trackId === row.track.id ? dropHint.tick : null}
+                  onClipPointerDown={onClipPointerDown}
+                  onLanePointerDown={onLanePointerDown}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                />
+              </div>
+            ))}
+            <div
+              className="tl-playhead"
+              style={{ left: `calc(var(--tl-header-w) + ${tickToPx(playhead, pxPerSec)}px)` }}
+            />
+          </div>
+          {!hasClips && <p className="tl-empty ve-hint">미디어 패널의 항목을 트랙으로 끌어다 놓으세요.</p>}
+        </div>
+      ) : (
+        <div className="tl-none">
+          <p className="ve-hint">시퀀스가 없습니다. 새 시퀀스를 만들면 여기에 클립을 놓을 수 있습니다.</p>
+          <button
+            type="button"
+            className="sh-btn"
+            disabled={!bridge}
+            onClick={() => void useTimeline.getState().newSequence()}
+          >
+            새 시퀀스 만들기
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** 트랙 머리 폭(px). CSS 변수 --tl-header-w 를 실제로 잰 값 */
+function headerWidth(rulerRow: HTMLElement): number {
+  const head = rulerRow.querySelector<HTMLElement>('.tl-head');
+  return head ? head.getBoundingClientRect().width : 0;
+}

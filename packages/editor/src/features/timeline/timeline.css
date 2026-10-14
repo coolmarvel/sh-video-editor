@@ -1,0 +1,286 @@
+/* 타임라인 부품 (DESIGN.md 4.15). 값은 --sh-* 토큰과 그 조합만. 색상값·px 리터럴을 새로 쓰지 않는다. */
+.tl {
+  --tl-header-w: calc(var(--sh-space-48) * 2 + var(--sh-space-16));
+  --tl-ruler-h: var(--sh-size-row);
+  --tl-video-h: calc(var(--sh-size-row) * 2);
+  --tl-audio-h: calc(var(--sh-size-row) + var(--sh-space-8));
+  --tl-handle-w: var(--sh-space-6);
+  position: relative;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tl-title__tc {
+  font-weight: var(--sh-font-weight-regular);
+  color: var(--sh-color-text-secondary);
+}
+.tl-toolbar {
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tl-toolbar::-webkit-scrollbar {
+  display: none;
+}
+.tl-toolbar__zoom {
+  margin-left: auto;
+  padding: 0 var(--sh-space-6);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+}
+
+/* 스크롤 영역: 눈금자 행은 위에, 트랙 머리는 왼쪽에 붙는다 */
+.tl-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--sh-color-sunken);
+  touch-action: pan-x pan-y;
+}
+.tl-canvas {
+  position: relative;
+  min-width: 100%;
+}
+.tl-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 100%;
+}
+.tl-row--ruler {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: var(--tl-ruler-h);
+}
+.tl-row--video {
+  height: var(--tl-video-h);
+}
+.tl-row--audio {
+  height: var(--tl-audio-h);
+}
+
+/* 트랙 머리 */
+.tl-head {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-2);
+  flex: none;
+  width: var(--tl-header-w);
+  padding: 0 var(--sh-space-4);
+  background: var(--sh-gradient-bevel);
+  border-right: var(--sh-border-width) solid var(--sh-color-control-border);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-border);
+  color: var(--sh-color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tl-corner {
+  z-index: 4;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+}
+.tl-head__name {
+  min-width: var(--sh-space-20);
+  font-weight: var(--sh-font-weight-bold);
+  color: var(--sh-color-text);
+}
+/* sh-classic.css 가 뒤에 로드되므로 .sh-tool 과 겹치는 선언은 .tl 을 앞세워 이긴다 */
+.tl .tl-head__toggle {
+  height: var(--sh-size-control-sm);
+  min-width: 0;
+  padding: 0 var(--sh-space-4);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+}
+.tl .tl-head__toggle[aria-pressed='true'] {
+  color: var(--sh-color-text);
+}
+
+/* 눈금자 */
+.tl-ruler {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--tl-ruler-h);
+  background: var(--sh-gradient-status);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  overflow: hidden;
+  cursor: default;
+}
+.tl-tick {
+  position: absolute;
+  bottom: 0;
+  width: var(--sh-border-width);
+  height: var(--sh-space-4);
+  background: var(--sh-color-border-strong);
+}
+.tl-tick--major {
+  height: var(--sh-space-8);
+}
+.tl-tick__label {
+  position: absolute;
+  left: var(--sh-space-4);
+  bottom: var(--sh-space-6);
+  font-size: var(--sh-font-size-caption);
+  line-height: var(--sh-font-line-height-tight);
+  color: var(--sh-color-text-muted);
+  white-space: nowrap;
+}
+.tl-ruler__head {
+  position: absolute;
+  top: 0;
+  width: var(--sh-space-8);
+  height: var(--sh-space-8);
+  margin-left: calc(var(--sh-space-4) * -1);
+  background: var(--sh-color-accent);
+}
+
+/* 레인 */
+.tl-lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--sh-color-sunken);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-border);
+  cursor: default;
+}
+.tl-lane--audio {
+  background: var(--sh-color-stage-image);
+}
+.tl-lane.is-locked {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--sh-color-sunken) 0,
+    var(--sh-color-sunken) var(--sh-space-6),
+    var(--sh-color-canvas) var(--sh-space-6),
+    var(--sh-color-canvas) var(--sh-space-8)
+  );
+}
+.tl-lane.is-target {
+  background: var(--sh-color-hover);
+}
+.tl-drop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--sh-space-2);
+  margin-left: calc(var(--sh-border-width) * -1);
+  background: var(--sh-color-accent);
+  pointer-events: none;
+}
+
+/* 클립 블록 */
+.tl-clip {
+  position: absolute;
+  top: var(--sh-space-2);
+  bottom: var(--sh-space-2);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  background: var(--sh-gradient-bevel);
+  color: var(--sh-color-text);
+  cursor: default;
+}
+.tl-clip--audio {
+  background: var(--sh-color-hover);
+  border-color: var(--sh-color-border-strong);
+  color: var(--sh-color-text-secondary);
+}
+.tl-clip:hover {
+  border-color: var(--sh-color-hover-edge);
+}
+.tl-clip.is-selected {
+  background: var(--sh-color-accent-subtle);
+  border-color: var(--sh-color-accent-pressed);
+  color: var(--sh-color-text);
+}
+.tl-clip.is-disabled {
+  color: var(--sh-color-text-disabled);
+}
+.tl-clip.is-ghost {
+  z-index: 1;
+  border-style: dashed;
+  border-color: var(--sh-color-accent);
+}
+.tl-clip__name {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--sh-space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tl-clip__handle {
+  flex: none;
+  width: var(--tl-handle-w);
+  align-self: stretch;
+  cursor: ew-resize;
+}
+.tl-clip__handle:hover,
+.tl-clip.is-selected .tl-clip__handle {
+  background: var(--sh-color-accent-pressed);
+}
+
+/* 플레이헤드 선. 눈금자·트랙 머리 아래로 지나간다 */
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: var(--sh-border-width);
+  background: var(--sh-color-accent);
+  pointer-events: none;
+}
+
+/* 빈 상태 */
+.tl-empty {
+  position: absolute;
+  left: var(--tl-header-w);
+  right: 0;
+  bottom: var(--sh-space-8);
+  margin: 0;
+  text-align: center;
+  pointer-events: none;
+}
+.tl-none {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sh-space-8);
+  padding: var(--sh-space-12);
+  text-align: center;
+}
+
+/* 데스크톱: 트랙 6줄이 다 보이는 높이. layout.css 의 220px 기본값을 토큰 조합으로 대신한다 */
+@media (min-width: 901px) {
+  .ve-timeline.tl {
+    height: calc(
+      var(--sh-size-panel-title) + var(--sh-size-toolbar) + var(--tl-ruler-h) + var(--tl-video-h) * 3 +
+        var(--tl-audio-h) * 3 + var(--sh-border-width) * 2
+    );
+  }
+}
+
+/* 모바일: 머리를 좁히고 토글을 숨긴다. 세로 스크롤 허용 */
+@media (max-width: 900px) {
+  .tl {
+    --tl-header-w: var(--sh-space-48);
+    --tl-video-h: calc(var(--sh-size-row) + var(--sh-space-8));
+    --tl-audio-h: var(--sh-size-row);
+  }
+  .tl .tl-head__toggle,
+  .tl-toolbar__zoom {
+    display: none;
+  }
+  .tl-corner {
+    font-size: var(--sh-font-size-caption);
+  }
+}

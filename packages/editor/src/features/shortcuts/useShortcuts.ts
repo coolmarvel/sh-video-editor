@@ -5,7 +5,7 @@
  */
 import { useEffect } from 'react';
 import { runAction } from './actions';
-import { isDialogOpen, isTypingTarget, normalizeKey, shortcutForKeys } from './keymap';
+import { focusArea, isDialogOpen, isTypingTarget, normalizeKey, shortcutForKeys } from './keymap';
 
 export function useShortcuts(): void {
   useEffect(() => {
@@ -21,7 +21,16 @@ export function useShortcuts(): void {
       if (e.repeat && /^play\.(toggle|stop|shuttle)/.test(def.id)) return;
       void runAction(def.id);
     };
+    // 포커스 영역(keymap.focusArea): 마지막으로 누른 곳의 data-area 를 기억한다
+    const onPointerDown = (e: PointerEvent) => {
+      const area = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-area]')?.dataset['area'] : undefined;
+      if (area) focusArea.current = area;
+    };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
   }, []);
 }

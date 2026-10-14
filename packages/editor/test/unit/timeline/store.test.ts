@@ -178,12 +178,8 @@ describe('razorAtPlayhead', () => {
     expect(useEditor.getState().status).toBe('플레이헤드 아래에 선택한 클립이 없습니다');
     await tl().setPlayhead(6 * T);
     await tl().razorAtPlayhead();
-    // 선택에는 연결된 소리 클립도 들어 있어 클립마다 razor 를 보낸다. 첫 호출이 연결 클립까지 자르므로(2곳)
-    // 두 번째는 0곳이고 합계는 2곳이다(store 는 루프 동안 inspect 스냅샷을 갱신하지 않는다)
-    expect(engine.callsOf('timeline.razor')).toEqual([
-      { time: 6 * T, clip: clips[2]!.clip },
-      { time: 6 * T, clip: clips[3]!.clip },
-    ]);
+    // 선택에는 연결된 소리 클립도 들어 있지만 엔진이 연결 클립까지 한 번에 자르므로(2곳) 묶음당 한 번만 보낸다
+    expect(engine.callsOf('timeline.razor')).toEqual([{ time: 6 * T, clip: clips[2]!.clip }]);
     expect(useEditor.getState().status).toBe('자르기: 2곳');
     expect(clipIds()).toHaveLength(3);
     expect(tl().sequence!.audio[0]!.items).toHaveLength(3);
@@ -310,12 +306,12 @@ describe('moveClips / trimClip / placeItem / setTrack', () => {
 });
 
 describe('newSequence / undo / redo', () => {
-  it('newSequence 는 1080p 30fps 로 만든다', async () => {
+  it('newSequence 는 프로젝트 이름으로 1080p 30fps 편집본을 만든다', async () => {
     const engine = await connect();
     await tl().newSequence();
-    expect(engine.callsOf('file.newSequence')).toEqual([{ name: '시퀀스 1', width: 1920, height: 1080, fps: 30 }]);
+    expect(engine.callsOf('file.newSequence')).toEqual([{ name: '제목 없음', width: 1920, height: 1080, fps: 30 }]);
     expect(tl().sequence?.settings).toEqual({ frame_rate: { num: 30, den: 1 }, width: 1920, height: 1080 });
-    expect(useEditor.getState().status).toBe('새 시퀀스를 만들었습니다');
+    expect(useEditor.getState().status).toBe('새 편집본을 만들었습니다. 미디어를 타임라인에 넣으세요');
   });
 
   it('undo/redo 는 라벨을 상태 줄에 적고 다시 읽는다', async () => {
@@ -391,3 +387,57 @@ describe('커맨드 실패', () => {
 
 /* 타입 보조: 테스트 안에서 engine 을 구조분해할 때 쓰인다 */
 export type { FakeEngine };
+
+describe('Alt 드래그(연결 상대를 두고 이 클립만)', () => {
+  it('trimClip linked:false 는 연결 선택을 잠시 끄고 트림한 뒤 되돌리며, 소리만 움직인다', async () => {
+    const { engine, clips } = await ready();
+    const audio = tl().sequence!.audio[0]!.items[0]!;
+    await tl().trimClip(audio.clip, 'in', 15, { linked: false });
+    const ids = engine.calls.map((c) => c.id).filter((id) => id === 'sequence.linkedSelection' || id === 'timeline.trim');
+    expect(ids).toEqual(['sequence.linkedSelection', 'timeline.trim', 'sequence.linkedSelection']);
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([{ on: false }, { on: true }]);
+    expect(engine.state.linkedSelection).toBe(true);
+    expect(tl().sequence!.audio[0]!.items[0]!.start).toBe(15 * FT30);
+    expect(tl().sequence!.video[0]!.items[0]!.start).toBe(0);
+    expect(useEditor.getState().status).toBe('시작 트림: +15프레임 (이 클립만)');
+    // 보통 트림은 둘 다 움직인다
+    await tl().trimClip(clips[0]!.clip, 'in', 15);
+    expect(tl().sequence!.video[0]!.items[0]!.start).toBe(15 * FT30);
+    expect(tl().sequence!.audio[0]!.items[0]!.start).toBe(30 * FT30);
+    expect(engine.callsOf('sequence.linkedSelection')).toHaveLength(2);
+  });
+
+  it('트림이 실패해도 연결 선택은 되돌린다', async () => {
+    const { engine, clips } = await ready();
+    engine.failNext('timeline.trim', '막힘');
+    await tl().trimClip(clips[0]!.clip, 'out', -10, { linked: false });
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([{ on: false }, { on: true }]);
+    expect(tl().lastError).toBe('편집할 수 없습니다: 막힘');
+  });
+
+  it('moveClips linked:false 는 엔진의 linked 옵션으로 보내고 소리만 옮긴다', async () => {
+    const { engine } = await ready();
+    const track = tl().sequence!.audio[0]!.id;
+    const audio = tl().sequence!.audio[0]!.items[1]!;
+    await tl().moveClips([{ clip: audio.clip, track, time: 10 * T }], { linked: false });
+    expect(engine.callsOf('timeline.move')).toEqual([{ moves: [{ clip: audio.clip, track, time: 10 * T }], insert: true, linked: false }]);
+    expect(tl().sequence!.audio[0]!.items[1]!.start).toBe(10 * T);
+    expect(tl().sequence!.video[0]!.items[1]!.start).toBe(4 * T);
+    expect(useEditor.getState().status).toBe('이동: 클립 1개 (이 클립만)');
+  });
+});
+
+describe('razorAtPlayhead 와 연결 선택', () => {
+  it('영상·소리가 함께 선택되어 있어도 묶음당 한 번만 자른다(실행 취소 한 단계)', async () => {
+    const { engine, clips } = await ready();
+    await tl().selectClip(clips[0]!.clip);
+    expect(tl().sequence!.selection).toHaveLength(2);
+    await tl().setPlayhead(2 * T);
+    const before = engine.undoStack.length;
+    await tl().razorAtPlayhead();
+    expect(engine.callsOf('timeline.razor')).toHaveLength(1);
+    expect(engine.undoStack.length).toBe(before + 1);
+    expect(useEditor.getState().status).toBe('자르기: 2곳');
+    expect(clipIds()).toHaveLength(3);
+  });
+});

@@ -284,8 +284,8 @@ describe('복구', () => {
   });
 });
 
-describe('notify', () => {
-  it('최근 3개만 두고 6초 뒤에 지운다', () => {
+describe('notify / dismiss', () => {
+  it('최근 3개만 두고 6초 뒤에 지운다. 오류는 저절로 닫히지 않는다', () => {
     vi.useFakeTimers();
     pj().notify('success', 'a');
     pj().notify('warning', 'b');
@@ -293,6 +293,27 @@ describe('notify', () => {
     pj().notify('success', 'd');
     expect(pj().notices.map((n) => n.text)).toEqual(['b', 'c', 'd']);
     expect(new Set(pj().notices.map((n) => n.id)).size).toBe(3);
+    vi.advanceTimersByTime(5999);
+    expect(pj().notices.map((n) => n.text)).toEqual(['b', 'c', 'd']);
+    vi.advanceTimersByTime(1);
+    expect(pj().notices.map((n) => n.text)).toEqual(['c']);
+    vi.advanceTimersByTime(60_000);
+    expect(pj().notices.map((n) => n.text)).toEqual(['c']);
+  });
+
+  it('닫기 버튼(dismiss)은 바로 지우고, 모르는 id 는 상태를 바꾸지 않는다', () => {
+    vi.useFakeTimers();
+    pj().notify('info', 'x');
+    pj().notify('danger', 'y');
+    const [x, y] = pj().notices;
+    pj().dismiss(y!.id);
+    expect(pj().notices.map((n) => n.text)).toEqual(['x']);
+    const before = pj();
+    pj().dismiss(999);
+    expect(pj()).toBe(before);
+    pj().dismiss(x!.id);
+    expect(pj().notices).toEqual([]);
+    // 이미 닫힌 알림의 타이머는 아무것도 하지 않는다
     vi.advanceTimersByTime(6000);
     expect(pj().notices).toEqual([]);
   });

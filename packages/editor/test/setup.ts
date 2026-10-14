@@ -33,6 +33,10 @@ if (!Element.prototype.setPointerCapture) {
   Element.prototype.releasePointerCapture = () => undefined;
   Element.prototype.hasPointerCapture = () => false;
 }
+// jsdom 에는 elementsFromPoint 가 없다(타임라인이 끌어다 놓을 레인을 찾을 때 쓴다). 빈 목록이면 원래 트랙에 놓인다
+if (typeof document.elementsFromPoint !== 'function') {
+  document.elementsFromPoint = () => [];
+}
 if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = () => undefined;
 }

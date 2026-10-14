@@ -31,7 +31,7 @@ describe('typeLabelKo', () => {
   it('아는 유형은 한글, 모르는 유형은 원문', () => {
     expect(typeLabelKo('Movie')).toBe('영상');
     expect(typeLabelKo('Still Image')).toBe('사진');
-    expect(typeLabelKo('Sequence')).toBe('시퀀스');
+    expect(typeLabelKo('Sequence')).toBe('편집본');
     expect(typeLabelKo('Multi-Camera Source Sequence')).toBe('멀티캠 소스');
     expect(typeLabelKo('Whatever')).toBe('Whatever');
     expect(typeLabelKo('')).toBe('');
@@ -39,7 +39,7 @@ describe('typeLabelKo', () => {
 });
 
 describe('isClipLike', () => {
-  it('시퀀스·병합 클립은 시퀀스로 만들 수 없다', () => {
+  it('편집본·병합 클립은 타임라인에 넣을 수 없다', () => {
     expect(isClipLike(item(1, 'Movie'))).toBe(true);
     expect(isClipLike(item(1, 'Audio'))).toBe(true);
     expect(isClipLike(item(1, 'Still Image'))).toBe(true);

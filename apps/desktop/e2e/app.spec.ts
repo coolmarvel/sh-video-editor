@@ -45,10 +45,10 @@ const videoClips = (page: Page) => page.locator('.tl-lane--video .tl-clip');
 const tool = (page: Page, name: string) => page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true });
 
 async function makeDemoSequence(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '데모 영상' }).click();
+  await page.getByRole('button', { name: '데모 영상', exact: true }).click();
   await page.getByRole('menuitem', { name: '바다 노을' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다.' })).toBeVisible();
-  await page.getByRole('button', { name: '시퀀스 만들기', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다' })).toBeVisible();
+  await page.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
   await expect(clips(page)).toHaveCount(2);
   // 바다 노을 데모는 18초
   await expect(page.getByTestId('mon-total')).toHaveText('00:00:18:00');
@@ -72,7 +72,7 @@ test('창 제목, 엔진 상태 줄, 데스크톱 호스트 기능', async () =>
     await expect(page.locator('.ve-version')).toContainText('sh-video-engine');
     await expect(page.locator('.ve-version')).not.toContainText('wasm');
     // 데스크톱만 있는 가져오기 버튼과 자동 저장 상태
-    await expect(page.getByRole('button', { name: '가져오기' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '가져오기', exact: true })).toBeVisible();
     await expect(page.locator('.ve-status').getByTitle('자동 저장 켜짐')).toBeVisible({ timeout: 15_000 });
     // 렌더러가 엔진 프로세스와 직접 이어져 있다
     const version = await page.evaluate(() => (window as unknown as { shEngine: { version(): Promise<string> } }).shEngine.version());
@@ -107,16 +107,17 @@ test('메뉴바를 열고 닫고, 내보내기 대화상자가 열린다', async
       .click();
     const dialog = page.getByRole('dialog', { name: '내보내기' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByLabel('프리셋')).toBeVisible();
-    await expect(dialog.getByLabel('프리셋').locator('option')).toHaveCount(5);
+    await expect(dialog.getByLabel('프리셋', { exact: true })).toBeVisible();
+    // 기본 프리셋 5개 + SNS 프리셋(features/ratio)이 같은 콤보에 합쳐진다
+    expect(await dialog.getByLabel('프리셋', { exact: true }).locator('option').count()).toBeGreaterThanOrEqual(5);
     await expect(dialog.getByLabel('형식').locator('option')).toHaveCount(1);
     await expect(dialog).toContainText(/1920 x 1080, [\d.]+ fps, 18\.0초 \(\d+ 프레임\)/);
     await expect(dialog.getByRole('button', { name: '찾아보기' })).toBeEnabled();
     await expect(dialog.getByRole('button', { name: '내보내기' })).toBeDisabled();
-    await dialog.getByLabel('프리셋').selectOption('720p');
+    await dialog.getByLabel('프리셋', { exact: true }).selectOption('720p');
     await expect(dialog).toContainText('1280 x 720');
     // Escape 는 대화상자 안에 포커스가 있을 때 닫힌다(대화상자 요소의 keydown)
-    await dialog.getByLabel('프리셋').press('Escape');
+    await dialog.getByLabel('프리셋', { exact: true }).press('Escape');
     await expect(dialog).toHaveCount(0);
     // Ctrl+M 단축키로도 열린다
     await page.keyboard.press('Control+m');
@@ -197,7 +198,7 @@ test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 �
     expect(version).toContain('sh-video-engine');
     // 화면은 살아 있고(새 엔진은 빈 세션) 다시 편집할 수 있다
     await expect(page.getByRole('menubar')).toBeVisible();
-    await expect(page.getByText('열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.')).toBeVisible({
+    await expect(page.getByText('타임라인이 비어 있습니다. 미디어를 타임라인에 넣으면 여기에 보입니다.')).toBeVisible({
       timeout: 20_000,
     });
     await expect(page.locator('.ve-status')).not.toContainText('오류:', { timeout: 20_000 });

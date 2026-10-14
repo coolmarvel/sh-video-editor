@@ -16,6 +16,9 @@ import { resetThumbnailLoader } from '../src/features/media/thumbs';
 import { useText } from '../src/features/text/store';
 import { useCaptions } from '../src/features/text/captions-store';
 import { useInspectorRegistry } from '../src/features/inspector/registry';
+import { useContextMenu } from '../src/features/context-menu/store';
+import { useOnboarding } from '../src/features/onboarding/store';
+import { focusArea } from '../src/features/shortcuts/keymap';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -36,6 +39,9 @@ export function resetStores(): void {
   useText.setState(useText.getInitialState(), true);
   useCaptions.setState(useCaptions.getInitialState(), true);
   useInspectorRegistry.setState({ active: null });
+  useContextMenu.setState(useContextMenu.getInitialState(), true);
+  useOnboarding.setState(useOnboarding.getInitialState(), true);
+  focusArea.current = 'timeline';
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

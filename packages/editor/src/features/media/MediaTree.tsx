@@ -1,17 +1,22 @@
-import { useState } from 'react';
+import { useState, type DragEvent, type MouseEvent } from 'react';
 import { useEditor } from '../../store';
 import { formatTimecode } from '../../engine/time';
+import { writeMediaItemIds } from '../timeline/dnd';
 import { TypeIcon } from './icons';
 import { POSTER_TICK, hasPicture, useThumbnail } from './thumbs';
-import { typeLabelKo, type MediaBin, type MediaItem, type MediaNode } from './types';
+import { isEdition, typeLabelKo, type MediaBin, type MediaItem, type MediaNode } from './types';
+import type { SelectOptions } from './store';
 
 interface Props {
   root: MediaBin;
-  selectedId: number | null;
-  onSelect(id: number): void;
+  selectedIds: number[];
+  onSelect(id: number, opts?: SelectOptions): void;
+  /** 더블클릭·Enter: 영상·사진·소리는 타임라인에 넣기, 편집본은 열기 */
   onOpen(item: MediaItem): void;
   /** 시퀀스 썸네일을 다시 만들 기준(프로젝트 revision). 편집하면 바뀐다 */
   revision?: number;
+  onItemContextMenu?(e: MouseEvent<HTMLElement>, item: MediaItem): void;
+  onBinContextMenu?(e: MouseEvent<HTMLElement>, bin: MediaBin, isRoot: boolean): void;
 }
 
 /** 썸네일(48x27, 엔진이 만든 포스터 프레임). 아직 없거나 그림이 없는 항목은 유형 아이콘 */
@@ -28,8 +33,12 @@ function ItemThumb({ item, revision }: { item: MediaItem; revision: number }) {
   );
 }
 
-/** 빈·항목 트리. 구조는 sh-classic 4.8 (ul.sh-tree > li[aria-expanded] > .sh-tree__row + ul). 빈에는 아이콘을 두지 않는다. */
-export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: Props) {
+/**
+ * 빈·항목 트리. 구조는 sh-classic 4.8 (ul.sh-tree > li[aria-expanded] > .sh-tree__row + ul). 빈에는 아이콘을 두지 않는다.
+ * 항목은 Ctrl(토글)·Shift(범위)로 여러 개 고르고, 끌면 선택한 항목 전부를 타임라인으로 가져간다(dnd.ts 계약).
+ * 편집본(엔진 Sequence)은 아이콘과 "편집본" 표시로 영상과 구분한다.
+ */
+export function MediaTree({ root, selectedIds, onSelect, onOpen, onItemContextMenu, onBinContextMenu, revision = 0 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
   const toggle = (id: number) =>
     setCollapsed((prev) => {
@@ -39,8 +48,15 @@ export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: 
       return next;
     });
 
+  const onDragStart = (e: DragEvent<HTMLElement>, item: MediaItem) => {
+    const ids = selectedIds.includes(item.id) ? selectedIds : [item.id];
+    if (!selectedIds.includes(item.id)) onSelect(item.id);
+    writeMediaItemIds(e.dataTransfer, ids);
+  };
+
   const renderItem = (item: MediaItem) => {
-    const selected = item.id === selectedId;
+    const selected = selectedIds.includes(item.id);
+    const edition = isEdition(item);
     return (
       <li key={`i${item.id}`} role="none">
         <div className="sh-tree__row ve-media-row--item">
@@ -48,10 +64,16 @@ export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: 
             role="treeitem"
             tabIndex={0}
             aria-selected={selected}
-            className="sh-tree__label ve-media-label"
+            className={`sh-tree__label ve-media-label${edition ? ' ve-media-label--edition' : ''}`}
             title={`${item.name} (${typeLabelKo(item.type)})`}
-            onClick={() => onSelect(item.id)}
+            draggable
+            onDragStart={(e) => onDragStart(e, item)}
+            onClick={(e) => onSelect(item.id, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey })}
             onDoubleClick={() => onOpen(item)}
+            onContextMenu={(e) => {
+              if (!selected) onSelect(item.id);
+              onItemContextMenu?.(e, item);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -59,12 +81,13 @@ export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: 
                 onOpen(item);
               } else if (e.key === ' ') {
                 e.preventDefault();
-                onSelect(item.id);
+                onSelect(item.id, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey });
               }
             }}
           >
             <ItemThumb item={item} revision={revision} />
             <span className="ve-media-name">{item.name}</span>
+            {edition && <span className="ve-media-kind">편집본</span>}
             <span className="ve-media-time sh-tnum">{formatTimecode(item.duration, item.fps ?? 30)}</span>
           </span>
         </div>
@@ -86,6 +109,7 @@ export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: 
             aria-selected={false}
             className="sh-tree__label ve-media-label"
             onClick={() => toggle(bin.id)}
+            onContextMenu={(e) => onBinContextMenu?.(e, bin, top)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -105,7 +129,7 @@ export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: 
   const renderNode = (node: MediaNode) => (node.kind === 'bin' ? renderBin(node, false) : renderItem(node));
 
   return (
-    <ul className="sh-tree ve-media-tree" role="tree" aria-label="미디어 목록">
+    <ul className="sh-tree ve-media-tree" role="tree" aria-label="미디어 목록" aria-multiselectable="true">
       {renderBin(root, true)}
     </ul>
   );

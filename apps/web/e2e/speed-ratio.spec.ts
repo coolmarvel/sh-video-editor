@@ -10,7 +10,8 @@ const badge = (app: Parameters<typeof makeDemoSequence>[0]) => app.locator('.tl-
 test.describe('속도', () => {
   test('클립을 선택해 2x 를 적용하면 길이가 절반이 되고 타임라인에 배지가 생긴다', async ({ app }) => {
     await makeDemoSequence(app);
-    await expect(inspector(app)).toContainText('타임라인에서 클립을 선택하세요.');
+    // 클립을 고르기 전에는 속도 탭이 없다(자막 탭 등은 선택 없이도 보인다)
+    await expect(inspector(app).getByRole('tab', { name: '속도' })).toHaveCount(0);
     await ui.videoClips(app).first().click();
     await inspector(app).getByRole('tab', { name: '속도' }).click();
     const value = inspector(app).getByRole('spinbutton', { name: '배속' });
@@ -81,7 +82,7 @@ test.describe('비율', () => {
     await expect.poll(async () => (await canvasBox(app)).w).toBeGreaterThan(0);
     const before = await canvasBox(app);
     expect(before.w).toBeGreaterThan(before.h);
-    await app.getByRole('menubar').getByRole('button', { name: '시퀀스' }).click();
+    await app.getByRole('menubar').getByRole('button', { name: '타임라인' }).click();
     await app.getByRole('menuitem', { name: /^화면 비율/ }).click();
     const dialog = app.getByRole('dialog', { name: '화면 비율' });
     await expect(dialog).toContainText('지금 1920 x 1080 (16:9)');

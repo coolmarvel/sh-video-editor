@@ -46,11 +46,11 @@ describe('show', () => {
     expect(ex().defaultName).toBe('export.mp4');
   });
 
-  it('시퀀스가 없으면 내보내기 불가 안내', async () => {
+  it('편집본이 없으면 내보내기 불가 안내', async () => {
     await connect({ desktop: true });
     await ex().show();
     expect(ex().resolved).toBeNull();
-    expect(ex().problem).toBe('내보낼 시퀀스가 없습니다. 먼저 시퀀스를 만들어 주세요.');
+    expect(ex().problem).toBe('내보낼 편집본이 없습니다. 먼저 미디어를 타임라인에 넣어 주세요.');
   });
 
   it('프리셋 목록을 못 읽으면 문제로 적는다', async () => {

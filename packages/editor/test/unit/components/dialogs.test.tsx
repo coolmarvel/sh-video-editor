@@ -112,7 +112,7 @@ describe('ExportDialog', () => {
       '720p 가로 (1280 x 720)',
       '세로 9:16 (1080 x 1920)',
       '정사각 1:1 (1080 x 1080)',
-      '시퀀스 원본 크기',
+      '편집본 원본 크기',
       'YouTube 1080p',
       'Shorts, Reels',
       'Instagram 정사각',
@@ -142,11 +142,11 @@ describe('ExportDialog', () => {
     expect(screen.getByLabelText('저장 위치')).toHaveAttribute('placeholder', '데스크톱 앱에서만 고를 수 있습니다');
   });
 
-  it('시퀀스가 없으면 문제를 알리고, Escape 로 닫는다', async () => {
+  it('편집본이 없으면 문제를 알리고, Escape 로 닫는다', async () => {
     await connect({ desktop: true });
     render(<ExportDialog />);
     await act(() => useExport.getState().show());
-    expect(screen.getByRole('alert')).toHaveTextContent('내보낼 시퀀스가 없습니다');
+    expect(screen.getByRole('alert')).toHaveTextContent('내보낼 편집본이 없습니다');
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(useExport.getState().open).toBe(false);
   });

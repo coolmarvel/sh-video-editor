@@ -11,6 +11,8 @@ import { ProjectHost } from './features/project/ProjectHost';
 import { ProjectStatus } from './features/project/ProjectStatus';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
 import { InspectorPanel } from './features/inspector';
+import { ContextMenuHost } from './features/context-menu';
+import { GuideDialog } from './features/onboarding';
 import { useShortcuts } from './features/shortcuts';
 import './features/speed';
 import { RatioDialog } from './features/ratio';
@@ -111,6 +113,8 @@ export function App({ bridge, host }: AppProps) {
       <ProjectHost />
       <ExportDialog />
       <RatioDialog />
+      <GuideDialog />
+      <ContextMenuHost />
     </div>
   );
 }

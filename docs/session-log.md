@@ -12,6 +12,31 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - 마일스톤 2 병합 + 두 번째 피드백 반영 (v0.1.3)
+
+- **요청**: 로드맵·todo 를 마일스톤 단위로 전부 구현하고 마일스톤마다 검증. 두 번째 Windows 설치본 피드백(사용법 모름, "시퀀스" 용어,
+  알림 토스트, 미디어 우클릭·Delete, 영상·소리 따로 조절, 파형과 싱크 맞추기). 사용법 문서는 sh-compositor 처럼.
+- **방법**: feat/inspector-shell(속성 패널 탭 레지스트리)을 먼저 만들고 그 위에 워크트리 8개(텍스트·글꼴, 전환, 효과·필터, 속도·비율,
+  오디오, 엔진 이벤트·썸네일, 실매체 호환·HW 디코드, 사용성). 병합 순서 전환, 속도·비율, 효과, 실매체, 이벤트, 텍스트, 오디오, 사용성.
+  충돌은 공유 파일의 "같은 자리 줄 추가"가 대부분이고, 미디어 패널 탭 레지스트리가 둘(효과 panel-tabs, 오디오 tabs)이라 panel-tabs 로 통일.
+- **수정**(기능별 상세는 각 features/ 디렉토리 주석과 DESIGN.md 4.15~4.21):
+  - M2-1 텍스트·제목 클립(9칸 위치, 모니터 드래그, 프리셋 3종), 자막 탭(SRT 왕복), Pretendard Regular·Bold 번들(OFL, vendor crates/text).
+  - M2-3 전환 12종 갤러리·드롭·길이 핸들·인스펙터. M2-4 효과 10종·색 보정·필터 23종(Lumetri 18 + 자체 5)·비교 보기.
+  - M2-5 속도(0.1~10x, 역방향, 프리즈)·배지. M2-7 화면 비율 16:9/9:16/1:1/4:5 변환 + SNS 프리셋 카드.
+  - M2-6 오디오: renderAudio·audioPeaks 바인딩(napi·wasm 공유 audio.rs), AudioBufferSource 재생기(A/V 드리프트 1프레임 이내),
+    클립 볼륨·페이드·덕킹, 영상에 붙은 소리 포함 파형, 음악 탭.
+  - 엔진 이벤트 통합(drainEvents JSON, 폴링 하나로 패널 갱신), 썸네일 커맨드 project.thumbnail(vendor engine +35줄)과 미디어·클립 썸네일.
+  - 실매체 코퍼스 13종(ffmpeg 생성: 갤럭시·iPhone HEVC·60fps·VFR·회전·4K·모노·조각 mp4·mp3·m4a·png·jpg) 왕복 테스트 전부 통과,
+    Windows·macOS HW 디코더 등록(platform 크레이트, cargo-xwin 링크 통과, 실기 확인 대기), wasm 실측 H.264 1080p 순차 31ms.
+  - 사용성: 화면 용어 "시퀀스" 제거(타임라인·편집본), 빈 타임라인에 놓으면 편집본 자동 생성, 첫 화면 안내 카드·도움말 > 사용 안내,
+    토스트 통일(6초, 오류는 수동), 미디어·클립 우클릭 메뉴, Delete 영역별 삭제, 다중 선택, 소리 분리·다시 연결, Alt 드래그 한쪽만,
+    소리로 싱크 맞추기(clip.synchronize audio).
+- **검증**: 병합본 typecheck, prettier, clippy, 단위 499, 엔진 기능 130(+2 expected fail), 웹 e2e·데스크톱 e2e·스모크 결과는 아래 줄.
+- **엔진에서 발견한 구멍(다음 라운드 vendor 커맨드 보강 대상)**: 전환 삭제·길이 변경 커맨드 없음, 트림으로 틈이 생겨도 전환 유지,
+  효과 순서 변경 없음, lumetri 프리셋이 누적 추가, 리버스 첫 프레임 off-by-one, 트랜잭션(묶음 undo) 없음, 페이드 제거 없음,
+  clip.enable/link 가 연결 상대 미포함, inspect 효과 값이 Debug 문자열, 잘린 mp4 가 조용히 검정 프레임.
+- **다음**: 사용법 문서(docs/guides/usage.md, README, 앱 안 도움말), M2 잔여(STT, SQLite·OPFS 캐시, 웹 저장·내보내기 UI), M3, M4.
+
 ## 2026-10-14 - 첫 Windows 피드백 반영 + 테스트 3층 + 로드맵 (v0.1.2)
 
 - **피드백**(`docs/feedback-archive/2026-10-14-first-windows-run/`): 설치본이 Windows 에서 엔진까지 기동 확인. 요청: 아이콘, 메뉴 하나로,

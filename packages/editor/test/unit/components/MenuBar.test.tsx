@@ -13,7 +13,7 @@ describe('MenuBar', () => {
     await connect();
     render(<MenuBar host="web" />);
     const items = within(screen.getByRole('menubar')).getAllByRole('button');
-    expect(items.map((b) => b.textContent)).toEqual(['파일', '편집', '클립', '시퀀스', '보기', '도움말']);
+    expect(items.map((b) => b.textContent)).toEqual(['파일', '편집', '클립', '타임라인', '보기', '도움말']);
     for (const b of items) expect(b).toHaveAttribute('aria-expanded', 'false');
   });
 
@@ -50,11 +50,11 @@ describe('MenuBar', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('시퀀스 > 스냅은 체크 항목이고 누르면 타임라인 스냅이 바뀐다', async () => {
+  it('타임라인 > 스냅은 체크 항목이고 누르면 타임라인 스냅이 바뀐다', async () => {
     await connect();
     render(<MenuBar host="web" />);
     const snapping = useTimeline.getState().snapping;
-    fireEvent.click(screen.getByRole('button', { name: '시퀀스' }));
+    fireEvent.click(screen.getByRole('button', { name: '타임라인' }));
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /스냅/ }));
     await flush();
     expect(useTimeline.getState().snapping).toBe(!snapping);

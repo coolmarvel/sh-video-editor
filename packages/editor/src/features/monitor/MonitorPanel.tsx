@@ -111,7 +111,7 @@ export function MonitorPanel() {
         {sequence ? (
           <canvas ref={canvasRef} className="mon-canvas" width={640} height={360} style={{ width: box.width || undefined, height: box.height || undefined }} />
         ) : (
-          <p className="mon-empty">{error ? `엔진 오류: ${error}` : '열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.'}</p>
+          <p className="mon-empty">{error ? `엔진 오류: ${error}` : '타임라인이 비어 있습니다. 미디어를 타임라인에 넣으면 여기에 보입니다.'}</p>
         )}
         {sequence ? overlays.map((Overlay, i) => <Overlay key={i} />) : null}
       </div>

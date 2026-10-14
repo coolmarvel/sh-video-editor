@@ -28,7 +28,7 @@ interface ExportState {
   path: string;
   defaultName: string;
   resolved: Resolved | null;
-  /** 내보내기 자체가 불가한 이유(시퀀스 없음 등). 있으면 내보내기 버튼을 막는다. */
+  /** 내보내기 자체가 불가한 이유(편집본 없음 등). 있으면 내보내기 버튼을 막는다. */
   problem: string | null;
   job: QueueItem | null;
   outcome: Outcome | null;
@@ -42,7 +42,7 @@ interface ExportState {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const NO_SEQUENCE = '내보낼 시퀀스가 없습니다. 먼저 시퀀스를 만들어 주세요.';
+const NO_SEQUENCE = '내보낼 편집본이 없습니다. 먼저 미디어를 타임라인에 넣어 주세요.';
 
 let stopLoop: (() => void) | null = null;
 

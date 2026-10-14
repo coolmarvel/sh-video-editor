@@ -1,5 +1,5 @@
 /**
- * 웹 편집기 e2e: 앱 로드와 wasm 엔진 준비, 데모 영상 넣기, 시퀀스 만들기, 타임라인 자르기·삭제·실행 취소,
+ * 웹 편집기 e2e: 앱 로드와 wasm 엔진 준비, 데모 영상 넣기, 타임라인에 넣기(편집본 자동 생성), 타임라인 자르기·삭제·실행 취소,
  * 모니터 재생으로 타임코드 전진, 스크러버 탐색. 1440 과 390 뷰포트에서 같은 흐름을 돈다(playwright.config.ts).
  */
 import { clickRuler, enginePlayhead, engineSequence, expect, makeDemoSequence, test, timecodeToFrames, ui } from './fixtures';
@@ -15,7 +15,7 @@ test.describe('앱 로드', () => {
     await expect(app.locator('.ve-status')).toContainText('웹');
     await expect(app.locator('.ve-version')).toContainText('sh-video-engine');
     await expect(app.locator('.ve-version')).toContainText('wasm');
-    await expect(app.getByText('열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.')).toBeVisible();
+    await expect(app.getByText('타임라인이 비어 있습니다. 미디어를 타임라인에 넣으면 여기에 보입니다.')).toBeVisible();
     const overflow = await app.evaluate(() => ({
       doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       body: document.body.scrollWidth - document.body.clientWidth,
@@ -45,9 +45,9 @@ test.describe('앱 로드', () => {
     await expect(app.getByRole('menuitem').first()).toBeVisible();
     await file.click();
     await expect(app.getByRole('menu')).toHaveCount(0);
-    // 파일 > 새 시퀀스는 엔진 커맨드로 바로 간다: 메뉴가 닫히고 타임라인이 생긴다
+    // 파일 > 새 편집본은 엔진 커맨드로 바로 간다: 메뉴가 닫히고 타임라인이 생긴다
     await file.click();
-    await app.getByRole('menuitem', { name: /^새 시퀀스/ }).click();
+    await app.getByRole('menuitem', { name: /^새 편집본/ }).click();
     await expect(app.getByRole('menu')).toHaveCount(0);
     await expect(app.locator('.ve-status')).not.toContainText('오류:');
     await expect(ui.timeline(app).locator('.sh-panel__title')).toContainText('타임라인 - ');
@@ -56,9 +56,9 @@ test.describe('앱 로드', () => {
 });
 
 test.describe('편집 흐름', () => {
-  test('데모 영상을 넣고 시퀀스를 만들면 타임라인·모니터가 채워진다', async ({ app }) => {
+  test('데모 영상을 타임라인에 넣으면 프로젝트 이름의 편집본이 생기고 타임라인·모니터가 채워진다', async ({ app }) => {
     await makeDemoSequence(app);
-    await expect(ui.timeline(app).locator('.sh-panel__title')).toContainText('타임라인 - Aurora_Timelapse');
+    await expect(ui.timeline(app).locator('.sh-panel__title')).toContainText('타임라인 - 제목 없음');
     await expect(app.locator('.tl-head__name').filter({ hasText: 'V1' })).toBeVisible();
     await expect(app.locator('.tl-head__name').filter({ hasText: 'A1' })).toBeVisible();
     await expect(app.locator('.mon-canvas')).toBeVisible();
@@ -81,10 +81,11 @@ test.describe('편집 흐름', () => {
         { timeout: 10_000 },
       )
       .toBeGreaterThan(1000);
-    // 미디어 패널에는 영상 항목과 그 이름을 물려받은 시퀀스 항목이 함께 보인다
+    // 미디어 패널에는 영상 항목과 프로젝트 이름을 딴 편집본 항목이 구분되어 보인다
     const media = app.getByRole('region', { name: '미디어' });
     await expect(media.getByTitle('Aurora_Timelapse.mp4 (영상)')).toBeVisible();
-    await expect(media.getByTitle('Aurora_Timelapse.mp4 (시퀀스)')).toBeVisible();
+    await expect(media.getByTitle('제목 없음 (편집본)')).toBeVisible();
+    await expect(media.getByTitle('제목 없음 (편집본)').locator('.ve-media-kind')).toHaveText('편집본');
   });
 
   test('자르기, 선택·삭제, 실행 취소·다시 실행', async ({ app }) => {

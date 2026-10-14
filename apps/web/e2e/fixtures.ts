@@ -39,16 +39,21 @@ export const ui = {
   tool: (page: Page, name: string): Locator => page.getByRole('toolbar', { name: '타임라인 도구' }).getByRole('button', { name, exact: true }),
 };
 
-/** 데모 영상(오로라)을 넣고 그 항목으로 시퀀스를 만든다. 끝나면 V1 에 클립 하나, A1 에 클립 하나. */
+/** 데모 영상(오로라)을 넣고 타임라인에 넣는다(편집본 자동 생성). 끝나면 V1 에 클립 하나, A1 에 클립 하나. */
 export async function makeDemoSequence(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '데모 영상' }).click();
+  await page.getByRole('button', { name: '데모 영상', exact: true }).click();
   await page.getByRole('menuitem', { name: '오로라' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다.' })).toBeVisible();
-  await page.getByRole('button', { name: '시퀀스 만들기', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: '으로 시퀀스를 만들었습니다.' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다' })).toBeVisible();
+  await page.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '으로 편집을 시작합니다' })).toBeVisible();
   await expect(ui.videoClips(page)).toHaveCount(1);
   await expect(ui.clips(page)).toHaveCount(2);
   await expect(ui.total(page)).toHaveText('00:00:16:00');
+}
+
+/** 토스트(오른쪽 아래 알림)들 */
+export function toasts(page: Page): Locator {
+  return page.locator('.ve-toasts .sh-alert');
 }
 
 /** 눈금자의 x(px, 눈금자 왼쪽 기준)를 클릭해 플레이헤드를 옮긴다. */

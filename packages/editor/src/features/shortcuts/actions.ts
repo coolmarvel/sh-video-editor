@@ -4,15 +4,19 @@
  * 실행 뒤에는 상태 줄을 바꿔 타임라인·미디어 패널이 다시 읽게 하고, 프로젝트·모니터도 직접 다시 읽는다.
  */
 import { useEditor } from '../../store';
+import { duplicateClip, renameClip, selectedClips, synchronizeByAudio, toggleLink } from '../context-menu/clip-actions';
 import { useExport } from '../export/store';
 import { selectedVideoClipIds, useEffects } from '../effects/store';
 import { useMedia } from '../media/store';
 import { DEMO_SCENES, type DemoScene } from '../media/types';
 import { monitorController } from '../monitor/registry';
+import { createDemoEdition } from '../onboarding/edition';
+import { useOnboarding } from '../onboarding/store';
 import { useProject } from '../project/store';
 import { useRatio } from '../ratio/store';
 import { useText } from '../text/store';
 import { useTimeline } from '../timeline/store';
+import { focusArea } from './keymap';
 import { useShortcutsUi } from './store';
 import { useAudio } from '../audio/store';
 import { applyDucking, applyFade } from '../audio/ducking';
@@ -67,7 +71,7 @@ async function importMedia(): Promise<void> {
     return;
   }
   if (!bridge.registerFiles) {
-    useMedia.getState().setNotice({ tone: 'info', text: '이 환경에서는 파일 가져오기를 지원하지 않습니다.' });
+    useProject.getState().notify('warning', '이 환경에서는 파일 가져오기를 지원하지 않습니다.');
     return;
   }
   const input = document.createElement('input');
@@ -88,7 +92,7 @@ async function importMedia(): Promise<void> {
     const paths = await bridge.registerFiles(files);
     await useMedia.getState().importPaths(paths);
   } catch (e) {
-    useMedia.getState().setNotice({ tone: 'danger', text: `파일을 등록하지 못했습니다. ${message(e)}` });
+    useProject.getState().notify('danger', `파일을 등록하지 못했습니다. ${message(e)}`);
   }
 }
 
@@ -138,8 +142,29 @@ async function audioDuck(): Promise<void> {
 /** 선택한 클립의 켜짐·연결 상태를 바꾼 뒤 보여 줄 문구 */
 const TOGGLE_LABEL: Record<string, string> = {
   'clip.enable': '클립 켜짐 상태를 바꿨습니다',
-  'clip.link': '클립 연결 상태를 바꿨습니다',
 };
+
+/** Delete: 마지막으로 누른 패널이 미디어면 미디어 항목을, 아니면 타임라인 클립을 지운다(keymap.focusArea) */
+async function deleteFocused(): Promise<void> {
+  if (focusArea.current === 'media') {
+    const ids = useMedia.getState().selectedIds;
+    if (ids.length === 0) {
+      useEditor.setState({ status: '삭제할 미디어 항목을 먼저 선택하세요' });
+      return;
+    }
+    await useMedia.getState().deleteItems(ids);
+    return;
+  }
+  await useTimeline.getState().deleteSelection();
+}
+
+function requireSelection(what: string): boolean {
+  if ((useTimeline.getState().sequence?.selection ?? []).length === 0) {
+    useEditor.setState({ status: `${what} 클립을 먼저 선택하세요` });
+    return false;
+  }
+  return true;
+}
 
 const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'edit.undo': undo,
@@ -153,13 +178,15 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'file.importDemo': (p) => useMedia.getState().importDemo((p?.['scene'] as DemoScene | undefined) ?? 'OceanSunset'),
   'file.importDemoAll': importAllDemo,
   'file.newSequence': () => useTimeline.getState().newSequence(),
+  'file.addToTimeline': () => useMedia.getState().addToTimeline(),
+  'file.demoEdition': () => void createDemoEdition(),
   'file.quit': () => window.close(),
   'edit.cut': () => void execCommand('edit.cut', undefined, '잘라냈습니다'),
   'edit.copy': () => void execCommand('edit.copy', undefined, '복사했습니다'),
   'edit.paste': () => void execCommand('edit.paste', undefined, '붙여넣었습니다'),
   'edit.selectAll': () => void execCommand('edit.selectAll', undefined, '모든 클립을 선택했습니다'),
   'edit.deselectAll': () => void execCommand('edit.deselectAll', undefined, '선택을 해제했습니다'),
-  'clip.delete': () => useTimeline.getState().deleteSelection(),
+  'clip.delete': deleteFocused,
   'clip.rippleDelete': () => {
     const clips = useTimeline.getState().sequence?.selection ?? [];
     if (clips.length === 0) {
@@ -179,7 +206,16 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   },
   'clip.enable': () => void execCommand('clip.enable', undefined, TOGGLE_LABEL['clip.enable'] ?? ''),
   'text.add': () => void useText.getState().addText('plain'),
-  'clip.link': () => void execCommand('clip.link', undefined, TOGGLE_LABEL['clip.link'] ?? ''),
+  'clip.link': () => (requireSelection('연결을 바꿀') ? toggleLink(selectedClips()) : undefined),
+  'clip.sync': () => (requireSelection('싱크를 맞출') ? synchronizeByAudio(selectedClips()) : undefined),
+  'clip.duplicate': () => {
+    const first = selectedClips()[0];
+    return first ? duplicateClip(first) : void useEditor.setState({ status: '복제할 클립을 먼저 선택하세요' });
+  },
+  'clip.rename': () => {
+    const first = selectedClips()[0];
+    return first ? renameClip(first) : void useEditor.setState({ status: '이름을 바꿀 클립을 먼저 선택하세요' });
+  },
   'timeline.zoomIn': () => useTimeline.getState().setZoom(useTimeline.getState().pxPerSec * 1.25),
   'timeline.zoomOut': () => useTimeline.getState().setZoom(useTimeline.getState().pxPerSec / 1.25),
   'timeline.fit': () => useTimeline.getState().requestFit(),
@@ -218,6 +254,7 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'audio.fadeIn': () => audioFade('in'),
   'audio.fadeOut': () => audioFade('out'),
   'audio.duck': audioDuck,
+  'help.guide': () => useOnboarding.getState().setGuideOpen(true),
 };
 
 /** 동작 id 를 실행한다. 표에 없으면 엔진 커맨드로 본다 */

@@ -38,6 +38,8 @@ export interface NapiModule {
   Engine: new () => NapiEngine;
   engineVersion(): string;
   commandCatalog(): string;
+  /** 등록된 하드웨어 디코더 백엔드("Media Foundation", "VideoToolbox"), Linux 는 null. */
+  hardwareDecoder(): string | null;
 }
 
 export function hasNativeBinding(): boolean {

@@ -21,9 +21,39 @@ fn local_offset(_unix: i64) -> i32 {
     LOCAL_OFFSET_SECONDS.load(Ordering::Relaxed)
 }
 
+/// 하드웨어 디코더 등록 결과(백엔드 이름). 프로세스에서 한 번만 등록한다.
+static HW_BACKEND: std::sync::OnceLock<Option<&'static str>> = std::sync::OnceLock::new();
+
+/// OS 의 하드웨어 비디오 디코더(Windows: Media Foundation, macOS: VideoToolbox)를 엔진 코덱 앞에 등록한다.
+/// 등록은 팩토리 포인터를 두는 것뿐이라 장치를 만들지 않고, 하드웨어가 못 받는 스트림은 자체 디코더로 간다
+/// (`filmcraft_platform::HybridDecoder`). Linux 에는 경로가 없어 아무것도 하지 않는다.
+fn register_hardware_decoders() -> Option<&'static str> {
+    *HW_BACKEND.get_or_init(|| {
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        {
+            match filmcraft_platform::register() {
+                filmcraft_platform::Availability::Available(name) => Some(name),
+                filmcraft_platform::Availability::Unavailable(_) => None,
+            }
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        {
+            None
+        }
+    })
+}
+
+/// 버전 문자열. 끝의 `hw:` 는 이 프로세스에 등록된 하드웨어 디코더 백엔드(없으면 `none`).
 #[napi]
 pub fn engine_version() -> String {
-    format!("sh-video-engine {} (base {BASE_ENGINE})", env!("CARGO_PKG_VERSION"))
+    let hw = register_hardware_decoders().unwrap_or("none");
+    format!("sh-video-engine {} (base {BASE_ENGINE}; hw: {hw})", env!("CARGO_PKG_VERSION"))
+}
+
+/// 등록된 하드웨어 디코더 백엔드 이름("Media Foundation", "VideoToolbox"), 없으면 null.
+#[napi]
+pub fn hardware_decoder() -> Option<String> {
+    register_hardware_decoders().map(str::to_string)
 }
 
 /// 커맨드 카탈로그를 JSON 문자열로 (id, label, menu, shortcut, params).
@@ -61,6 +91,7 @@ pub struct Engine {
 impl Engine {
     #[napi(constructor)]
     pub fn new() -> Self {
+        register_hardware_decoders();
         Self { session: Session::new(Arc::new(FsServices)) }
     }
 

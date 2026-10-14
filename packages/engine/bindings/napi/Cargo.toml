@@ -31,5 +31,10 @@ serde_json = { workspace = true }
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
 
+# OS 하드웨어 비디오 디코더(Windows: Media Foundation + D3D11/DXVA, macOS: VideoToolbox). 엔진 코덱 앞에 등록만 하고
+# 하드웨어가 못 받는 스트림은 자체 디코더로 간다. Linux 에는 경로가 없어 의존하지 않는다(Linux .node 는 그대로).
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+filmcraft-platform = { workspace = true }
+
 [build-dependencies]
 napi-build = "2"

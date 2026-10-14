@@ -92,7 +92,13 @@ domain: development
 
 1. **실제 폰·카메라 mp4 호환성**: iPhone(HEVC·VFR·회전 메타데이터), Galaxy(H.264 High, 60fps, 48kHz AAC), 화면 녹화(VFR), 액션캠.
    `filmcraft-cli probe` + import -> razor -> export 왕복을 ffprobe 오라클로 비교. 회전 메타데이터(`tkhd` matrix)와 VFR 을 특히.
-2. **Windows HW 디코드 연결**: `crates/platform` 의 Media Foundation 경로가 cargo-xwin 크로스 빌드에서 링크·동작하는지. 안 되면 1080p 3클립 미리보기가 CPU 디코드.
+   2026-10-14: `packages/engine/tests/media-compat.test.ts` 가 ffmpeg 로 흉내낸 코퍼스(`tests/corpus/gen.sh`, 13개: H.264 High
+   1080p30/60, HEVC Main, VFR, 회전 90/180, 모노, 4K, 조각난 MP4, mp3/m4a, PNG/JPEG)를 import -> 패널 열 -> 시퀀스 ->
+   renderFrame(ffmpeg 프레임과 비교) -> razor -> 내보내기 -> ffprobe 로 왕복해 전부 통과. 실제 폰 파일(사용자 제공)은 M4-2 로 남는다.
+2. **Windows HW 디코드 연결**: 2026-10-14 napi 바인딩이 Windows·macOS 타깃에서 `filmcraft-platform` 에 의존하고 `Engine::new` 에서
+   `register()` 를 부른다. cargo-xwin 크로스 빌드에서 Media Foundation/D3D11 링크 통과(`d3d11.dll`·`dxgi.dll` import, `mfplat.dll` 은
+   실행 시 로드), `engineVersion()` 끝에 `hw: Media Foundation`. 실제 Windows PC 에서 하드웨어가 쓰이는지(`perf.stats` 의
+   `decode.hardware`)는 미확인: `docs/guides/packaging.md` "실기 검증" 표. 안 되면 1080p 3클립 미리보기가 CPU 디코드.
 3. **오디오 재생 경로**: 바인딩에 오디오 렌더 API 가 없다(`bindings/napi/src/lib.rs` 는 `render_frame` 만). 덕킹·페이드를 만들어도 들을 수 없다.
 4. **wasm 성능**: renderFrame 194ms(scale 0.5). wasm SIMD(`-C target-feature=+simd128`), 스레드 없는 환경의 디코더 파이프라인, WebCodecs 디코더 등록(`codecs::register_video_decoder`), wasm-opt.
 5. **엔진 이벤트 통합**(`drainEvents`)과 **썸네일 커맨드**: 지금 패널이 각자 폴링. 썸네일은 엔진에 커맨드가 없어 `renderFrame` 을 축소해 쓰는 중.

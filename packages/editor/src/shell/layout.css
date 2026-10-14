@@ -176,6 +176,7 @@ body {
 }
 .ve-media-tab[hidden] {
   display: none;
+}
 /* 한 열 배치에서 속성 패널이 긴 탭(속도)을 열어도 미리보기 위로 겹치지 않게: 미리보기는 내용 높이를 지키고, 남는 공간을
    속성 패널(세 번째 행)이 받아 안에서 스크롤한다 (2026-10-14, features/speed·ratio) */
 @media (max-width: 900px) {

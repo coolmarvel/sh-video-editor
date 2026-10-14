@@ -1,7 +1,7 @@
 /** 내보내기 대화상자(sh-dialog). 프리셋, 형식, 저장 위치, 진행률·남은 시간·취소, 완료·오류 알림. */
 import { useEffect, useRef } from 'react';
 import { useEditor } from '../../store';
-import { formatEta } from './presets';
+import { formatEta, formatLabel } from './presets';
 import { useExport } from './store';
 import { isWebExport } from './web-download';
 import { RatioBar, SnsPresets } from '../ratio';
@@ -83,7 +83,7 @@ export function ExportDialog() {
             <select id="ve-export-format" className="sh-select" value={formatId} disabled={busy || loading} onChange={(e) => setFormat(e.target.value)}>
               {formats.map((f) => (
                 <option key={f.id} value={f.id}>
-                  {f.label} ({f.extension})
+                  {formatLabel(f)} ({f.extension})
                 </option>
               ))}
             </select>

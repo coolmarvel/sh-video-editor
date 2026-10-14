@@ -118,7 +118,7 @@ describe('ExportDialog', () => {
       'Instagram 정사각',
       'YouTube 4K',
     ]);
-    expect((screen.getByLabelText('형식') as HTMLSelectElement).options).toHaveLength(2); // H.264 (mp4) + WebM (webm)
+    expect((screen.getByLabelText('형식') as HTMLSelectElement).options).toHaveLength(3); // H.264 (mp4) + HEVC (mp4) + WebM (webm)
     expect(screen.getByText('1920 x 1080, 30 fps, 8.0초 (240 프레임), 약 20 Mbps')).toBeInTheDocument();
     const start = screen.getByRole('button', { name: '내보내기' });
     expect(start).toBeDisabled();

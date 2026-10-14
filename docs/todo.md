@@ -14,7 +14,6 @@ domain: development
 
 - [ ] 마일스톤 1 마무리: 웹에서 저장·열기·내보내기 다운로드 UI 연결(bridge 의 registerFiles/onFileWritten/opfs 는 준비됨, features/project·export 의 안내 문구 자리)
 - [ ] Windows HW 디코드 실기 확인: 앱 정보의 엔진 버전에 `hw: Media Foundation` 이 뜨고 재생 뒤 `perf.stats` 의 decode.hardware.frames > 0 인지 (`docs/guides/packaging.md` 실기 검증 표)
-- [ ] 사용법 문서: `docs/guides/usage.md`(SSOT), README 기능·시작하기, 앱 도움말 > 사용 안내가 같은 내용을 보이게
 - [ ] 엔진(vendor) 커맨드 보강: 전환 삭제·길이 변경, 틈 생긴 전환 정리, 효과 순서 변경, lumetri 프리셋 교체, 리버스 첫 프레임, 묶음 undo(transaction), 페이드 제거, clip.enable/link 연결 상대 포함, inspect 효과 값 JSON, 잘린 mp4 가져오기 경고
 - [ ] 미디어 패널에서 텍스트 클립의 내부 Graphic 항목 숨기기 (`features/media/types.ts`)
 - [ ] 웹 Worker 에 파일 등록 경로(`Engine.putFile`, Blob range reader) 연결, OPFS 복구 (`apps/web/src/engine.worker.ts`)

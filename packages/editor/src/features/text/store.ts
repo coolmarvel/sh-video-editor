@@ -157,7 +157,7 @@ export const useText = create<TextState>((set, get) => {
       const seq = useTimeline.getState().sequence;
       if (!b) return null;
       if (!seq) {
-        useEditor.setState({ status: '먼저 시퀀스를 만드세요' });
+        useEditor.setState({ status: '먼저 미디어를 타임라인에 넣어 주세요' });
         return null;
       }
       const preset = titlePreset(presetId);

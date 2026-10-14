@@ -118,6 +118,6 @@ describe('자막 store', () => {
     engine.state.sequence = null;
     await useTimeline.getState().refresh();
     await useCaptions.getState().importSrt();
-    expect(useCaptions.getState().notice?.text).toBe('먼저 시퀀스를 만드세요.');
+    expect(useCaptions.getState().notice?.text).toBe('먼저 미디어를 타임라인에 넣어 주세요.');
   });
 });

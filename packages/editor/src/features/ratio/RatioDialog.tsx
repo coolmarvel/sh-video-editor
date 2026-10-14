@@ -44,7 +44,7 @@ export function RatioDialog() {
         </div>
         <div className="sh-dialog__body ve-ratio">
           <p className="ve-dialog-text">
-            지금 {settings ? describeSize(settings.width, settings.height) : '-'}. 비율을 바꾸면 시퀀스 크기가 바뀌고 영상 클립 {clipCount}개를 새 화면에
+            지금 {settings ? describeSize(settings.width, settings.height) : '-'}. 비율을 바꾸면 편집본 크기가 바뀌고 영상 클립 {clipCount}개를 새 화면에
             맞춥니다.
           </p>
           <fieldset className="sh-group ve-ratio__group">

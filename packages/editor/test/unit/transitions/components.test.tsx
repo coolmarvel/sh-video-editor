@@ -43,7 +43,7 @@ describe('TransitionGallery', () => {
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(12);
     expect(items.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
-    expect(screen.getByText('시퀀스를 만들면 전환을 넣을 수 있습니다.')).toBeTruthy();
+    expect(screen.getByText('타임라인에 클립을 넣으면 전환을 넣을 수 있습니다.')).toBeTruthy();
   });
 
   it('dragstart 에 TRANSITION_MIME 으로 전환 id 를 넣고, 더블클릭은 선택 클립에 적용한다', async () => {

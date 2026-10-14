@@ -47,7 +47,7 @@ test.describe('전환', () => {
     const cards = media.getByRole('listitem');
     await expect(cards).toHaveCount(12);
     await expect(cards.first()).toBeDisabled();
-    await expect(media.getByText('시퀀스를 만들면 전환을 넣을 수 있습니다.')).toBeVisible();
+    await expect(media.getByText('타임라인에 클립을 넣으면 전환을 넣을 수 있습니다.')).toBeVisible();
     await expect(media.getByRole('listitem', { name: /디졸브/ })).toBeVisible();
     await expect(media.getByRole('listitem', { name: /크로스 줌/ })).toBeVisible();
     await media.getByRole('tab', { name: '미디어' }).click();

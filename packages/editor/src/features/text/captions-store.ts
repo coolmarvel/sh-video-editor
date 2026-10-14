@@ -234,7 +234,7 @@ export const useCaptions = create<CaptionsState>((set, get) => {
       const b = bridge();
       if (!b) return;
       if (!useTimeline.getState().sequence) {
-        set({ notice: { tone: 'info', text: '먼저 시퀀스를 만드세요.' } });
+        set({ notice: { tone: 'info', text: '먼저 미디어를 타임라인에 넣어 주세요.' } });
         return;
       }
       let path: string | null = null;

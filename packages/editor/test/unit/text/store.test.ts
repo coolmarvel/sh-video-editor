@@ -63,7 +63,7 @@ describe('텍스트 클립 store', () => {
     engine.state.sequence = null;
     await useTimeline.getState().refresh();
     expect(await useText.getState().addText()).toBeNull();
-    expect(useEditor.getState().status).toBe('먼저 시퀀스를 만드세요');
+    expect(useEditor.getState().status).toBe('먼저 미디어를 타임라인에 넣어 주세요');
     expect(engine.callsOf('graphics.newText')).toHaveLength(0);
   });
 

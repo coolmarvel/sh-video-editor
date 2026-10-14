@@ -48,7 +48,7 @@ export function MusicLibrary() {
   /** 빈 음성 트랙에 덮어쓰기로 놓는다(배경음악이 영상을 밀어내지 않게). 빈 트랙이 없으면 하나 더한다 */
   const place = async (item: MediaItem) => {
     if (!sequence || !bridge) {
-      useEditor.setState({ status: '먼저 시퀀스를 만드세요' });
+      useEditor.setState({ status: '먼저 미디어를 타임라인에 넣어 주세요' });
       return;
     }
     setPlacing(true);

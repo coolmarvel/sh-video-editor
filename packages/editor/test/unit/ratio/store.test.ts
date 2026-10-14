@@ -42,7 +42,7 @@ describe('show / hide', () => {
     await connect();
     rt().show();
     expect(rt().open).toBe(false);
-    expect(useEditor.getState().status).toBe('비율을 바꿀 시퀀스가 없습니다. 먼저 시퀀스를 만들어 주세요.');
+    expect(useEditor.getState().status).toBe('비율을 바꿀 편집본이 없습니다. 먼저 미디어를 타임라인에 넣어 주세요.');
   });
 
   it('열면 현재 비율이 선택되어 있다', async () => {
@@ -127,6 +127,6 @@ describe('apply', () => {
   it('시퀀스가 없으면 안내', async () => {
     await connect();
     expect(await rt().apply('9:16')).toBe(false);
-    expect(useEditor.getState().status).toContain('시퀀스가 없습니다');
+    expect(useEditor.getState().status).toContain('편집본이 없습니다');
   });
 });

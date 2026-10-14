@@ -25,7 +25,7 @@ interface RatioState {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const NO_SEQUENCE = '비율을 바꿀 시퀀스가 없습니다. 먼저 시퀀스를 만들어 주세요.';
+const NO_SEQUENCE = '비율을 바꿀 편집본이 없습니다. 먼저 미디어를 타임라인에 넣어 주세요.';
 
 /** 현재 시퀀스가 목록의 어느 비율인지. 시퀀스가 없거나 목록 밖 비율이면 null */
 export function currentRatio(): RatioId | null {

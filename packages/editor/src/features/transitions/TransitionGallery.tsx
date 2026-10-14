@@ -64,7 +64,11 @@ export function TransitionGallery() {
         ))}
       </div>
       <p className="ve-hint ve-transitions__hint">
-        {!seq ? '시퀀스를 만들면 전환을 넣을 수 있습니다.' : hasSelection ? '더블클릭하면 선택한 클립의 경계에 넣습니다.' : '클립 경계로 끌어다 놓으세요.'}
+        {!seq
+          ? '타임라인에 클립을 넣으면 전환을 넣을 수 있습니다.'
+          : hasSelection
+            ? '더블클릭하면 선택한 클립의 경계에 넣습니다.'
+            : '클립 경계로 끌어다 놓으세요.'}
       </p>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { EngineBridge } from './engine/bridge';
 import { useEditor } from './store';
 import { MenuBar } from './shell/MenuBar';
@@ -10,6 +10,7 @@ import { ExportDialog } from './features/export/ExportDialog';
 import { ProjectHost } from './features/project/ProjectHost';
 import { ProjectStatus } from './features/project/ProjectStatus';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
+import { useShortcuts } from './features/shortcuts';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';
@@ -25,11 +26,12 @@ export function App({ bridge, host }: AppProps) {
   const status = useEditor((s) => s.status);
   const error = useEditor((s) => s.error);
   const version = useEditor((s) => s.version);
-  const commands = useEditor((s) => s.commands);
 
   useEffect(() => {
     void init(bridge);
   }, [bridge, init]);
+
+  useShortcuts();
 
   // 패널 크기 조절: 저장값(null 은 CSS 기본값)을 루트의 커스텀 속성으로 내려 주고, 실제 크기는 화면에서 잰다
   const rootRef = useRef<HTMLDivElement>(null);
@@ -58,18 +60,6 @@ export function App({ bridge, host }: AppProps) {
     '--ve-timeline-h': timelineHeight !== null ? `${timelineHeight}px` : undefined,
   } as CSSProperties;
 
-  const menus = useMemo(() => {
-    const byMenu = new Map<string, typeof commands>();
-    for (const c of commands) {
-      const top = c.menu[0];
-      if (!top) continue;
-      const list = byMenu.get(top) ?? [];
-      list.push(c);
-      byMenu.set(top, list);
-    }
-    return byMenu;
-  }, [commands]);
-
   return (
     <div
       ref={rootRef}
@@ -78,7 +68,7 @@ export function App({ bridge, host }: AppProps) {
       data-resizing={resizing ?? undefined}
       style={layoutStyle}
     >
-      <MenuBar menus={menus} />
+      <MenuBar host={host} />
       <div className="ve-body">
         <MediaPanel />
         <Splitter

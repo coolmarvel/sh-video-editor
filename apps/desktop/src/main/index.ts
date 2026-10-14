@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import { join } from 'node:path';
 import { runDiagnostics } from './diagnostics';
 import { EngineSupervisor } from './engine-supervisor';
@@ -41,6 +41,9 @@ function createWindow() {
 }
 
 void app.whenReady().then(() => {
+  // Electron 기본 메뉴(File/Edit/View/Window)를 없앤다. 메뉴와 단축키는 화면(packages/editor)이 그린다.
+  // 입력란의 복사·붙여넣기는 Windows/Linux 에서 Chromium 이 메뉴 없이도 처리한다.
+  Menu.setApplicationMenu(null);
   engine.start(join(app.getPath('userData'), 'engine'));
   registerPickFilesIpc();
   registerDialogIpc();

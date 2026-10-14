@@ -38,11 +38,17 @@ export interface MonitorStats {
   scale: RenderScale;
 }
 
+/** 재생 배율 선택지(보기 메뉴·툴바 select). J/L 셔틀은 1, 2, 4 를 오간다 */
+export const PLAYBACK_RATES = [0.25, 0.5, 1, 1.5, 2, 4] as const;
+export const SHUTTLE_RATES = [1, 2, 4] as const;
+
 export interface MonitorState {
   sequence: SequenceInfo | null;
   /** 엔진 플레이헤드의 화면용 복사본(tick). SSOT 는 엔진 */
   tick: number;
   playing: boolean;
+  /** 재생 배율. 음수는 역방향(J 셔틀). 0 은 없다 */
+  rate: number;
   stats: MonitorStats;
   error: string | null;
 }
@@ -51,6 +57,7 @@ export const useMonitor = create<MonitorState>(() => ({
   sequence: null,
   tick: 0,
   playing: false,
+  rate: 1,
   stats: { renderMs: 0, fps: 0, dropped: 0, scale: 0.5 },
   error: null,
 }));

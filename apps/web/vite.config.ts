@@ -1,9 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string };
 
 export default defineConfig({
   plugins: [react()],
+  // 도움말 > 정보 대화상자가 보여 줄 제품 버전
+  define: { __APP_VERSION__: JSON.stringify(version) },
   resolve: {
     alias: {
       '@editor': resolve(__dirname, '../../packages/editor/src'),

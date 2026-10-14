@@ -1,0 +1,26 @@
+/* 메뉴바 드롭다운·하위 메뉴 배치. 부품 모양(sh-menu, sh-menu__item)은 sh-classic.css, 값은 --sh-* 토큰만.
+   번들에서 sh-classic.css 가 이 파일 뒤에 오므로 sh-menu--float 을 덮는 규칙은 클래스 두 개로 쓴다. */
+.ve-dropdown {
+  top: 100%;
+  left: 0;
+  z-index: 10;
+}
+.ve-dropdown-subslot {
+  position: relative;
+}
+.ve-dropdown--sub {
+  top: calc(var(--sh-space-2) * -1);
+  left: 100%;
+}
+.ve-dropdown--left {
+  left: auto;
+  right: 100%;
+}
+.ve-dropdown.ve-dropdown--below {
+  position: static;
+  margin-left: var(--sh-space-16);
+  box-shadow: none;
+}
+.ve-about p + p {
+  margin-top: var(--sh-space-8);
+}

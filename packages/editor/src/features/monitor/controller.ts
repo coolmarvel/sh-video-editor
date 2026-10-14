@@ -1,6 +1,7 @@
 import type { EngineBridge, Frame } from '../../engine/bridge';
 import { TICKS_PER_SECOND } from '../../engine/time';
-import { snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
+import { useEditor } from '../../store';
+import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
 
 /** 정지 중 엔진 상태(플레이헤드·프로젝트 revision)를 다시 읽는 주기 */
 const POLL_PAUSED_MS = 300;
@@ -26,6 +27,7 @@ const SCALES: RenderScale[] = [0.25, 0.5, 1];
  *   정지 중에는 POLL_PAUSED_MS 마다 읽어 타임라인 등 다른 화면이 옮긴 플레이헤드를 따라간다.
  * - renderFrame 은 한 번에 하나만 건다. 앞 요청이 끝나기 전에 온 요청은 "가장 마지막 tick" 하나만 기억했다가 이어서 보낸다.
  * - 재생은 requestAnimationFrame 에서 벽시계로 tick 을 계산한다. 렌더가 프레임 간격보다 느리면 그 사이 프레임은 건너뛴다.
+ *   배율(store.rate)을 곱해 전진하고, 음수면 뒤로 간다(역재생도 프레임을 건너뛰며 그린다). 끝(또는 0)에 닿으면 멈춘다.
  * - scale 은 캔버스 표시 폭(물리 픽셀) 이상이 되는 가장 작은 값(0.25/0.5/1)을 고른다(fitScale).
  *   재생 중 평균 렌더 시간이 프레임 간격을 넘으면 한 단계씩 내린다(playScale, 최소 0.25). 정지하면 fitScale 로 돌아가 다시 그린다.
  */
@@ -110,25 +112,61 @@ export class MonitorController {
     return this.playing;
   }
 
+  /** Space: 재생 중이면 정지, 아니면 정방향으로 재생(배율은 유지, 방향만 앞으로). */
   toggle(): void {
     if (this.playing) this.pause();
     else this.play();
   }
 
+  /** 정방향 재생. 역방향 셔틀 중이었으면 같은 배율로 방향만 앞으로 돌린다. */
   play(): void {
+    const rate = Math.abs(useMonitor.getState().rate) || 1;
+    this.playAt(rate);
+  }
+
+  /** 배율을 바꾼다(select·메뉴). 양수만. 재생 중이면 그 자리에서 이어서 새 배율로 간다. */
+  setRate(rate: number): void {
+    if (!(rate > 0)) return;
+    const signed = useMonitor.getState().rate < 0 ? -rate : rate;
+    if (this.playing) this.playAt(signed);
+    else useMonitor.setState({ rate: signed });
+  }
+
+  /**
+   * J/L 셔틀. 같은 방향으로 다시 누르면 1x, 2x, 4x 로 올라가고(4x 에서 멈춤), 반대 방향이나 정지 상태에서는 1x 로 시작한다.
+   * direction 은 -1(J, 뒤로) 또는 1(L, 앞으로).
+   */
+  shuttle(direction: -1 | 1): void {
+    const { rate } = useMonitor.getState();
+    const sameWay = this.playing && Math.sign(rate) === direction;
+    let magnitude = 1;
+    if (sameWay) {
+      const idx = SHUTTLE_RATES.findIndex((r) => r > Math.abs(rate));
+      magnitude = idx < 0 ? (SHUTTLE_RATES[SHUTTLE_RATES.length - 1] ?? 4) : (SHUTTLE_RATES[idx] ?? 1);
+    }
+    this.playAt(direction * magnitude);
+  }
+
+  /** 부호 있는 배율로 재생한다. 이미 재생 중이면 지금 tick 에서 배율만 바꾼다. */
+  private playAt(rate: number): void {
     const seq = useMonitor.getState().sequence;
-    if (!seq || this.playing) return;
+    if (!seq || rate === 0) return;
     let tick = useMonitor.getState().tick;
-    if (tick >= seq.duration) tick = 0;
-    this.playing = true;
-    this.playScale = this.scale;
-    this.renderTimes = [];
+    if (!this.playing) {
+      // 끝에서 앞으로, 처음에서 뒤로 재생하면 반대쪽 끝에서 시작한다
+      if (rate > 0 && tick >= seq.duration) tick = 0;
+      if (rate < 0 && tick <= 0) tick = seq.duration;
+      this.playing = true;
+      this.playScale = this.scale;
+      this.renderTimes = [];
+      this.lastRequestedTick = -1;
+      this.framesDrawn = 0;
+      this.statsWall = performance.now();
+    }
     this.startWall = performance.now();
     this.startTick = tick;
-    this.lastRequestedTick = -1;
-    this.framesDrawn = 0;
-    this.statsWall = this.startWall;
-    useMonitor.setState({ playing: true, tick });
+    useMonitor.setState({ playing: true, tick, rate });
+    cancelAnimationFrame(this.rafId);
     this.rafId = requestAnimationFrame(this.loop);
   }
 
@@ -244,7 +282,11 @@ export class MonitorController {
       const changed = revision !== this.revision || active !== this.activeSequence;
       this.revision = revision;
       this.activeSequence = active;
-      if (changed) await this.refreshSequence();
+      if (changed) {
+        // 다른 패널(타임라인 등)도 엔진이 바뀐 것을 알게 한다
+        if (useEditor.getState().engineRevision !== revision) useEditor.setState({ engineRevision: revision });
+        await this.refreshSequence();
+      }
       if (!this.playing || changed) await this.syncPlayhead();
       if (useMonitor.getState().error) useMonitor.setState({ error: null });
     } catch (e) {
@@ -361,15 +403,17 @@ export class MonitorController {
       this.pause();
       return;
     }
-    const elapsedTicks = ((now - this.startWall) / 1000) * TICKS_PER_SECOND;
+    const rate = useMonitor.getState().rate || 1;
+    const elapsedTicks = ((now - this.startWall) / 1000) * TICKS_PER_SECOND * rate;
     const tick = snapTick(this.startTick + elapsedTicks, seq);
 
-    if (tick >= seq.duration) {
-      // 끝에 닿으면 마지막 위치를 엔진에 쓰고 멈춘다
+    if ((rate > 0 && tick >= seq.duration) || (rate < 0 && tick <= 0)) {
+      // 끝(역재생은 처음)에 닿으면 그 위치를 엔진에 쓰고 멈춘다
+      const edge = rate > 0 ? seq.duration : 0;
       this.playing = false;
-      useMonitor.setState({ playing: false, tick: seq.duration });
+      useMonitor.setState({ playing: false, tick: edge });
       void this.bridge
-        .setPlayhead(seq.duration)
+        .setPlayhead(edge)
         .then(() => this.syncPlayhead())
         .catch((e: unknown) => this.fail(e));
       return;
@@ -381,8 +425,9 @@ export class MonitorController {
     }
 
     if (tick !== this.lastRequestedTick && !this.inFlight) {
-      if (this.lastRequestedTick >= 0) {
-        const skipped = Math.round((tick - this.lastRequestedTick) / seq.frameTicks) - 1;
+      // 건너뜀 집계는 1x 에서만 한다(배속은 의도적으로 프레임을 건너뛴다)
+      if (this.lastRequestedTick >= 0 && Math.abs(rate) === 1) {
+        const skipped = Math.round(Math.abs(tick - this.lastRequestedTick) / seq.frameTicks) - 1;
         if (skipped > 0) this.dropped += skipped;
       }
       this.lastRequestedTick = tick;

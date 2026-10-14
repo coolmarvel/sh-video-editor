@@ -12,6 +12,43 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - wasm 크기·속도, WebCodecs 디코더 (M4-4, feat/wasm-perf 병합, v0.1.5)
+
+- **요청**: 로드맵 M4-4. 측정으로 정당화된 변경만.
+- **수정**:
+  - 크기 21.2MB 에서 14.2MB(gzip 9.1 에서 5.3): `[profile.wasm-release]`(opt-level s, 코덱·렌더·텍스트 등 핫 크레이트 16개는 3,
+    codegen-units 1), 글꼴을 wasm 데이터 세그먼트에서 빼서 웹이 `?url` 자산으로 받아 `addFontData` 로 주입(wasm32 는 Inter Regular 만 내장).
+    `.cargo/config.toml` wasm32 `+simd128`. 전부 s 는 12.4MB 지만 25~40% 느려 채택 안 함. 코덱 feature 분리는 측정상 1MB 라 보류.
+  - WebCodecs: 디코더 전용 Worker(`decoder.worker.ts`)가 VideoDecoder 를 갖고, 엔진 Worker 는 SharedArrayBuffer + Atomics.wait 로 동기
+    대기(`webcodecs.ts`, COOP/COEP 로 crossOriginIsolated). wasm 바인딩 `setWebCodecsHooks` 가 `register_video_decoder` 팩토리를 설치,
+    `HybridDecoder` 가 오류·시간 초과·미지원 포맷에서 소프트웨어로 폴백(오류 없음). H.264 1080p 임의 탐색 77ms 에서 51ms, 순차 28 에서 25,
+    내보내기 720p 3초 15.3초 에서 10.4초. 버전 문자열 끝 `hw: WebCodecs`.
+  - `scripts/bench-wasm.mjs`(Playwright 측정 표), `packages/engine/tests/wasm-web.test.ts` 7건, `apps/web/e2e/webcodecs.spec.ts`,
+    `docs/guides/wasm-performance.md`.
+- **검증**: 위 "병합 뒤 검증(v0.1.5)" 줄.
+- **다음**: 12MB 목표 잔여(interchange·image·symphonia 분리), 데모 생성기 fbm 비용(150ms) 때문에 데모 renderFrame 은 60ms 목표 미달,
+  글꼴 5.2MB 매 시작 fetch(브라우저 캐시 의존).
+- **병합 뒤 검증(v0.1.5, main)**: prettier, typecheck, clippy, 단위 614, 엔진 기능 159(napi + wasm, WebM·타임스트레치·WebCodecs 흉내 포함),
+  웹 e2e 123 통과(skip 1, 7.1분), 데스크톱 e2e 6 + 스모크(686 커맨드), vendor `cargo xtask ci`(apv oracle·export APV probe 는 ffmpeg 6.1 에서
+  skip, frame pool 테스트는 전역 선반을 쓰는 세 테스트를 뮤텍스로 직렬화해 flaky 제거, matroska oracle 은 트랙 마지막 패킷의 길이를 ffprobe 가 코덱 공칭값으로 주는 ffmpeg 6.1 차이를 허용, 믹서 perf 테스트의 실시간 배수 하한 4.0 을 2.0 으로: WSL2 단독 4.8x 라 16스레드 스위트와 겹치면 깨짐). Windows 엔진 0.1.5 크로스 빌드, 인스톨러
+  0.1.5 바탕화면(0.1.4 제거). 내보내기 대화상자 형식이 2개가 되어 단위·데스크톱 e2e 기대값 1 을 2 로.
+
+## 2026-10-14 - WebM 내보내기, 음정 유지 타임스트레치 (feat/webm-export, feat/timestretch 병합)
+
+- **요청**: 로드맵 M3-5(WebM), M3-8 일부(soundcraft WSOLA). wasm-perf 와 병렬.
+- **수정**:
+  - effectcraft `vp9enc`·`opusenc` 를 `vendor/filmcraft/crates/` 로 이식(의존성 0, 이름만 filmcraft-*). export 에 `Format::WebM`,
+    VP9·Opus 인코더 팩토리, 상류 matroska `MkvWriter` 위에 `webm_out.rs`, 프리셋 "WebM 1080p (Web)"·"WebM 720p". 내보내기 대화상자
+    형식 콤보(mp4/webm), 프리셋 재생성·확장자 전환, 웹 다운로드 MIME. 실측 1080p 18초: VP9 128.6초(4.2 fps, 14.5MB) 대 H.264 27초.
+  - soundcraft `time_stretch`(WSOLA)를 `audio-dsp/src/timestretch.rs` 로. `TrackItem.maintain_pitch`(켜졌을 때만 JSON), render 의
+    정방향 클립 소리에 `Stretcher::render`(블록 불변), `clip.speedDuration {maintainPitch}`·`clip.setMaintainPitch` 커맨드, 속도 폼
+    "음정 유지" 체크박스와 안내(0.5x~2x 밖, 역방향 제외). 실측 2x 16초: 리샘플 66ms, WSOLA 147ms.
+  - vendor 테스트 3곳을 ffmpeg 6.1·Linux 호스트에서도 돌게(apv oracle skip, export APV probe skip, shortcuts.set platform).
+    `cargo xtask ci` 가 apv oracle 에서 멈추던 것이 이 때문.
+  - usage.md 의 웹 저장·내보내기 "준비 중" 문장을 실제 동작(브라우저에 저장, 내려받기)으로 고침. VENDOR.md·engine-commands.md 병합.
+- **검증**: wasm-perf 블록의 "병합 뒤 검증(v0.1.5)" 줄.
+- **다음**: wasm-perf 병합, 버전 0.1.5 인스톨러, hevcenc, VP9 속도.
+
 ## 2026-10-14 - CI 워크플로, e2e 안정화, 커버리지 임계 (M4 품질, feat/ci-quality 병합)
 
 - **요청**: 로드맵 M4 의 품질 축. 다음 물결(webm-export, timestretch, wasm-perf)과 병렬로 진행.
@@ -26,7 +63,7 @@ domain: development
   - vendor xtask `wasm` 검사를 ui-egui 대신 L0~L4(filmcraft-engine)로(`engine(vendor):`). `docs/guides/testing.md` 신규.
 - **검증**(병합 뒤 main): prettier, typecheck, 단위 604(커버리지 93.4/84.7/91.4/96.3), 데스크톱 e2e app 5 + recovery 1(복구 1.2초),
   웹 e2e transitions·usability·keyframes 38(두 뷰포트, skip 0). 병합 뒤 고친 것: 복구 테스트가 빨라져 크래시 전 토스트가 남아 둘이
-  되던 것은 `.last()`, 내보내기 프리셋 수는 엔진 응답 뒤라 `expect.poll`(부하 35 에서 0개로 실패). vendor `cargo xtask ci` 는 아래 줄.
+  되던 것은 `.last()`, 내보내기 프리셋 수는 엔진 응답 뒤라 `expect.poll`(부하 35 에서 0개로 실패). vendor `cargo xtask ci` 는 위 v0.1.5 블록의 "병합 뒤 검증" 줄.
 - **다음**: GitHub Actions 첫 실행 확인(wasm-pack 설치, wine 패키지명, rust-cache 시간), keyframes.spec 모바일 flaky 1건 관찰.
 
 ## 2026-10-14 - 사용법 문서, 자동 자막, 캐시·웹 저장, 키프레임·스티커·템플릿, 엔진 커맨드 보강 (v0.1.4)

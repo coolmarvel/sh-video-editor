@@ -1,6 +1,6 @@
 {
   "name": "@sh-video-editor/desktop",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "SH Video Editor 데스크톱(Electron). packages/editor 화면 + @sh-video-editor/engine-node 네이티브 엔진",
   "author": "이성현",

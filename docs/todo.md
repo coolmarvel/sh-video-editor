@@ -21,7 +21,13 @@ domain: development
 
 ## P2 - 가까운 로드맵
 
-- [ ] wasm 크기 23MB 줄이기: wasm-opt, 코덱 feature 분리, 지연 로드 (`packages/engine/bindings/wasm`)
+- [ ] VP9 인코더가 단일 스레드라 1080p 는 4 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`)
+- [ ] SNS 프리셋 카드가 H.264 비트레이트로 WebM 을 고르면 VP9 가 16~45 Mbps 로 인코딩. WebM 용 비트레이트 표 (`features/ratio/SnsPresets.tsx`, `features/export/presets.ts`)
+- [ ] 미리보기의 4096 프레임 블록에서 WSOLA 가 1초 블록의 3.5배 비용. `SYNC_SEGMENTS` 조정 또는 renderAudio 요청 크기 (`crates/audio-dsp/src/timestretch.rs`)
+- [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
+- [ ] wasm 14.2MB 에서 12MB 로: interchange(AAF/OMF/FCPXML/OTIO 0.7MB)·image(tiff/gif/webp 0.5MB)·symphonia(0.4MB)·코덱 feature(1MB) 분리 (`docs/guides/wasm-performance.md`)
+- [ ] 웹 글꼴 5.2MB 가 매 시작마다 fetch(브라우저 캐시 의존). Service Worker 또는 OPFS 캐시 (`apps/web/src/fonts.ts`)
+- [ ] 데모 영상 생성기(`media/src/generators.rs` 픽셀별 fbm)가 wasm renderFrame 의 150ms 를 차지. 프레임 캐시 또는 저해상도 생성
 - [ ] 메뉴·커맨드 라벨 한글화 (`packages/editor/src/shell/MenuBar.tsx`, 엔진 `commands.rs` 의 label)
 - [ ] filmcraft-cli `mcp` 를 `.mcp.json` 에 등록해 에이전트가 헤드리스로 엔진을 검증하게
 - [ ] 편집기 전용 부품(타임라인 클립, 스크러버, 트랙 헤더) 계약을 DESIGN.md 4절에 추가
@@ -36,5 +42,5 @@ domain: development
 
 ## P4 - 아이디어
 
-- [ ] effectcraft 인코더(hevcenc·av1enc·vp9enc)로 HEVC/AV1/WebM 내보내기 (마일스톤 3)
+- [ ] effectcraft hevcenc·av1enc 이식으로 HEVC/AV1 내보내기 (WebM 은 끝남, `docs/guides/webm-export.md`)
 - [ ] 템플릿 갤러리(인트로·세로 SNS·슬라이드쇼)

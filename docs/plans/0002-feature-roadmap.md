@@ -182,7 +182,7 @@ domain: development
   - (b) [x] 스티커 패널(분류 5개, 자체 제작 SVG 20종, `features/stickers/assets` + `.attribution` + `ATTRIBUTION.md`). 화면이 PNG 로 래스터해 웹은 `registerFiles`, 데스크톱은 `writeTempFile` 로 넘기고 엔진 `graphics.newFromFile {path, time}`(두 번째부터는 `timeline.place {duration}`). 엔진은 SVG 를 읽지 못한다(media: unrecognised format). 위치·크기는 모션 탭·변형 상자. 검색은 없음
   - (c) [ ] Lottie 샘플 10개 렌더 골든
   - (d) L
-- [ ] **M3-5 HEVC·WebM 내보내기**
+- [~] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export: WebM(VP9 + Opus) 완료, 프리셋 2종. HEVC(hevcenc) 는 미이식)
   - (a) effectcraft `hevcenc`·`vp9enc`·`opusenc` 이식, `export::VideoEncoder`·`AudioEncoder` 구현, `export.formats` 에 hevc `available:true`, webm 포맷 신규(matroska 먹서는 디먹스만 있어 먹서 신규)
   - (b) 내보내기 프리셋에 "HEVC(용량 절반)"·"WebM(웹용)" 추가
   - (c) 인코드 -> 우리 디코더 -> 디코드 왕복 PSNR 35dB 이상, ffprobe 로 재생 가능, Windows Movies & TV·Chrome 재생
@@ -193,7 +193,7 @@ domain: development
   - (c) [ ] 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내(지금: 가져오기 1, 선택, 템플릿 탭 1, 만들기 1, 내보내기 1)
   - (d) M
 - [ ] **M3-7 텍스트 기반 편집·정리 도구**: `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M
-- [ ] **M3-8 오디오 정리**: `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S
+- [~] **M3-8 오디오 정리** (2026-10-14 feat/timestretch: WSOLA 음정 유지만. 아래 정리 버튼은 미착수): `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S
 - [ ] **M3-9 손떨림 보정**: `warp_stabilizer`(2D 근사) 를 "흔들림 줄이기" 버튼으로. 분석 시간이 길어 `jobs.*` 진행률 필요. (d) S
 - [ ] **M3-10 macOS dmg**(0001 이월). (d) M
 
@@ -202,7 +202,7 @@ domain: development
 - [ ] **M4-1 워크플로 회귀 테스트**: filmcraft-cli `run script.jsonl` 로 "가져오기 -> 자르기 -> 전환 -> 자막 -> 음악 -> 내보내기" 를 `npm run verify` 에 포함. 결과 mp4 를 ffprobe 로 길이·스트림 검사. `.mcp.json` 에 `filmcraft-cli mcp` 등록(todo P2). (d) M
 - [ ] **M4-2 실매체 코퍼스**: iPhone(HEVC, VFR, 회전), Galaxy(H.264 60fps), Windows 화면 녹화, 액션캠, 손상 파일 각 1개 이상을 `packages/engine/fixtures/`(gitignore, 사용자 제공)에 두고 M4-1 스크립트로 왕복. 실패하면 vendor 수정(`engine(vendor):`). (d) L
 - [ ] **M4-3 Windows HW 디코드·인코드**: cargo-xwin 빌드에서 `platform` Media Foundation 링크 확인, NVENC H.264 내보내기 옵션 노출, 1080p 3클립 미리보기 CPU 사용률 측정. (d) M
-- [ ] **M4-4 wasm 성능**: SIMD128·wasm-opt·코덱 feature 분리로 23MB 축소(todo P2), WebCodecs 디코더를 `codecs::register_video_decoder` 에 등록, renderFrame 1080p scale 0.5 를 194ms 에서 60ms 이하로. 데스크톱 대비 내보내기 시간 비율 기록. (d) L
+- [~] **M4-4 wasm 성능** (2026-10-14 feat/wasm-perf: 14.2MB, SIMD128, WebCodecs. 12MB 와 데모 renderFrame 60ms 는 미달): SIMD128·wasm-opt·코덱 feature 분리로 23MB 축소(todo P2), WebCodecs 디코더를 `codecs::register_video_decoder` 에 등록, renderFrame 1080p scale 0.5 를 194ms 에서 60ms 이하로. 데스크톱 대비 내보내기 시간 비율 기록. (d) L
 - [ ] **M4-5 Windows 런타임 검증**: 사용자 Windows PC 에서 인스톨러 실행·3클립 시험(0001 마일스톤 1 미완 항목), 재생·내보내기·자동 저장 복구 체크리스트를 `docs/guides/packaging.md` 에. (d) S
 - [ ] **M4-6 크래시 리포트**: utility process 종료 코드와 마지막 커맨드 20개(`history.list`)를 로컬 파일로 남기고 사용자가 첨부할 수 있게. 서버 전송 없음. (d) S
 - [ ] **M4-7 썸네일·파형 커맨드**: `media.thumbnail`(item, time, size) 신규, `clip.generateAudioWaveform` 결과를 바인딩으로 노출. SQLite 캐시(M2-8)와 연결. (d) M

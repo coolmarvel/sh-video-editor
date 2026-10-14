@@ -15,10 +15,18 @@
     "build:engine:wasm": "wasm-pack build packages/engine/bindings/wasm --target web --out-dir pkg --release",
     "build:engine": "npm run build:engine:node && npm run build:engine:wasm",
     "check:engine": "cargo check --manifest-path packages/engine/Cargo.toml --workspace",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:tests",
+    "typecheck:tests": "tsc -p packages/editor/test/tsconfig.json --noEmit && tsc -p packages/engine/tests/tsconfig.json --noEmit && tsc -p apps/web/e2e/tsconfig.json --noEmit && tsc -p apps/desktop/e2e/tsconfig.json --noEmit",
     "lint": "prettier --check . && cargo clippy --manifest-path packages/engine/Cargo.toml --workspace --all-targets -- -D warnings",
     "format": "prettier --write . && cargo fmt --manifest-path packages/engine/Cargo.toml",
-    "test": "cargo test --manifest-path packages/engine/Cargo.toml --workspace",
+    "test": "npm run test:rust && npm run test:unit && npm run test:engine",
+    "test:rust": "cargo test --manifest-path packages/engine/Cargo.toml --workspace",
+    "test:unit": "vitest run --config packages/editor/vitest.config.ts",
+    "test:unit:coverage": "vitest run --config packages/editor/vitest.config.ts --coverage",
+    "test:engine": "vitest run --config packages/engine/tests/vitest.config.ts",
+    "test:e2e:web": "playwright test -c apps/web/playwright.config.ts",
+    "test:e2e:desktop": "npm run build -w apps/desktop && xvfb-run -a playwright test -c apps/desktop/playwright.config.ts",
+    "test:all": "npm run test && npm run test:e2e:web && npm run test:e2e:desktop",
     "build": "npm run build -w apps/web -w apps/desktop",
     "verify": "npm run lint && npm run build:engine && npm run typecheck && npm run test && npm run build",
     "dev:desktop": "npm run dev -w apps/desktop",
@@ -26,7 +34,13 @@
     "dist:win": "npm run dist:win -w apps/desktop"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@vitest/coverage-v8": "^5.0.4",
+    "jsdom": "^30.1.2",
     "prettier": "^3.9.10",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.4"
   }
 }

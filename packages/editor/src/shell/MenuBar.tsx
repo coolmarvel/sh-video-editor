@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CommandSpec } from '../engine/bridge';
 import { useEditor } from '../store';
+import { interceptMenuCommand } from '../features/project/menu';
 
 const ORDER = ['File', 'Edit', 'Clip', 'Sequence', 'Markers', 'Graphics and Titles', 'View', 'Window', 'Help'];
 const KO: Record<string, string> = {
@@ -44,6 +45,7 @@ export function MenuBar({ menus }: { menus: Map<string, CommandSpec[]> }) {
                   role="menuitem"
                   onClick={() => {
                     setOpen(null);
+                    if (interceptMenuCommand(c.id)) return;
                     void run(c.id);
                   }}
                 >

@@ -17,6 +17,12 @@ export interface Frame {
   rgba: Uint8ClampedArray<ArrayBuffer>;
 }
 
+/** 파일 대화상자 필터(Electron 의 FileFilter 와 같은 모양). */
+export interface FileFilter {
+  name: string;
+  extensions: string[];
+}
+
 export interface EngineBridge {
   version(): Promise<string>;
   commands(): Promise<CommandSpec[]>;
@@ -28,4 +34,14 @@ export interface EngineBridge {
   setPlayhead(tick: number): Promise<void>;
   pumpJobs(budgetMs: number): Promise<boolean>;
   renderFrame(tick: number, scale: number): Promise<Frame | null>;
+  /** 아래는 선택 기능. 호스트가 지원할 때만 있고, 없으면 화면이 안내 문구로 대체한다(features/export, features/project). */
+  isDirty?(): Promise<boolean>;
+  /** 자동 저장과 크래시 복구 저널 시작. 이전 세션의 복구 후보는 이후 `file.recoveryList` 커맨드로 읽는다. */
+  startAutosave?(): Promise<void>;
+  /** 자동 저장 워커·백그라운드 작업의 알림 반영. 주기적으로 부른다. */
+  pollPersistence?(): Promise<void>;
+  /** 저장 파일 대화상자. 취소하면 null. */
+  pickSavePath?(defaultName: string, filters?: FileFilter[]): Promise<string | null>;
+  /** 열기 파일 대화상자. 취소하면 null. */
+  pickOpenPath?(filters?: FileFilter[]): Promise<string | null>;
 }

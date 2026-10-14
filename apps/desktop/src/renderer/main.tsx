@@ -15,6 +15,11 @@ const bridge: EngineBridge = {
   playhead: () => api.playhead(),
   setPlayhead: (tick) => api.setPlayhead(tick),
   pumpJobs: (ms) => api.pumpJobs(ms),
+  isDirty: () => api.isDirty(),
+  startAutosave: () => api.startAutosave(),
+  pollPersistence: () => api.pollPersistence(),
+  pickSavePath: (defaultName, filters) => api.pickSavePath(defaultName, filters),
+  pickOpenPath: (filters) => api.pickOpenPath(filters),
   renderFrame: async (tick, scale): Promise<Frame | null> => {
     const f = await api.renderFrame(tick, scale);
     return f

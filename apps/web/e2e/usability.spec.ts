@@ -1,7 +1,7 @@
 /**
  * 사용성 피드백 반영 e2e(웹, 1440 과 390): 첫 화면 안내 카드, 데모 영상을 빈 타임라인에 끌어다 놓으면 편집본 자동 생성,
  * 미디어 우클릭 메뉴로 삭제, Delete 키 삭제, 토스트 자동 닫힘·닫기, 클립 우클릭 메뉴, Alt 드래그 트림이 한쪽만 움직이는지,
- * 도움말 > 사용 안내, 소리로 싱크 맞추기.
+ * 도움말 > 사용 안내(상세는 usage.spec.ts), 소리로 싱크 맞추기.
  */
 import { enginePlayhead, engineSequence, expect, makeDemoSequence, test, toasts, ui } from './fixtures';
 
@@ -40,13 +40,13 @@ test.describe('첫 화면 안내', () => {
     expect(await app.locator('body').innerText()).not.toContain('시퀀스');
   });
 
-  test('도움말 > 사용 안내는 같은 카드를 대화상자로 보인다', async ({ app }) => {
+  test('도움말 > 사용 안내는 사용법 문서(docs/guides/usage.md)를 대화상자로 보인다', async ({ app }) => {
     await app.getByRole('menubar').getByRole('button', { name: '도움말' }).click();
     await app.getByRole('menuitem', { name: '사용 안내' }).click();
     const dialog = app.getByRole('dialog', { name: '사용 안내' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('네 단계로 영상을 만듭니다.')).toBeVisible();
-    await expect(dialog.getByText('자르고 다듬기')).toBeVisible();
+    await expect(dialog.getByRole('heading', { level: 1, name: 'SH Video Editor 사용법' })).toBeVisible();
+    await expect(dialog.getByRole('navigation', { name: '목차' })).toBeVisible();
     await dialog.getByRole('button', { name: '확인' }).click();
     await expect(dialog).toHaveCount(0);
   });

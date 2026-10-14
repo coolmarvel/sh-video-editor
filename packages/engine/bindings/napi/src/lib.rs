@@ -3,7 +3,9 @@
 //! 프레임은 sRGB RGBA8 `Buffer` 로 돌려주어 렌더러가 canvas 에 바로 그린다.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 
+use filmcraft_engine::autosave::AutosaveConfig;
 use filmcraft_engine::{FsServices, Session, command_specs};
 use filmcraft_time::Tick;
 use napi::bindgen_prelude::*;
@@ -11,6 +13,13 @@ use napi_derive::napi;
 
 /// 이식한 기반 엔진의 출처·버전. 바인딩 버전은 `CARGO_PKG_VERSION`.
 pub const BASE_ENGINE: &str = "filmcraft 0.2.1";
+
+/// 호스트가 알려 준 로컬 UTC 오프셋(초). 자동 저장 파일 이름의 시각에 쓴다.
+static LOCAL_OFFSET_SECONDS: AtomicI32 = AtomicI32::new(0);
+
+fn local_offset(_unix: i64) -> i32 {
+    LOCAL_OFFSET_SECONDS.load(Ordering::Relaxed)
+}
 
 #[napi]
 pub fn engine_version() -> String {
@@ -84,6 +93,27 @@ impl Engine {
     #[napi]
     pub fn is_dirty(&self) -> bool {
         self.session.is_dirty()
+    }
+
+    /// 자동 저장과 크래시 복구 저널을 시작한다. `data_dir` 아래에 preferences.json, Auto-Save/, Recovery/ 가 생긴다.
+    /// 이전 세션이 남긴 복구 후보는 이후 `file.recoveryList` 커맨드로 읽는다. `local_offset_seconds` 는 로컬 UTC 오프셋.
+    #[napi]
+    pub fn start_autosave(&mut self, data_dir: String, local_offset_seconds: i32) -> Result<()> {
+        LOCAL_OFFSET_SECONDS.store(local_offset_seconds, Ordering::Relaxed);
+        let cfg = AutosaveConfig { local_offset, ..AutosaveConfig::new(data_dir) };
+        self.session.start_autosave(cfg).map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// 자동 저장 워커와 백그라운드 작업(프록시·내보내기 큐)의 알림을 반영한다. 호스트가 주기적으로 부른다.
+    #[napi]
+    pub fn poll_persistence(&mut self) {
+        self.session.poll_persistence();
+    }
+
+    /// 정상 종료. 저장하지 않은 변경이 있으면 저널을 남기고(다음 시작 때 복구 후보), 없으면 세션 디렉토리를 지운다.
+    #[napi]
+    pub fn shutdown(&mut self) {
+        self.session.shutdown();
     }
 
     /// 플레이헤드 위치(tick). 1초 = 254,016,000,000 tick.

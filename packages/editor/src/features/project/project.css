@@ -1,0 +1,25 @@
+/* 프로젝트 기능 배치: 알림 토스트(오른쪽 아래, 폭 320, 최대 3개: DESIGN.md 4.13절), 대화상자 본문 글. 값은 --sh-* 토큰만. */
+.ve-toasts {
+  position: fixed;
+  right: var(--sh-space-12, 12px);
+  bottom: var(--sh-space-32, 32px);
+  width: 320px;
+  max-width: calc(100vw - var(--sh-space-24, 24px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4, 4px);
+  z-index: 200;
+}
+.ve-toasts .sh-alert {
+  box-shadow: var(--sh-shadow-raised);
+  white-space: normal;
+  word-break: break-all;
+}
+.ve-dialog--narrow {
+  width: 400px;
+}
+.ve-dialog-text {
+  margin: 0;
+  line-height: var(--sh-font-line-height-normal, 1.45);
+  word-break: keep-all;
+}

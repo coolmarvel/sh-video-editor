@@ -6,6 +6,9 @@ import { MediaPanel } from './shell/MediaPanel';
 import { Monitor } from './shell/Monitor';
 import { Timeline } from './shell/Timeline';
 import { MonitorStatusPane } from './features/monitor';
+import { ExportDialog } from './features/export/ExportDialog';
+import { ProjectHost } from './features/project/ProjectHost';
+import { ProjectStatus } from './features/project/ProjectStatus';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';
@@ -50,9 +53,12 @@ export function App({ bridge, host }: AppProps) {
       <div className="sh-statusbar ve-status">
         <span className="sh-pane sh-pane--grow">{error ? `오류: ${error}` : status}</span>
         <MonitorStatusPane />
+        <ProjectStatus />
         <span className="sh-pane">{host === 'desktop' ? '데스크톱' : '웹'}</span>
         <span className="sh-pane sh-tnum ve-version">{version || '엔진 없음'}</span>
       </div>
+      <ProjectHost />
+      <ExportDialog />
     </div>
   );
 }

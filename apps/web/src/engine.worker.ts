@@ -36,6 +36,11 @@ async function handle(method: string, args: unknown[]): Promise<{ result: unknow
       return { result: undefined };
     case 'pumpJobs':
       return { result: engine.pumpJobs(args[0] as number) };
+    case 'isDirty':
+      return { result: engine.isDirty() };
+    case 'pollPersistence':
+      engine.pollPersistence();
+      return { result: undefined };
     case 'renderFrame': {
       const [tick, scale] = args as [number, number];
       const bytes = engine.renderFrame(BigInt(tick), scale);

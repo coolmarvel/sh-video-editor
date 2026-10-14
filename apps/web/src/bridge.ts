@@ -29,6 +29,9 @@ export function createWorkerBridge(): EngineBridge {
     playhead: () => call('playhead'),
     setPlayhead: (tick) => call('setPlayhead', tick),
     pumpJobs: (ms) => call('pumpJobs', ms),
+    isDirty: () => call('isDirty'),
+    pollPersistence: () => call('pollPersistence'),
+    // startAutosave·pickSavePath·pickOpenPath 는 웹 파일(OPFS·다운로드) 담당이 붙인다. 없으면 화면이 안내 문구를 보인다.
     renderFrame: (tick, scale) => call<Frame | null>('renderFrame', tick, scale),
   };
 }

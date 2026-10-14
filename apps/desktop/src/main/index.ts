@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
+import { dialog } from 'electron';
 import { join } from 'node:path';
 import * as engine from '@sh-video-editor/engine-node';
 import { registerPickFilesIpc } from './pickFiles';
@@ -28,6 +29,27 @@ function registerEngineIpc() {
   });
 }
 
+/** 자동 저장·복구와 파일 대화상자. 엔진 데이터 디렉토리는 userData/engine (preferences.json, Auto-Save/, Recovery/). */
+function registerPersistenceIpc() {
+  ipcMain.handle('engine:isDirty', () => getSession().isDirty());
+  ipcMain.handle('engine:startAutosave', () =>
+    getSession().startAutosave(join(app.getPath('userData'), 'engine'), -new Date().getTimezoneOffset() * 60),
+  );
+  ipcMain.handle('engine:pollPersistence', () => getSession().pollPersistence());
+  ipcMain.handle('dialog:pickSavePath', async (e, defaultName: string, filters?: Electron.FileFilter[]) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const options: Electron.SaveDialogOptions = { defaultPath: defaultName, filters: filters ?? [] };
+    const r = await (win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options));
+    return r.canceled || !r.filePath ? null : r.filePath;
+  });
+  ipcMain.handle('dialog:pickOpenPath', async (e, filters?: Electron.FileFilter[]) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    const options: Electron.OpenDialogOptions = { properties: ['openFile'], filters: filters ?? [] };
+    const r = await (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+    return r.canceled ? null : (r.filePaths[0] ?? null);
+  });
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -46,6 +68,7 @@ function createWindow() {
 void app.whenReady().then(() => {
   registerEngineIpc();
   registerPickFilesIpc();
+  registerPersistenceIpc();
   const win = createWindow();
   // 스모크 테스트(scripts/smoke.cjs): 창이 뜨고 엔진이 응답하면 "smoke: ok" 를 찍고 끝낸다.
   if (process.env['SH_SMOKE']) {
@@ -58,6 +81,11 @@ void app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// 정상 종료: 저장하지 않은 변경이 있으면 복구 저널을 남기고, 없으면 세션 디렉토리를 지운다.
+app.on('will-quit', () => {
+  session?.shutdown();
 });
 
 app.on('window-all-closed', () => {

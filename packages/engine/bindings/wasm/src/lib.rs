@@ -98,6 +98,27 @@ impl Engine {
         self.session.undo()
     }
 
+    #[wasm_bindgen(js_name = isDirty)]
+    pub fn is_dirty(&self) -> bool {
+        self.session.is_dirty()
+    }
+
+    /// napi 와 같은 모양. 브라우저에는 스레드·파일 잠금이 없어 자동 저장 저널을 시작할 수 없다(OPFS 저장은 호스트 몫).
+    #[wasm_bindgen(js_name = startAutosave)]
+    pub fn start_autosave(&mut self, _data_dir: &str, _local_offset_seconds: i32) -> Result<(), JsError> {
+        Err(JsError::new("auto save is not available in the browser build"))
+    }
+
+    /// 백그라운드 작업(프록시·내보내기 큐)의 알림을 반영한다. 호스트가 주기적으로 부른다.
+    #[wasm_bindgen(js_name = pollPersistence)]
+    pub fn poll_persistence(&mut self) {
+        self.session.poll_persistence();
+    }
+
+    pub fn shutdown(&mut self) {
+        self.session.shutdown();
+    }
+
     pub fn redo(&mut self) -> Option<String> {
         self.session.redo()
     }

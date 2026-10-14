@@ -12,6 +12,13 @@ const shEngine = {
   playhead: () => ipcRenderer.invoke('engine:playhead') as Promise<number>,
   setPlayhead: (tick: number) => ipcRenderer.invoke('engine:setPlayhead', tick) as Promise<void>,
   pumpJobs: (budgetMs: number) => ipcRenderer.invoke('engine:pumpJobs', budgetMs) as Promise<boolean>,
+  isDirty: () => ipcRenderer.invoke('engine:isDirty') as Promise<boolean>,
+  startAutosave: () => ipcRenderer.invoke('engine:startAutosave') as Promise<void>,
+  pollPersistence: () => ipcRenderer.invoke('engine:pollPersistence') as Promise<void>,
+  pickSavePath: (defaultName: string, filters?: { name: string; extensions: string[] }[]) =>
+    ipcRenderer.invoke('dialog:pickSavePath', defaultName, filters) as Promise<string | null>,
+  pickOpenPath: (filters?: { name: string; extensions: string[] }[]) =>
+    ipcRenderer.invoke('dialog:pickOpenPath', filters) as Promise<string | null>,
   renderFrame: (tick: number, scale: number) =>
     ipcRenderer.invoke('engine:renderFrame', tick, scale) as Promise<{
       width: number;

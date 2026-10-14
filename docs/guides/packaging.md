@@ -127,6 +127,48 @@ napi 바인딩은 Windows·macOS 타깃에서만 `filmcraft-platform` 에 의존
 | 2026-10-14 | 경로 1 (cargo-xwin, LLVM 23.1.3)                                   | 44.7.2   | 빌드·패키징 성공. 사용자 Windows PC 에서 실행 확인 대기                                                                                                                                                                                                                                      |
 | 2026-10-14 | 경로 1 + `filmcraft-platform`(Media Foundation 디코드, NVENC) 링크 | 44.7.2   | 크로스 빌드 성공(31.5MB). 실기 대기: 앱에서 `engineVersion()` 이 `hw: Media Foundation` 인지, 1080p H.264 클립 재생 뒤 `perf.stats` 의 `decode.hardware.frames` 가 0 보다 큰지, HEVC(iPhone) 파일이 열리는지(HEVC Video Extensions 없으면 자체 디코더), N 에디션·GPU 없는 VM 에서도 켜지는지 |
 
+## STT 음성 모델 (자동 자막, M2-2)
+
+자동 자막은 엔진의 Whisper(candle, CPU, 순수 Rust)를 쓴다. 결정(0002 로드맵 4절): **가중치는 인스톨러에 넣지 않고 첫 사용
+때 사용자 동의 뒤 내려받아 로컬에 보관**한다(인스톨러 크기 유지, 모델 교체 자유). 이후에는 인터넷 없이 동작한다.
+
+| 항목        | 값                                                                                                                                                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 빌드 플래그 | napi 바인딩 Cargo feature `stt`(기본 on) = `filmcraft-engine/whisper` + `filmcraft-engine/speech-download` + `filmcraft-speech`. wasm 은 `stt` 가 있지만 기본 off(아래 "웹")                                                                       |
+| 카탈로그    | 엔진 커맨드 `transcript.models`: whisper-tiny 153MB, whisper-base 293MB(기본), whisper-small 967MB. Hugging Face `openai/whisper-*` 의 특정 리비전에 고정, 파일마다 SHA-256 검증(`crates/speech/src/models.rs`)                                    |
+| 라이선스    | OpenAI Whisper 가중치 MIT, HF safetensors 변환 Apache-2.0. 동의 대화상자에 출처·라이선스를 그대로 보인다                                                                                                                                           |
+| 저장 위치   | `<userData>/engine/models/<id>/` (Windows `%APPDATA%/SH Video Editor/engine/models`). main 이 엔진 프로세스에 `FILMCRAFT_DATA_DIR=<userData>/engine` 을 주어 엔진의 `models_dir()` 가 자동 저장과 같은 디렉토리를 쓴다. `*.node`·모델은 gitignore  |
+| 다운로드    | 바인딩 `downloadSpeechModel(model, progress, signal)`: 엔진 `filmcraft_speech::models::download`(ureq + rustls + RustCrypto, OS 인증서) 를 libuv 스레드에서. `.part` 로 받아 검증 뒤 이름 변경, 취소(AbortSignal)·검증 실패 시 `.part` 삭제        |
+| 인식        | 바인딩 `Engine.transcribeItem(item, model, language, progress, signal)`: 소리는 세션에서 동기로 읽고(모노 16 kHz) 인식은 libuv 스레드. 결과 Transcript JSON 은 화면이 `transcript.set` 으로 넣고 `transcript.createCaptions` 로 자막 트랙을 만든다 |
+| 인스톨러    | 모델은 포함하지 않는다(electron-builder `files` 에 모델 경로 없음). exe 크기 증가는 `.node` 증가분(아래)뿐                                                                                                                                         |
+
+### 실측 (2026-10-14, WSL2 16코어, 메모리 7GB, `CARGO_BUILD_JOBS=3`, 다른 Rust 빌드와 동시)
+
+- `.node` 크기: Linux 35,056,944 -> 38,990,640 바이트(+3.9MB, +11%). Windows(cargo-xwin, LLVM 23.1.3) 31,489,536 -> 38,213,632
+  바이트(+6.7MB, +21%). candle(행렬 연산)·rustls·RustCrypto·sha2 가 더해진 몫.
+- 빌드 시간: feature 변경 뒤 전체 재빌드(268 크레이트) 4분 11초. Windows 크로스 빌드 전체 3분 34초, 바인딩만 바뀐 재빌드(LTO 링크)
+  약 1분 20초. candle 0.9 는 wasm32·windows-msvc 모두 컴파일된다(BLAS 없이 순수 Rust).
+- 모델 내려받기(이 네트워크): whisper-base 293MB 를 엔진 다운로더로 5.1초(curl 8초), whisper-small 967MB 를 curl 로 14초.
+- 한국어 인식(zeroth-korean 테스트 세트, CC-BY 4.0, 낭독 음성 16 kHz. 30.9초 2문장 90자 / 98.3초 8문장 338자). 글자 오류율(CER)은
+  띄어쓰기·문장부호 제외, 숫자 표기 차이("스물 센티미터" 대 "20cm") 포함:
+
+  | 모델          | 30.9초: 시간(유휴, 모델 적재 포함 / 적재 뒤) | 30.9초 CER | 98.3초: 시간 / CER | 비고                                                                     |
+  | ------------- | -------------------------------------------- | ---------- | ------------------ | ------------------------------------------------------------------------ |
+  | whisper-tiny  | 3.5초 / 3.0초                                | 81%        | -                  | 고유명사·숫자 대부분 틀림                                                |
+  | whisper-base  | 8.5초 / 6.0초                                | 64%        | 21.5초 / 32.5%     | 첫 문장은 거의 정확, 빠른 낭독 문장에서 오류. 재생 시간의 1/5~1/4 (추천) |
+  | whisper-small | 14.4초 / 15.2초                              | 60%        | 45.4초 / 24.6%     | 30초 샘플에서 둘째 창(30초 이후)을 통째로 건너뛴다(엔진 nospeech 판정)   |
+
+  30초 샘플의 CER 은 둘째 문장(숫자·속도) 하나가 좌우해 높고, 98초 세트가 실제 품질에 가깝다. 추천 기본값은 **whisper-base**:
+  한국어에서 small 보다 8%p 나쁘지만 3배 가깝게 빠르고 크기가 1/3 이다. 품질이 더 필요한 사용자는 대화상자에서 small 을 고른다.
+  진행률·취소가 있으므로 긴 영상도 괜찮지만, 기준은 "재생 시간의 1/5~1/3(base)". 98초 세트의 시간도 유휴 측정(base 자막 17개, small 13개). 30초 샘플은 base 로 단어 39개, 한 줄 20자·두 줄 규칙으로 자막 6개(12줄).
+
+### 웹
+
+`cargo check --target wasm32-unknown-unknown -p sh-video-engine-wasm --features stt` 는 통과한다(candle 이 wasm32 에서 컴파일됨,
+2분 34초). 그러나 실제 동작에는 (1) 가중치를 JS 가 fetch 해 OPFS 에 두고 wasm 에 바이트로 넘기는 `putModel` 바인딩, (2) 엔진
+`filmcraft_speech::load`/`Whisper::load` 가 `std::fs` 로 읽는 것을 바이트 입력으로 바꾸는 vendor 변경, (3) 다운로드 feature(ureq) 대체,
+(4) wasm 크기·추론 속도 측정이 더 필요해 M2-2 에서는 **데스크톱 전용**으로 두고 웹 자막 탭은 안내 문구만 보인다(로드맵 M4).
+
 ## 배포 소스 보호
 
 `apps/desktop/scripts/obfuscate.cjs` 가 `out/` 의 JS 를 난독화한다(`controlFlowFlattening`·`deadCodeInjection`·

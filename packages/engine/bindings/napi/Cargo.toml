@@ -21,6 +21,12 @@ todo = "deny"
 unreachable = "deny"
 dbg_macro = "warn"
 
+[features]
+default = ["stt"]
+# 자동 자막(음성 인식, M2-2): Whisper 추론(candle, CPU)과 모델 다운로드(rustls). 데스크톱 전용이라 napi 에만 켠다.
+# 모델 가중치는 번들하지 않고 첫 사용 때 동의 후 내려받는다(docs/guides/packaging.md "STT 모델").
+stt = ["filmcraft-engine/whisper", "filmcraft-engine/speech-download", "dep:filmcraft-speech"]
+
 [lib]
 crate-type = ["cdylib"]
 
@@ -29,6 +35,7 @@ filmcraft-engine = { workspace = true }
 filmcraft-project = { workspace = true }
 filmcraft-time = { workspace = true }
 filmcraft-audio-dsp = { workspace = true }
+filmcraft-speech = { workspace = true, optional = true }
 serde_json = { workspace = true }
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"

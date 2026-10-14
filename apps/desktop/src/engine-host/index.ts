@@ -11,6 +11,7 @@
 import * as engine from '@sh-video-editor/engine-node';
 import type { MessagePortMain } from 'electron';
 import { isEngineRequest, type EngineRequest, type EngineResponse, type HostControl, type HostNotice } from '../engine-protocol';
+import { sttMethods } from './stt';
 
 let session: engine.Engine | null = null;
 function getSession(): engine.Engine {
@@ -49,6 +50,8 @@ const methods: Record<EngineRequest['m'], (...a: never[]) => unknown> = {
   // 오디오 미리듣기(interleaved 스테레오 f32)와 클립 파형 피크. Float32Array 는 구조적 복제로 그대로 넘어간다
   renderAudio: (tick: number, frames: number, sampleRate?: number) => getSession().renderAudio(tick, frames, sampleRate),
   audioPeaks: (item: number, perSecond: number) => getSession().audioPeaks(item, perSecond),
+  // 자동 자막: 오래 걸리는 작업은 Promise 를 돌려주고 serve 가 끝났을 때 응답한다(그동안 다른 요청은 계속 처리된다)
+  ...sttMethods(getSession),
 };
 
 function serve(post: (r: EngineResponse) => void, data: unknown) {
@@ -59,7 +62,15 @@ function serve(post: (r: EngineResponse) => void, data: unknown) {
     return;
   }
   try {
-    post({ id: data.id, ok: true, v: fn(...(data.a as never[])) });
+    const v = fn(...(data.a as never[]));
+    if (v instanceof Promise) {
+      v.then(
+        (r) => post({ id: data.id, ok: true, v: r }),
+        (err: unknown) => post({ id: data.id, ok: false, e: err instanceof Error ? err.message : String(err) }),
+      );
+      return;
+    }
+    post({ id: data.id, ok: true, v });
   } catch (err) {
     post({ id: data.id, ok: false, e: err instanceof Error ? err.message : String(err) });
   }

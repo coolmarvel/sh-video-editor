@@ -1,0 +1,39 @@
+/* 자동 자막 절(자막 탭 안)과 대화상자 배치. 부품 모양은 sh-classic.css, 값은 --sh-* 토큰만. */
+.stt-subtitle {
+  margin: var(--sh-space-8) 0 0;
+  font-size: var(--sh-font-size-caption);
+  font-weight: var(--sh-font-weight-semibold);
+  color: var(--sh-color-text-secondary);
+}
+.stt-actions {
+  flex-wrap: wrap;
+}
+.stt-notice {
+  white-space: normal;
+  word-break: keep-all;
+}
+.stt-model-hint {
+  margin-top: calc(-1 * var(--sh-space-2));
+}
+.stt-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+}
+.stt-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sh-space-4) var(--sh-space-12);
+  margin: 0;
+  font-size: var(--sh-font-size-caption);
+}
+.stt-facts dt {
+  color: var(--sh-color-text-secondary);
+}
+.stt-facts dd {
+  margin: 0;
+  word-break: break-all;
+}
+.stt-progress {
+  width: 100%;
+}

@@ -32,6 +32,12 @@ const shEngine = {
   audioPeaks: (item: number, perSecond: number) => call<Float32Array>('audioPeaks', item, perSecond),
   /** 엔진 프로세스가 죽었을 때(main 이 자동 재시작) 알림 구독. 해제 함수를 돌려준다. */
   onCrashed,
+  // 자동 자막(features/stt). 엔진 프로세스가 libuv 스레드에서 돌리고, 진행률은 sttProgress 폴링으로 본다
+  sttDownloadModel: (model: string) => call<void>('sttDownloadModel', model),
+  sttTranscribeItem: (item: number, model: string, language: string) => call<unknown>('sttTranscribeItem', item, model, language),
+  sttProgress: () => call<{ fraction: number; done: number; total: number; status: string } | null>('sttProgress'),
+  sttCancel: () => call<void>('sttCancel'),
+  sttReleaseModel: () => call<void>('sttReleaseModel'),
   // 호스트 기능(엔진 아님): 파일 대화상자와 끌어다 놓은 File 의 실제 경로. Electron 32+ 는 File.path 가 없다
   pickFiles: () => ipcRenderer.invoke('host:pickFiles') as Promise<string[]>,
   pathForFile: (file: File): string | null => webUtils.getPathForFile(file) || null,

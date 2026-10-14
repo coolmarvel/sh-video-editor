@@ -10,6 +10,10 @@ Copyright © 2026 이성현 (SeongHyun Lee). All rights reserved.
    Location: packages/engine/vendor/filmcraft/ (LICENSE-MIT, LICENSE-APACHE, NOTICE, ATTRIBUTION.md)
    변경: ui-egui 데스크톱 UI 와 ArtCraft 상표 자산을 제거하고, 이 프로젝트의 React 화면과
    napi/wasm 바인딩에 맞게 수정한다. 수정 내역은 git 이력에 있다.
+   번들 글꼴(모두 SIL OFL 1.1, packages/engine/vendor/filmcraft/assets/fonts/): Inter, Noto Serif,
+   JetBrains Mono(상류 그대로), Pretendard Regular/Bold v1.3.9 (Copyright (c) 2021 Kil Hyung-jin,
+   https://github.com/orioncactus/pretendard, 이 프로젝트가 한글 표시용으로 추가). 각 글꼴의 라이선스
+   전문은 같은 폴더의 OFL-<글꼴>.txt, 파일별 출처는 .attribution 사이드카와 ATTRIBUTION.md.
 
 2. EffectCraft (https://github.com/storytold/effectcraft), version 0.4.0
    License: MIT OR Apache-2.0. 아직 이식 전(ADR-0003). 이식 시 이 항목을 갱신한다.

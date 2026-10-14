@@ -22,6 +22,9 @@ pub static INTER_BOLD: &[u8] = include_bytes!("../../../assets/fonts/Inter-Bold.
 pub static INTER_ITALIC: &[u8] = include_bytes!("../../../assets/fonts/Inter-Italic.ttf");
 pub static JETBRAINS_MONO_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/JetBrainsMono-Regular.ttf");
 pub static NOTO_SERIF_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/NotoSerif-Regular.ttf");
+/// Korean (Hangul) coverage for titles and captions, also on the web (sh-video-editor M2-1).
+pub static PRETENDARD_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/Pretendard-Regular.otf");
+pub static PRETENDARD_BOLD: &[u8] = include_bytes!("../../../assets/fonts/Pretendard-Bold.otf");
 
 /// A font from the optional craft-fonts build input (empty unless built with `CRAFT_FONTS_DIR`; see
 /// `build.rs` and storytold/craft-fonts `docs/integration.md`).
@@ -257,7 +260,17 @@ fn db() -> &'static RwLock<Db> {
     static DB: OnceLock<RwLock<Db>> = OnceLock::new();
     DB.get_or_init(|| {
         let mut db = Db { faces: Vec::new(), scanned: false };
-        for b in [INTER_REGULAR, INTER_MEDIUM, INTER_SEMIBOLD, INTER_BOLD, INTER_ITALIC, JETBRAINS_MONO_REGULAR, NOTO_SERIF_REGULAR] {
+        for b in [
+            INTER_REGULAR,
+            INTER_MEDIUM,
+            INTER_SEMIBOLD,
+            INTER_BOLD,
+            INTER_ITALIC,
+            JETBRAINS_MONO_REGULAR,
+            NOTO_SERIF_REGULAR,
+            PRETENDARD_REGULAR,
+            PRETENDARD_BOLD,
+        ] {
             for n in read_faces_bytes(b) {
                 push(&mut db, info_from(n, FaceData::Static(b), "bundled"));
             }
@@ -438,8 +451,11 @@ pub fn fallback_for(c: char, prefer: FaceId) -> FaceId {
         return prefer;
     }
     let faces = all_faces();
-    // prefer a face of the same italic-ness that is bundled (cheap), then anything loaded already
-    for f in faces.iter().filter(|f| f.info.origin == "bundled") {
+    // prefer a bundled face (cheap) of the nearest weight and the same italic-ness (bold Latin text
+    // with Hangul gets Pretendard Bold, not Regular), then anything loaded already
+    let mut bundled: Vec<&Arc<Face>> = faces.iter().filter(|f| f.info.origin == "bundled").collect();
+    bundled.sort_by_key(|f| (f.info.italic != p.info.italic, f.info.weight.abs_diff(p.info.weight)));
+    for f in bundled {
         if f.has_char(c) {
             return f.id;
         }
@@ -538,6 +554,23 @@ mod tests {
         // and laid out with real glyphs (no tofu)
         let l = crate::layout("日本語の文字", &crate::TextStyle { size: 40.0, ..Default::default() }, &Default::default());
         assert_eq!(l.glyphs.len(), 6);
+        assert!(l.glyphs.iter().all(|g| g.id != 0), "{:?}", l.glyphs);
+    }
+
+    /// Hangul is not in Inter: it falls back to the bundled Pretendard, Bold for bold text, and lays
+    /// out with real glyphs (no tofu), also for mixed Korean / Latin lines.
+    #[test]
+    fn korean_falls_back_to_pretendard() {
+        let fams = families();
+        let pretendard = fams.iter().find(|(f, _)| f == "Pretendard").expect("Pretendard");
+        assert!(pretendard.1.iter().any(|x| x == "Regular") && pretendard.1.iter().any(|x| x == "Bold"), "{:?}", pretendard.1);
+        let regular = face(fallback_for('한', resolve("Inter", "Regular").face));
+        assert_eq!((regular.info.family.as_str(), regular.info.style.as_str()), ("Pretendard", "Regular"));
+        let bold = face(fallback_for('한', resolve("Inter", "Bold").face));
+        assert_eq!((bold.info.family.as_str(), bold.info.style.as_str()), ("Pretendard", "Bold"));
+        assert!(regular.has_char('A') && regular.has_char('글'));
+        let l = crate::layout("안녕하세요 Hello 2026", &crate::TextStyle { size: 40.0, ..Default::default() }, &Default::default());
+        assert_eq!(l.glyphs.len(), "안녕하세요 Hello 2026".chars().count());
         assert!(l.glyphs.iter().all(|g| g.id != 0), "{:?}", l.glyphs);
     }
 

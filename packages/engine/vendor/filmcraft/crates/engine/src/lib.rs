@@ -965,6 +965,32 @@ impl Session {
         Ok(filmcraft_render::render_sequence(&self.project, seq, t, opts, &provider))
     }
 
+    /// Render one project item (clip, still, sequence; for thumbnails and the Source monitor) at
+    /// media time `t`, exactly `width` pixels wide (clamped to the source width and
+    /// [`MAX_THUMBNAIL_WIDTH`]; decoders that only scale in steps are resampled to the exact size).
+    /// `None` time uses the item's poster frame (Set Poster Frame) or media time 0. Audio-only
+    /// items and items whose frame cannot be decoded are errors, not panics.
+    pub fn render_item_thumbnail(&self, item: ItemId, t: Option<Tick>, width: u32) -> Result<filmcraft_render::Image> {
+        let pi = self.project.item(item).ok_or_else(|| EngineError::Other(format!("no such item {}", item.0)))?;
+        let (src_w, _) = self
+            .project
+            .source_size(item)
+            .filter(|(w, h)| *w > 0 && *h > 0)
+            .ok_or_else(|| EngineError::Other(format!("`{}` has no picture to render", pi.name)))?;
+        let width = width.clamp(1, MAX_THUMBNAIL_WIDTH).min(src_w);
+        let scale = width as f32 / src_w as f32;
+        let t = t.or_else(|| keyboard::poster_frame(pi)).unwrap_or(Tick::ZERO).max(Tick::ZERO);
+        let provider = self.media.provider(self.project.clone(), self.services.clone());
+        let img = filmcraft_render::render_item(&self.project, item, t, scale, &provider)
+            .ok_or_else(|| EngineError::Other(format!("`{}`: no frame at media time {}", pi.name, t.0)))?;
+        let (want_w, want_h) = (width as usize, ((width as f64 * img.h as f64 / img.w.max(1) as f64).round() as usize).max(1));
+        if img.w == 0 || img.h == 0 || (img.w == want_w && img.h == want_h) {
+            return Ok(img);
+        }
+        let m = filmcraft_geom::Affine::scale(want_w as f64 / img.w as f64, want_h as f64 / img.h as f64);
+        Ok(img.transformed(want_w, want_h, &m))
+    }
+
     /// The active sequence, if a frame of it at `scale` is within the image size limits.
     fn renderable_sequence(&self, scale: f32) -> Result<ItemId> {
         let id = self.state.active_sequence.ok_or(EngineError::NoSequence)?;
@@ -1016,6 +1042,8 @@ pub fn media_duration(p: &Project, _pool: &MediaPool, id: ItemId) -> Option<Tick
 
 /// Subclips of subclips followed before giving up (real projects nest one or two deep).
 const MAX_SUBCLIP_CHAIN: usize = 16;
+/// Widest frame [`Session::render_item_thumbnail`] renders (thumbnails, not previews).
+pub const MAX_THUMBNAIL_WIDTH: u32 = 1024;
 
 #[cfg(test)]
 mod aaf_omf_tests;

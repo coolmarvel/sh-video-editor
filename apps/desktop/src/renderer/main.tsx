@@ -39,11 +39,13 @@ const bridge: EngineBridge = {
   pickFiles: () => api.pickFiles(),
   pathForFile: (file) => api.pathForFile(file),
   renderAudio: (tick, frames, sampleRate) => api.renderAudio(tick, frames, sampleRate),
-  // 엔진 크래시 알림을 받으면 새 엔진이 응답할 때까지 기다렸다가 화면에 재시작을 알린다
+  // 엔진 크래시 알림을 받으면 새 엔진이 응답할 때까지 기다렸다가 화면에 재시작을 알린다(문제 보고 파일 경로와 함께)
   onEngineRestart: (cb) =>
-    api.onCrashed(() => {
-      void api.version().then(() => cb());
+    api.onCrashed((info) => {
+      void api.version().then(() => cb({ exitCode: info.code, report: info.report }));
     }),
+  // 문제 보고 폴더(M4-6). 서버 전송 없음: 사용자가 파일을 직접 첨부한다
+  crashReports: { open: (path) => api.openCrashReports(path).then(() => undefined) },
   audioPeaks: (item, perSecond) => api.audioPeaks(item, perSecond),
   // 자동 자막(features/stt): 데스크톱만. 엔진 프로세스가 인식·다운로드를 돌린다
   stt: {

@@ -12,6 +12,8 @@ interface Pending {
 
 export interface EngineCrash {
   code: number;
+  /** main 이 남긴 문제 보고 파일 경로(<userData>/crash-reports/*.json). 쓰지 못했으면 null */
+  report: string | null;
 }
 
 /** 렌더러 쪽 DOM MessagePort 중 쓰는 부분. preload 는 DOM 타입 없이도(tsconfig.node) 검사되므로 직접 적는다. */

@@ -52,6 +52,11 @@ describe.skipIf(!hasNativeBinding())('napi: 엔진 이벤트', () => {
     const inspect = exec<{ revision: number }>(engine, 'project.inspect');
     const last = after.filter((e) => e.type === 'projectChanged').at(-1);
     expect(last?.revision).toBe(inspect.revision);
+    // sequence.inspect 도 같은 revision 을 적는다(화면 store 가 이미 읽은 revision 의 이벤트를 건너뛰는 근거, features/events/revision-gate.ts)
+    expect(exec<{ revision: number }>(engine, 'sequence.inspect').revision).toBe(inspect.revision);
+    exec(engine, 'timeline.razor', { time: 2 * T });
+    expect(exec<{ revision: number }>(engine, 'sequence.inspect').revision).toBe(exec<{ revision: number }>(engine, 'project.inspect').revision);
+    expect(exec<{ revision: number }>(engine, 'sequence.inspect').revision).toBeGreaterThan(inspect.revision);
   });
 
   it('실행 취소·다시 실행도 projectChanged', () => {

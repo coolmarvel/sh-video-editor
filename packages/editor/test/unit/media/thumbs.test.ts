@@ -128,12 +128,14 @@ describe('ThumbnailLoader', () => {
 });
 
 describe('hasPicture', () => {
-  it('소리와 조정 레이어만 그림이 없다', () => {
+  it('소리, 조정 레이어, 그래픽 항목은 그림이 없다', () => {
     expect(hasPicture('Movie')).toBe(true);
     expect(hasPicture('Still Image')).toBe(true);
     expect(hasPicture('Sequence')).toBe(true);
     expect(hasPicture('Synthetic')).toBe(true);
     expect(hasPicture('Audio')).toBe(false);
     expect(hasPicture('Adjustment Layer')).toBe(false);
+    // 텍스트·도형 클립이 공유하는 그래픽 항목은 항목 자체에 그림이 없다(빈 프레임을 받지 않게 엔진을 부르지 않는다)
+    expect(hasPicture('Graphic')).toBe(false);
   });
 });

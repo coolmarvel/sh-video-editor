@@ -42,6 +42,7 @@ export default defineConfig({
         'src/features/events/classify.ts',
         'src/features/events/store.ts',
         'src/features/events/poller.ts',
+        'src/features/events/revision-gate.ts',
         'src/features/monitor/store.ts',
         'src/features/monitor/controller.ts',
         'src/features/project/store.ts',

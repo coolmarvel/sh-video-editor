@@ -36,7 +36,7 @@ test.describe('속도', () => {
     // 실행 취소 두 번이면 배지가 사라진다
     await ui.tool(app, '실행 취소').click();
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Speed/Duration');
+    await expect(ui.status(app)).toHaveText('실행 취소: 속도, 길이');
     await expect(badge(app)).toHaveCount(0);
   });
 

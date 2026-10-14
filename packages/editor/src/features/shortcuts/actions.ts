@@ -17,6 +17,7 @@ import { useRecent } from '../project/recent';
 import { useRatio } from '../ratio/store';
 import { useText } from '../text/store';
 import { useTimeline } from '../timeline/store';
+import { commandLabelKo } from '../i18n/labels.ko';
 import { focusArea } from './keymap';
 import { useShortcutsUi } from './store';
 import { useAudio } from '../audio/store';
@@ -261,16 +262,31 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'audio.fadeOut': () => audioFade('out'),
   'audio.duck': audioDuck,
   'help.guide': () => useOnboarding.getState().setGuideOpen(true),
+  // 문제 보고 폴더(M4-6, 데스크톱). 호스트가 없으면 안내만
+  'help.crashReports': async () => {
+    const reports = useEditor.getState().bridge?.crashReports;
+    if (!reports) {
+      useEditor.setState({ status: '문제 보고 폴더는 데스크톱 앱에서만 열 수 있습니다' });
+      return;
+    }
+    try {
+      await reports.open();
+      useEditor.setState({ status: '문제 보고 폴더를 열었습니다. 엔진이 예기치 않게 종료되면 여기에 JSON 파일이 남습니다', error: null });
+    } catch (e) {
+      useEditor.setState({ error: `문제 보고 폴더를 열지 못했습니다: ${message(e)}` });
+    }
+  },
 };
 
-/** 동작 id 를 실행한다. 표에 없으면 엔진 커맨드로 본다 */
+/** 동작 id 를 실행한다. 표에 없으면 엔진 커맨드로 본다(상태 줄에는 한글 사전의 라벨, features/i18n) */
 export async function runAction(id: string, params?: Params): Promise<void> {
   const fn = TABLE[id];
   if (fn) {
     await fn(params);
     return;
   }
-  await execCommand(id, params, `${id} 실행`);
+  const spec = useEditor.getState().commands.find((c) => c.id === id);
+  await execCommand(id, params, `${commandLabelKo(id, spec?.label)} 실행`);
 }
 
 export function hasAction(id: string): boolean {

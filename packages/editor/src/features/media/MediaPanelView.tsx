@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useEditor } from '../../store';
 import { useEngineEvents } from '../events/store';
+import { neededRevision } from '../events/revision-gate';
 import { formatTimecode } from '../../engine/time';
 import { mediaBinMenu, mediaEmptyMenu, mediaItemMenu, openAt } from '../context-menu';
 import { openEdition } from '../onboarding/edition';
 import { useProject } from '../project/store';
 import { MediaTree } from './MediaTree';
 import { useMedia } from './store';
-import { DEMO_SCENES, findItem, isClipLike, isEdition, typeLabelKo } from './types';
+import { DEMO_SCENES, findItem, isClipLike, isEdition, typeLabelKo, visibleChildren } from './types';
 import './media.css';
 
 /**
@@ -45,7 +46,7 @@ export function MediaPanelView() {
     if (!bridge) return;
     void refresh();
     return useEngineEvents.subscribe((s, prev) => {
-      if (s.projectChanged !== prev.projectChanged) void refresh();
+      if (s.projectChanged !== prev.projectChanged) void refresh(neededRevision(s.revision, prev.revision));
       if (s.revealChanged !== prev.revealChanged && s.revealed !== null) void select(s.revealed);
     });
   }, [bridge, refresh, select]);
@@ -109,7 +110,8 @@ export function MediaPanelView() {
     void importPaths(paths);
   };
 
-  const isEmpty = !root || root.children.length === 0;
+  // 텍스트 클립의 내부 Graphic 항목만 있으면 비어 있는 것으로 본다(미디어 패널에서 숨기는 항목)
+  const isEmpty = !root || visibleChildren(root).length === 0;
 
   return (
     <>

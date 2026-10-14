@@ -19,6 +19,7 @@ import {
   loadNapi,
   nonBlackPixels,
   persistentShape,
+  withoutRevision,
   pixelsDiffer,
   sleep,
   tmpDir,
@@ -769,7 +770,7 @@ d('적대적 입력', () => {
     // trim 의 edge·mode 는 정해진 값만
     expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'sideways', mode: 'regular', deltaFrames: 1 })).toThrow(/`edge`/);
     expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'in', mode: 'slide', deltaFrames: 1 })).toThrow(/`mode`/);
-    expect(inspect(engine)).toEqual(before);
+    expect(withoutRevision(inspect(engine))).toEqual(withoutRevision(before));
   });
 
   it('없는 클립 id 는 거부한다(선택, 효과, 트림)', () => {

@@ -8,7 +8,16 @@
  */
 import { ipcMain, MessageChannelMain, utilityProcess, type MessagePortMain, type UtilityProcess, type WebContents } from 'electron';
 import { join } from 'node:path';
-import { isEngineResponse, type EngineMethod, type EngineRequest, type HostControl, type HostNotice } from '../engine-protocol';
+import {
+  isEngineResponse,
+  isQueryCommand,
+  type EngineMethod,
+  type EngineRequest,
+  type ExecutedRecord,
+  type HostControl,
+  type HostNotice,
+} from '../engine-protocol';
+import { RingBuffer, writeCrashReport } from './crash-report';
 
 const HOST_MODULE = join(__dirname, 'engine-host.js');
 /** 이 시간 안에 이만큼 넘게 죽으면 더 띄우지 않는다(무한 재시작 방지). */
@@ -39,14 +48,35 @@ export class EngineSupervisor {
   private readonly clients = new Set<WebContents>();
   /** 비정상 종료 횟수(진단용). */
   crashes = 0;
+  /** 마지막으로 응답한 엔진 버전(문제 보고용). 준비 전이면 null */
+  private engineVersion: string | null = null;
+  /** 엔진 프로세스가 'executed' 로 보내 온 최근 커맨드(문제 보고의 recentCommands). 새 프로세스가 뜨면 비운다 */
+  private readonly recent = new RingBuffer<ExecutedRecord>();
+  /** 읽기(inspect·list 류)를 뺀 최근 커맨드. 화면의 읽기가 많아 전체 20개만으로는 편집 흐름이 안 보인다 */
+  private readonly recentEdits = new RingBuffer<ExecutedRecord>();
+  /** 마지막 문제 보고 파일 경로. 없으면 null */
+  lastReport: string | null = null;
 
   /** 엔진 데이터 디렉토리(자동 저장·복구). 자식 프로세스에 env 로 넘긴다. */
   private dataDir = '';
+  /** 문제 보고 파일을 둘 디렉토리(<userData>/crash-reports). 빈 문자열이면 쓰지 않는다 */
+  private crashDir = '';
 
-  start(dataDir: string) {
+  start(dataDir: string, crashDir = '') {
     this.dataDir = dataDir;
+    this.crashDir = crashDir;
     this.spawn();
     ipcMain.on('engine:connect', (e) => this.connect(e.sender));
+  }
+
+  /** 문제 보고에 들어갈 최근 커맨드(오래된 것이 앞). 진단·테스트용 */
+  recentCommands(): ExecutedRecord[] {
+    return this.recent.toArray();
+  }
+
+  private record(r: ExecutedRecord): void {
+    this.recent.push(r);
+    if (!isQueryCommand(r.id)) this.recentEdits.push(r);
   }
 
   /** 앱 종료 시. 이후의 종료는 크래시로 보지 않는다. */
@@ -90,15 +120,25 @@ export class EngineSupervisor {
     this.child = child;
     const { port1, port2 } = new MessageChannelMain();
     this.port = port2;
+    this.recent.clear();
+    this.recentEdits.clear();
     this.ready = new Promise<UtilityProcess>((resolve, reject) => {
       port2.on('message', (ev) => {
         const d = ev.data as HostNotice | undefined;
         if (d && d.type === 'ready') resolve(child);
+        else if (d && d.type === 'executed') this.record({ id: d.id, params: d.params, at: d.at, ms: d.ms, ok: d.ok, error: d.error });
         else this.onResponse(ev.data);
       });
       child.once('exit', () => reject(new Error('engine process exited before ready')));
     });
     this.ready.catch(() => undefined);
+    // 문제 보고에 적을 엔진 버전. 실패해도(준비 전 종료) 보고에는 null 로 남는다
+    this.ready
+      .then(() => this.call<string>('version'))
+      .then((v) => {
+        this.engineVersion = v;
+      })
+      .catch(() => undefined);
     port2.start();
     // parentPort 의 수신 큐는 자식이 리스너를 달 때까지 메시지를 보관하므로 바로 보내도 된다
     child.postMessage({ type: 'port', who: 'main' } satisfies HostControl, [port1]);
@@ -128,13 +168,26 @@ export class EngineSupervisor {
     const now = Date.now();
     this.restarts = this.restarts.filter((t) => now - t < RESTART_WINDOW_MS);
     this.restarts.push(now);
+    // 문제 보고 파일(M4-6): 링 버퍼는 spawn 이 비우므로 재시작 전에 쓴다
+    const report = this.crashDir
+      ? writeCrashReport(this.crashDir, {
+          code,
+          engineVersion: this.engineVersion,
+          crashes: this.crashes,
+          recentRestarts: this.restarts.length,
+          recentCommands: this.recent.toArray(),
+          recentEdits: this.recentEdits.toArray(),
+        })
+      : null;
+    this.lastReport = report;
+    if (report) console.warn(`engine: crash report written to ${report}`);
     if (this.restarts.length > RESTART_LIMIT) {
       console.error(`engine: crashed ${this.restarts.length} times in ${RESTART_WINDOW_MS / 1000}s, giving up`);
       this.ready = rejected('engine process keeps crashing');
     } else {
       this.spawn();
     }
-    for (const wc of this.clients) if (!wc.isDestroyed()) wc.send('engine:crashed', { code });
+    for (const wc of this.clients) if (!wc.isDestroyed()) wc.send('engine:crashed', { code, report });
   }
 
   /** 렌더러 하나를 엔진 프로세스와 직접 잇는다(포트 한 쌍). 엔진이 아직 뜨는 중이면 뜬 뒤에. */

@@ -10,7 +10,7 @@
  */
 import * as engine from '@sh-video-editor/engine-node';
 import type { MessagePortMain } from 'electron';
-import { isEngineRequest, type EngineRequest, type EngineResponse, type HostControl, type HostNotice } from '../engine-protocol';
+import { clipText, isEngineRequest, type EngineRequest, type EngineResponse, type HostControl, type HostNotice } from '../engine-protocol';
 import { sttMethods } from './stt';
 
 let session: engine.Engine | null = null;
@@ -19,14 +19,39 @@ function getSession(): engine.Engine {
   return session;
 }
 
+/** main 채널. 커맨드 처리 기록('executed')을 여기로 보낸다(문제 보고용 링 버퍼는 main 이 든다). */
+let mainPort: MessagePortMain | null = null;
+
+/** 커맨드 하나를 처리하고 결과와 상관없이 main 에 기록을 남긴다. 기록 전송 실패는 커맨드 결과에 영향을 주지 않는다 */
+function recorded<T>(id: string, params: string | undefined, run: () => T): T {
+  const t0 = Date.now();
+  try {
+    const v = run();
+    record(id, params, t0, true, null);
+    return v;
+  } catch (err) {
+    record(id, params, t0, false, err instanceof Error ? err.message : String(err));
+    throw err;
+  }
+}
+
+function record(id: string, params: string | undefined, t0: number, ok: boolean, error: string | null): void {
+  if (!mainPort) return;
+  try {
+    mainPort.postMessage({ type: 'executed', id, params: clipText(params), at: t0, ms: Date.now() - t0, ok, error: clipText(error) } satisfies HostNotice);
+  } catch {
+    // 기록은 진단용이다. 포트가 닫혔어도 커맨드는 정상 처리한다
+  }
+}
+
 // 메서드 표. preload 의 window.shEngine 과 같은 이름·같은 반환 모양.
 const methods: Record<EngineRequest['m'], (...a: never[]) => unknown> = {
   version: () => engine.engineVersion(),
   commands: () => engine.commandCatalog(),
-  execute: (id: string, paramsJson?: string) => getSession().execute(id, paramsJson),
+  execute: (id: string, paramsJson?: string) => recorded(id, paramsJson, () => getSession().execute(id, paramsJson)),
   isEnabled: (id: string) => getSession().isEnabled(id),
-  undo: () => getSession().undo(),
-  redo: () => getSession().redo(),
+  undo: () => recorded('edit.undo', undefined, () => getSession().undo()),
+  redo: () => recorded('edit.redo', undefined, () => getSession().redo()),
   playhead: () => getSession().playhead(),
   setPlayhead: (tick: number) => getSession().setPlayhead(tick),
   pumpJobs: (budgetMs: number) => getSession().pumpJobs(budgetMs),
@@ -80,7 +105,10 @@ function attachPort(port: MessagePortMain, who: HostControl['who']) {
   port.on('message', (ev) => serve((r) => port.postMessage(r), ev.data));
   port.on('close', () => port.close());
   port.start();
-  if (who === 'main') port.postMessage({ type: 'ready' } satisfies HostNotice);
+  if (who === 'main') {
+    mainPort = port;
+    port.postMessage({ type: 'ready' } satisfies HostNotice);
+  }
 }
 
 process.parentPort.on('message', (ev) => {

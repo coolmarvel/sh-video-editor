@@ -3291,6 +3291,9 @@ pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence
     json!({
         "id": id.0,
         "name": s.project.item(id).map(|i| i.name.clone()),
+        // the project revision this snapshot was taken at (the same counter `project.inspect` and the
+        // projectChanged event report): a UI that already holds this revision can skip a re-read
+        "revision": s.revision,
         "settings": q.settings,
         "duration": q.duration().0,
         "durationFrames": rate.frame_at(q.duration()),

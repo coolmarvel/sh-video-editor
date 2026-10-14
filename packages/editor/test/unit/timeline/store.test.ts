@@ -320,10 +320,10 @@ describe('newSequence / undo / redo', () => {
     await tl().razorAtPlayhead();
     expect(clipIds()).toHaveLength(3);
     await tl().undo();
-    expect(useEditor.getState().status).toBe('실행 취소: Razor');
+    expect(useEditor.getState().status).toBe('실행 취소: 자르기');
     expect(clipIds()).toHaveLength(2);
     await tl().redo();
-    expect(useEditor.getState().status).toBe('다시 실행: Razor');
+    expect(useEditor.getState().status).toBe('다시 실행: 자르기');
     expect(clipIds()).toHaveLength(3);
     await tl().redo();
     expect(useEditor.getState().status).toBe('다시 실행할 작업이 없습니다');

@@ -150,6 +150,8 @@ export interface TrackInfo {
 export interface SequenceInfo {
   id: number;
   name: string;
+  /** 이 스냅샷의 프로젝트 revision(project.inspect·projectChanged 이벤트와 같은 카운터) */
+  revision: number;
   video: TrackInfo[];
   audio: TrackInfo[];
   duration: number;
@@ -210,9 +212,15 @@ export function assertInvariants(seq: SequenceInfo, opts: { frameAligned?: boole
   }
 }
 
-/** 선택처럼 저장되지 않는 값을 뺀 비교용 모양. */
+/** 선택·플레이헤드·revision 처럼 저장되지 않는 값을 뺀 비교용 모양. */
 export function persistentShape(seq: SequenceInfo): unknown {
-  const { selection: _selection, playhead: _playhead, ...rest } = seq;
+  const { selection: _selection, playhead: _playhead, revision: _revision, ...rest } = seq;
+  return rest;
+}
+
+/** 시퀀스 내용은 같은지 보는 비교용 모양(revision 만 뺀다: 실행 취소·실패한 커맨드 뒤에도 revision 은 움직일 수 있다). */
+export function withoutRevision(seq: SequenceInfo): unknown {
+  const { revision: _revision, ...rest } = seq;
   return rest;
 }
 

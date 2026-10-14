@@ -142,11 +142,35 @@ describe('tick', () => {
     expect(ev().lastError).toBeNull();
   });
 
-  it('겹쳐 부르면 한 번만 돈다', async () => {
+  it('겹쳐 부르면 진행 중인 것 하나와 그 뒤 한 번(그 사이 요청은 하나로)만 돈다', async () => {
     const engine = await connect();
     const p = make(engine);
     await Promise.all([p.tick(), p.tick(), p.tick()]);
-    expect(engine.drainCount).toBe(1);
+    // 첫 tick 이 도는 동안 들어온 둘은 "끝나면 한 번 더" 하나로 합쳐진다(커맨드 직후 요청이 진행 중 폴링에 가려 이벤트를 놓치지 않게)
+    expect(engine.drainCount).toBe(2);
+  });
+
+  it('뒤이어 부른 tick 은 진행 중인 폴링이 비우지 못한 이벤트를 가져온다', async () => {
+    const engine = await connect();
+    const p = make(engine);
+    let release: () => void = () => undefined;
+    const original = engine.bridge.drainEvents!;
+    // 첫 폴링을 잡아 두고 그동안 엔진에 변경을 넣는다
+    engine.bridge.drainEvents = async () => {
+      engine.bridge.drainEvents = original;
+      await new Promise<void>((r) => {
+        release = r;
+      });
+      return [];
+    };
+    const first = p.tick();
+    await Promise.resolve();
+    const second = p.tick();
+    await engine.bridge.execute('file.newSequence', { name: 's', width: 320, height: 180, fps: 30 });
+    const before = ev().projectChanged;
+    release();
+    await Promise.all([first, second]);
+    expect(ev().projectChanged).toBeGreaterThan(before);
   });
 });
 
@@ -193,5 +217,58 @@ describe('start / 간격', () => {
     await vi.advanceTimersByTimeAsync(POLL_PAUSED_MS * 10);
     expect(engine.drainCount).toBe(n);
     expect(p.isRunning()).toBe(false);
+  });
+});
+
+describe('onRestart (데스크톱 엔진 재시작)', () => {
+  it('신호를 처음처럼 되돌리고 상태 줄에 재시작을 알린다', async () => {
+    const { engine } = engineWithClips();
+    await connect({}, engine);
+    const p = make(engine);
+    await p.tick();
+    useEngineEvents.setState({ revision: 12, openedSequence: 3 });
+    const before = ev();
+    p.onRestart();
+    const after = ev();
+    expect(after.revision).toBe(0);
+    expect(after.openedSequence).toBeNull();
+    expect(after.projectChanged).toBe(before.projectChanged + 1);
+    expect(after.sequenceChanged).toBe(before.sequenceChanged + 1);
+    expect(useEditor.getState().status).toContain('엔진을 다시 시작했습니다');
+    expect(useProject.getState().notices.some((n) => n.action)).toBe(false);
+  });
+
+  it('문제 보고 파일이 있고 호스트가 폴더 열기를 지원하면 "폴더 열기" 버튼이 붙은 경고 알림을 띄운다', async () => {
+    const { engine } = engineWithClips();
+    await connect({}, engine);
+    const opened: Array<string | null | undefined> = [];
+    engine.bridge.crashReports = {
+      open: async (path) => {
+        opened.push(path);
+      },
+    };
+    const p = make(engine);
+    p.onRestart({ exitCode: 9, report: '/tmp/crash-reports/2026-10-14-120000.json' });
+    const notice = useProject.getState().notices.at(-1);
+    expect(notice?.kind).toBe('warning');
+    expect(notice?.text).toContain('문제 보고 파일을 남겼습니다');
+    expect(notice?.action?.label).toBe('폴더 열기');
+    notice?.action?.run();
+    await Promise.resolve();
+    expect(opened).toEqual(['/tmp/crash-reports/2026-10-14-120000.json']);
+    // 동작 버튼이 있는 알림은 저절로 닫히지 않는다
+    vi.advanceTimersByTime(10_000);
+    expect(useProject.getState().notices.some((n) => n.id === notice?.id)).toBe(true);
+  });
+
+  it('보고 파일이 없거나 호스트가 지원하지 않으면 알림을 띄우지 않는다', async () => {
+    const { engine } = engineWithClips();
+    await connect({}, engine);
+    const p = make(engine);
+    p.onRestart({ exitCode: 9, report: '/tmp/x.json' });
+    expect(useProject.getState().notices.some((n) => n.action)).toBe(false);
+    engine.bridge.crashReports = { open: async () => undefined };
+    p.onRestart({ exitCode: 9, report: null });
+    expect(useProject.getState().notices.some((n) => n.action)).toBe(false);
   });
 });

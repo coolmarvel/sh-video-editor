@@ -149,7 +149,7 @@ test('데모 영상을 넣고 자르기·삭제·실행 취소', async () => {
     await expect(status(page)).toHaveText('삭제: 클립 2개');
     await expect(clips(page)).toHaveCount(2);
     await tool(page, '실행 취소').click();
-    await expect(status(page)).toHaveText('실행 취소: Clear');
+    await expect(status(page)).toHaveText('실행 취소: 삭제');
     await expect(clips(page)).toHaveCount(4);
     await expect(page.getByTestId('mon-total')).toHaveText('00:00:18:00');
     // 프로젝트 상태 줄이 수정됨으로 바뀌고 창 제목에도 반영된다

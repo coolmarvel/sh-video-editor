@@ -1,6 +1,16 @@
 /** features/media/types.ts: 유형 라벨, 시퀀스 가능 여부, 트리 순회. */
 import { describe, expect, it } from 'vitest';
-import { DEMO_SCENES, findItem, isClipLike, typeLabelKo, walkItems, type MediaBin, type MediaItem } from '@editor/features/media/types';
+import {
+  DEMO_SCENES,
+  findItem,
+  isClipLike,
+  isInternalGraphic,
+  typeLabelKo,
+  visibleChildren,
+  walkItems,
+  type MediaBin,
+  type MediaItem,
+} from '@editor/features/media/types';
 
 const item = (id: number, type = 'Movie'): MediaItem => ({
   kind: 'item',
@@ -70,5 +80,28 @@ describe('DEMO_SCENES', () => {
   it('엔진 file.importDemoFootage 가 받는 여섯 장면이고 라벨에 특수기호가 없다', () => {
     expect(DEMO_SCENES.map((d) => d.scene)).toEqual(['OceanSunset', 'Aurora', 'CityNight', 'Dunes', 'Plasma', 'Forest']);
     for (const d of DEMO_SCENES) expect(d.label).toMatch(/^[가-힣 ]+$/);
+  });
+});
+
+describe('isInternalGraphic, visibleChildren', () => {
+  it('텍스트 클립이 공유하는 "Graphic" 이름의 그래픽 항목만 내부 항목이다', () => {
+    const internal: MediaItem = { ...item(7, 'Graphic'), name: 'Graphic' };
+    expect(isInternalGraphic(internal)).toBe(true);
+    expect(isInternalGraphic({ ...item(8, 'Graphic'), name: '로고 그래픽' })).toBe(false);
+    expect(isInternalGraphic({ ...item(9, 'Movie'), name: 'Graphic' })).toBe(false);
+  });
+
+  it('visibleChildren 은 내부 그래픽 항목을 빼고 빈은 모두 남긴다(순서 유지)', () => {
+    const internal: MediaItem = { ...item(7, 'Graphic'), name: 'Graphic' };
+    const bin: MediaBin = {
+      kind: 'bin',
+      id: 0,
+      name: 'root',
+      children: [item(1), internal, { kind: 'bin', id: 10, name: 'b', children: [internal] }, item(4)],
+    };
+    expect(visibleChildren(bin).map((c) => c.id)).toEqual([1, 10, 4]);
+    // 트리 순회(walkItems)는 숨기지 않는다: 클립이 가리키는 항목을 찾는 데 쓴다
+    expect([...walkItems(bin)].map((i) => i.id)).toEqual([1, 7, 7, 4]);
+    expect(findItem(bin, 7)?.type).toBe('Graphic');
   });
 });

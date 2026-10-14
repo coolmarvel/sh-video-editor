@@ -4,13 +4,15 @@
  *
  * 간격은 pollInterval(재생 100ms, 정지 250ms, 숨김 탭 1s). drainEvents 가 없는 호스트에서는 project.inspect 의 revision 을
  * 비교해 projectChanged 를 만든다(이전 방식의 축소판). 한 번에 하나만 돌고(inFlight), 실패해도 다음 주기에 다시 시도한다.
+ * 한 묶음의 신호는 setState 한 번으로 올리고, 구독자(타임라인·미디어·프로젝트·미리보기)는 revision 을 보고 이미 읽은 것은
+ * 건너뛴다(revision-gate.ts). 커맨드 하나에 읽기가 두 번(실행한 쪽 + 구독자) 가던 중복이 사라진다(M4-8).
  */
-import type { EngineBridge } from '../../engine/bridge';
+import type { EngineBridge, EngineRestartInfo } from '../../engine/bridge';
 import { useEditor } from '../../store';
 import { useProject } from '../project/store';
 import { useMonitor } from '../monitor/store';
 import { PERSISTENCE_MS, classify, pollInterval, type Classified } from './classify';
-import { useEngineEvents } from './store';
+import { useEngineEvents, type EngineEventsState } from './store';
 
 export interface PollerOptions {
   /** 재생 중인지. 기본은 useMonitor.playing */
@@ -24,10 +26,17 @@ export interface PollerOptions {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+export const RESTART_STATUS = '엔진을 다시 시작했습니다. 저장하지 않은 변경은 복구 후보에서 되살릴 수 있습니다.';
+/** 문제 보고 파일을 남겼을 때의 토스트 문구(데스크톱, M4-6) */
+export const RESTART_REPORT_TEXT = '엔진이 예기치 않게 종료되어 다시 시작했습니다. 문제 보고 파일을 남겼습니다.';
+
 export class EnginePoller {
   private timer = 0;
   private running = false;
-  private inFlight = false;
+  /** 진행 중인 폴링. 겹치지 않게 하나만 돈다 */
+  private inFlight: Promise<void> | null = null;
+  /** 진행 중인 폴링이 끝나면 한 번 더 돌 약속(그동안 들어온 요청은 전부 이것 하나로) */
+  private queued: Promise<void> | null = null;
   private lastPersistence = Number.NEGATIVE_INFINITY;
   /** drainEvents 가 없는 호스트용: 마지막으로 본 project.inspect revision */
   private fallbackRevision = -1;
@@ -52,7 +61,7 @@ export class EnginePoller {
     if (this.running) return;
     this.running = true;
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
-    if (this.bridge.onEngineRestart) this.unsubscribeRestart = this.bridge.onEngineRestart(() => this.onRestart());
+    if (this.bridge.onEngineRestart) this.unsubscribeRestart = this.bridge.onEngineRestart((info) => this.onRestart(info));
     void this.tick();
   }
 
@@ -65,8 +74,11 @@ export class EnginePoller {
     this.unsubscribeRestart = null;
   }
 
-  /** 엔진이 다시 떴다(데스크톱 크래시 복구). 새 엔진은 빈 세션이므로 모든 패널이 처음처럼 다시 읽게 신호를 올린다 */
-  onRestart(): void {
+  /**
+   * 엔진이 다시 떴다(데스크톱 크래시 복구). 새 엔진은 빈 세션이므로 모든 패널이 처음처럼 다시 읽게 신호를 올린다.
+   * 호스트가 문제 보고 파일을 남겼으면(M4-6) 토스트에 "폴더 열기" 버튼을 붙인다.
+   */
+  onRestart(info: EngineRestartInfo = { exitCode: null, report: null }): void {
     this.fallbackRevision = -1;
     useEngineEvents.setState((s) => ({
       revision: 0,
@@ -77,7 +89,15 @@ export class EnginePoller {
       playheadChanged: s.playheadChanged + 1,
     }));
     // 죽기 직전에 걸려 있던 호출들의 거부 오류(글꼴 목록 등)는 새 엔진과 무관하므로 지운다
-    useEditor.setState({ engineRevision: 0, error: null, status: '엔진을 다시 시작했습니다. 저장하지 않은 변경은 복구 후보에서 되살릴 수 있습니다.' });
+    useEditor.setState({ engineRevision: 0, error: null, status: RESTART_STATUS });
+    const open = this.bridge.crashReports?.open;
+    if (info.report && open) {
+      const report = info.report;
+      useProject.getState().notify('warning', RESTART_REPORT_TEXT, {
+        label: '폴더 열기',
+        run: () => void open.call(this.bridge.crashReports, report).catch(() => undefined),
+      });
+    }
     void this.tick();
   }
 
@@ -90,20 +110,35 @@ export class EnginePoller {
     return pollInterval({ playing: this.isPlaying(), hidden: this.isHidden() });
   }
 
-  /** 지금 바로 한 번 폴링한다(재생 시작·정지 등 간격이 바뀌는 순간에도 부른다). 돌고 있는 중이면 겹치지 않는다 */
-  async tick(): Promise<void> {
-    if (this.inFlight) return;
-    this.inFlight = true;
+  /**
+   * 지금 바로 한 번 폴링한다(재생 시작·정지 등 간격이 바뀌는 순간, 커맨드를 막 실행한 뒤에도 부른다). 돌고 있는 중이면
+   * 겹치지 않고, 그 폴링이 끝난 뒤 한 번 더 돈다(그 사이 쌓인 이벤트를 놓치지 않게. 여러 요청은 하나로 합친다).
+   */
+  tick(): Promise<void> {
+    if (this.inFlight) {
+      this.queued ??= this.inFlight.then(() => {
+        this.queued = null;
+        return this.tick();
+      });
+      return this.queued;
+    }
     clearTimeout(this.timer);
+    const run = this.pollOnce().finally(() => {
+      this.inFlight = null;
+      this.schedule();
+    });
+    this.inFlight = run;
+    return run;
+  }
+
+  private async pollOnce(): Promise<void> {
     try {
       await this.poll();
       if (useEngineEvents.getState().lastError !== null) useEngineEvents.setState({ lastError: null });
     } catch (e) {
       useEngineEvents.setState({ lastError: message(e) });
     } finally {
-      this.inFlight = false;
       useEngineEvents.setState((s) => ({ polls: s.polls + 1 }));
-      this.schedule();
     }
   }
 
@@ -142,20 +177,27 @@ export class EnginePoller {
     return [{ type: 'projectChanged', revision }];
   }
 
+  /** 한 묶음의 신호를 setState 한 번으로 올린다(구독자가 projectChanged 와 sequenceChanged 를 따로 받아 두 번 읽지 않게) */
   private apply(c: Classified): void {
-    if (c.revision !== null) {
-      const revision = c.revision;
-      useEngineEvents.setState((s) => ({ revision, projectChanged: s.projectChanged + 1 }));
-      if (useEditor.getState().engineRevision !== revision) useEditor.setState({ engineRevision: revision });
+    if (c.revision !== null || c.openSequence !== null || c.reveal !== null) {
+      useEngineEvents.setState((s) => {
+        const next: Partial<EngineEventsState> = {};
+        if (c.revision !== null) {
+          next.revision = c.revision;
+          next.projectChanged = s.projectChanged + 1;
+        }
+        if (c.openSequence !== null) {
+          next.openedSequence = c.openSequence;
+          next.sequenceChanged = s.sequenceChanged + 1;
+        }
+        if (c.reveal !== null) {
+          next.revealed = c.reveal;
+          next.revealChanged = s.revealChanged + 1;
+        }
+        return next;
+      });
     }
-    if (c.openSequence !== null) {
-      const openedSequence = c.openSequence;
-      useEngineEvents.setState((s) => ({ openedSequence, sequenceChanged: s.sequenceChanged + 1 }));
-    }
-    if (c.reveal !== null) {
-      const revealed = c.reveal;
-      useEngineEvents.setState((s) => ({ revealed, revealChanged: s.revealChanged + 1 }));
-    }
+    if (c.revision !== null && useEditor.getState().engineRevision !== c.revision) useEditor.setState({ engineRevision: c.revision });
     for (const t of c.toasts) {
       useEngineEvents.setState((s) => ({ toast: { ...t, seq: (s.toast?.seq ?? 0) + 1 } }));
       this.onToast(t.message, t.error);

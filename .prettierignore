@@ -1,0 +1,12 @@
+node_modules
+dist
+out
+release
+pkg
+target
+packages/engine/vendor
+packages/engine/bindings/napi/index.js
+packages/engine/bindings/napi/index.d.ts
+design-tokens
+.claude/data
+package-lock.json

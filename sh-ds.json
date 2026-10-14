@@ -1,0 +1,6 @@
+{
+  "reference": "sh-classic",
+  "version": "0.1.1",
+  "theme": "dark",
+  "platforms": ["css"]
+}

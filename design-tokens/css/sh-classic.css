@@ -1,0 +1,866 @@
+/*
+ * sh-classic 부품 CSS - DESIGN.md 4절 계약의 웹 구현 (손으로 쓴 파일, 값은 전부 tokens.css 의 --sh-* 변수).
+ * 사용: tokens.css 다음에 이 파일을 로드하고 class="sh-btn" 처럼 쓴다. 리터럴 hex·px 를 더하지 않는다.
+ * 상태 강제 표시: data-state="hover|pressed|focus|on|selected|open" (쇼케이스·문서용) 은 실제 :hover 등과 같게 그린다.
+ */
+
+/* -- 기본 ----------------------------------------- */
+.sh-root,
+.sh-root *,
+.sh-root *::before,
+.sh-root *::after {
+  box-sizing: border-box;
+}
+.sh-root {
+  font-family: var(--sh-font-family-ui);
+  font-size: var(--sh-font-size-body);
+  line-height: var(--sh-font-line-height-normal);
+  color: var(--sh-color-text);
+  background: var(--sh-color-sunken);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.sh-root button,
+.sh-root input,
+.sh-root select,
+.sh-root textarea {
+  font: inherit;
+  color: inherit;
+}
+.sh-root :focus-visible,
+.sh-root [data-state~='focus'] {
+  outline: var(--sh-border-width) dotted var(--sh-color-text);
+  outline-offset: var(--sh-border-focus-offset);
+}
+.sh-tnum {
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-root * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+/* -- 4.1 버튼 ------------------------------------- */
+.sh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sh-space-4);
+  height: var(--sh-size-control-md);
+  padding: 0 var(--sh-space-12);
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-gradient-bevel);
+  color: var(--sh-color-text);
+  font-weight: var(--sh-font-weight-semibold);
+  line-height: var(--sh-font-line-height-tight);
+  white-space: nowrap;
+  cursor: default;
+  transition: border-color var(--sh-motion-duration-fast);
+}
+.sh-btn:hover:not(:disabled),
+.sh-btn[data-state~='hover'] {
+  background: var(--sh-color-canvas);
+  border-color: var(--sh-color-hover-edge);
+}
+.sh-btn:active:not(:disabled),
+.sh-btn[data-state~='pressed'] {
+  background: var(--sh-color-control-pressed);
+  border-color: var(--sh-color-control-border);
+}
+.sh-btn:disabled {
+  background: var(--sh-color-sunken);
+  border-color: var(--sh-color-border);
+  color: var(--sh-color-text-disabled);
+}
+.sh-btn--sm {
+  height: var(--sh-size-control-sm);
+  padding: 0 var(--sh-space-8);
+}
+.sh-btn--dialog {
+  min-width: var(--sh-size-dialog-button-min);
+}
+.sh-btn--primary {
+  background: var(--sh-color-accent);
+  border-color: var(--sh-color-accent-pressed);
+  color: var(--sh-color-on-accent);
+}
+.sh-btn--primary:hover:not(:disabled),
+.sh-btn--primary[data-state~='hover'] {
+  background: var(--sh-color-accent-hover);
+  border-color: var(--sh-color-accent-pressed);
+}
+.sh-btn--primary:active:not(:disabled),
+.sh-btn--primary[data-state~='pressed'] {
+  background: var(--sh-color-accent-pressed);
+  border-color: var(--sh-color-accent-pressed);
+}
+.sh-btn--primary:focus-visible,
+.sh-btn--primary[data-state~='focus'] {
+  outline-color: var(--sh-color-on-accent);
+}
+.sh-btn--primary:disabled {
+  background: var(--sh-color-control-bottom);
+  border-color: var(--sh-color-border);
+  color: var(--sh-color-text-disabled);
+}
+.sh-btn--danger {
+  color: var(--sh-color-danger);
+  border-color: var(--sh-color-danger-border);
+}
+.sh-btn--danger:hover:not(:disabled),
+.sh-btn--danger[data-state~='hover'] {
+  background: var(--sh-color-danger-subtle);
+  border-color: var(--sh-color-danger);
+}
+.sh-btn--danger-fill {
+  background: var(--sh-color-danger);
+  border-color: var(--sh-color-danger);
+  color: var(--sh-color-on-accent);
+}
+.sh-btn--danger-fill:hover:not(:disabled),
+.sh-btn--danger-fill[data-state~='hover'] {
+  background: var(--sh-color-danger);
+  border-color: var(--sh-color-text);
+}
+.sh-btn--danger-fill:focus-visible,
+.sh-btn--danger-fill[data-state~='focus'] {
+  outline-color: var(--sh-color-on-accent);
+}
+
+/* -- 4.2 툴바·도구 버튼 --------------------------- */
+.sh-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-2);
+  height: var(--sh-size-toolbar);
+  padding: 0 var(--sh-space-4);
+  background: var(--sh-gradient-toolbar);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-toolbar-hairline);
+  white-space: nowrap;
+}
+.sh-toolbar--option {
+  background: var(--sh-gradient-toolbar2);
+}
+.sh-toolbar label {
+  color: var(--sh-color-text-secondary);
+}
+.sh-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sh-space-4);
+  min-width: var(--sh-size-tool-button);
+  height: var(--sh-size-tool-button);
+  padding: 0 var(--sh-space-4);
+  border: var(--sh-border-width) solid transparent;
+  border-radius: var(--sh-radius-none);
+  background: transparent;
+  color: var(--sh-color-text);
+  cursor: default;
+}
+.sh-tool svg {
+  width: var(--sh-size-icon);
+  height: var(--sh-size-icon);
+  flex: none;
+}
+.sh-tool:hover:not(:disabled),
+.sh-tool[data-state~='hover'] {
+  background: var(--sh-color-canvas);
+  border-color: var(--sh-color-hover-edge);
+}
+.sh-tool:active:not(:disabled),
+.sh-tool[data-state~='pressed'],
+.sh-tool[aria-pressed='true'],
+.sh-tool[data-state~='on'] {
+  background: var(--sh-gradient-pressed);
+  border-color: var(--sh-color-chrome-toolbar-edge);
+}
+.sh-tool[aria-pressed='true'] svg,
+.sh-tool[data-state~='on'] svg {
+  color: var(--sh-color-accent-pressed);
+}
+.sh-tool:disabled {
+  color: var(--sh-color-text-disabled);
+}
+.sh-tool:disabled svg {
+  opacity: 0.35;
+}
+.sh-separator {
+  width: var(--sh-border-width);
+  height: 18px; /* DESIGN.md 4.2절 구분선 높이 - 툴바 30 안에서 위아래 6 */
+  margin: 0 var(--sh-space-4);
+  background: var(--sh-color-chrome-separator);
+  flex: none;
+}
+
+/* -- 4.3 메뉴바·메뉴 ------------------------------ */
+.sh-menubar {
+  display: flex;
+  align-items: stretch;
+  height: var(--sh-size-menubar);
+  background: var(--sh-gradient-chrome);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  position: relative;
+}
+.sh-menubar__item {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sh-space-8);
+  border: var(--sh-border-width) solid transparent;
+  background: transparent;
+  cursor: default;
+}
+.sh-menubar__item:hover,
+.sh-menubar__item[aria-expanded='true'],
+.sh-menubar__item[data-state~='hover'],
+.sh-menubar__item[data-state~='open'] {
+  background: var(--sh-color-canvas);
+  border-color: var(--sh-color-chrome-frame);
+}
+.sh-menu {
+  min-width: var(--sh-size-menu-min-width);
+  padding: var(--sh-space-2) 0;
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  box-shadow: var(--sh-shadow-raised);
+  user-select: none;
+  z-index: 50;
+}
+.sh-menu[hidden] {
+  display: none;
+}
+.sh-menu--float {
+  position: absolute;
+}
+.sh-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  width: 100%;
+  height: var(--sh-size-menu-item);
+  padding: 0 var(--sh-space-12) 0 var(--sh-space-4);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+}
+.sh-menu__check {
+  width: var(--sh-size-icon);
+  flex: none;
+  text-align: center;
+}
+.sh-menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sh-menu__key {
+  margin-left: var(--sh-space-16);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+}
+.sh-menu__sub::after {
+  content: '▸';
+  margin-left: var(--sh-space-8);
+  color: var(--sh-color-text-secondary);
+}
+.sh-menu__item:hover:not(:disabled),
+.sh-menu__item:focus-visible,
+.sh-menu__item[data-state~='hover'] {
+  background: var(--sh-color-chrome-toolbar-face);
+  outline: none;
+}
+.sh-menu__item:disabled {
+  color: var(--sh-color-text-disabled);
+}
+.sh-menu__item:disabled .sh-menu__key {
+  color: var(--sh-color-text-disabled);
+}
+.sh-menu__sep {
+  height: var(--sh-border-width);
+  margin: var(--sh-space-2) var(--sh-space-4);
+  background: var(--sh-color-border);
+}
+
+/* -- 4.4 탭 --------------------------------------- */
+.sh-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sh-space-2);
+  padding: 0 var(--sh-space-4);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+}
+.sh-tab {
+  height: var(--sh-size-tab);
+  padding: 0 var(--sh-space-16);
+  margin-bottom: calc(var(--sh-border-width) * -1);
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-gradient-status);
+  color: var(--sh-color-text-secondary);
+  font-weight: var(--sh-font-weight-regular);
+  white-space: nowrap;
+  cursor: default;
+}
+.sh-tab:hover,
+.sh-tab[data-state~='hover'] {
+  border-color: var(--sh-color-hover-edge);
+  border-bottom-color: var(--sh-color-chrome-frame);
+}
+.sh-tab[aria-selected='true'] {
+  background: var(--sh-color-canvas);
+  color: var(--sh-color-text);
+  border-color: var(--sh-color-chrome-frame);
+  border-bottom-color: var(--sh-color-canvas);
+}
+.sh-tabpanel {
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  border-top: 0;
+  padding: var(--sh-space-12);
+}
+.sh-dirty {
+  display: inline-block;
+  width: var(--sh-space-6);
+  height: var(--sh-space-6);
+  margin-left: var(--sh-space-6);
+  border-radius: var(--sh-radius-round);
+  background: var(--sh-color-accent);
+  vertical-align: middle;
+}
+
+/* -- 4.5 입력·콤보 -------------------------------- */
+.sh-input,
+.sh-select {
+  height: var(--sh-size-control-md);
+  padding: 0 var(--sh-space-4);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-color-canvas);
+  color: var(--sh-color-text);
+  min-width: 0;
+}
+.sh-select {
+  appearance: none;
+  padding-right: var(--sh-space-20);
+  background:
+    linear-gradient(45deg, transparent 50%, var(--sh-color-text-secondary) 50%) right 9px center / 4px 4px no-repeat,
+    linear-gradient(-45deg, transparent 50%, var(--sh-color-text-secondary) 50%) right 5px center / 4px 4px no-repeat,
+    var(--sh-color-canvas);
+}
+.sh-input:hover,
+.sh-select:hover,
+.sh-input[data-state~='hover'] {
+  border-color: var(--sh-color-hover-edge);
+}
+.sh-input:focus,
+.sh-select:focus,
+.sh-input[data-state~='focus'] {
+  border-color: var(--sh-color-accent);
+  outline: none;
+}
+.sh-input[aria-invalid='true'] {
+  border-color: var(--sh-color-danger);
+}
+.sh-input:disabled,
+.sh-select:disabled {
+  background: var(--sh-color-sunken);
+  color: var(--sh-color-text-muted);
+  border-color: var(--sh-color-control-border);
+}
+.sh-input::placeholder {
+  color: var(--sh-color-text-muted);
+}
+.sh-input::-webkit-inner-spin-button {
+  display: none;
+}
+.sh-field-error {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-danger);
+}
+.sh-form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sh-space-6) var(--sh-space-8);
+  align-items: center;
+}
+
+/* -- 4.6 체크박스·라디오·세그먼트 ----------------- */
+.sh-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  min-height: var(--sh-size-control-md);
+  cursor: default;
+}
+.sh-check input {
+  appearance: none;
+  margin: 0;
+  width: var(--sh-size-checkbox);
+  height: var(--sh-size-checkbox);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-color-canvas);
+  display: grid;
+  place-content: center;
+  flex: none;
+}
+.sh-check input[type='radio'] {
+  border-radius: var(--sh-radius-round);
+}
+.sh-check input:hover {
+  border-color: var(--sh-color-hover-edge);
+}
+.sh-check input:checked::after {
+  content: '';
+  width: 7px; /* ✓ 모양 - 13px 상자 안 고정 기하 */
+  height: 4px;
+  border-left: 2px solid var(--sh-color-text);
+  border-bottom: 2px solid var(--sh-color-text);
+  transform: translateY(-1px) rotate(-45deg);
+}
+.sh-check input[type='radio']:checked::after {
+  width: 5px;
+  height: 5px;
+  border: 0;
+  border-radius: var(--sh-radius-round);
+  background: var(--sh-color-text);
+  transform: none;
+}
+.sh-check input:indeterminate::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  background: var(--sh-color-text);
+}
+.sh-check input:disabled {
+  background: var(--sh-color-sunken);
+  border-color: var(--sh-color-control-border);
+}
+.sh-check:has(input:disabled) {
+  color: var(--sh-color-text-disabled);
+}
+.sh-segment {
+  display: inline-flex;
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+}
+.sh-segment button {
+  height: var(--sh-size-control-sm);
+  padding: 0 var(--sh-space-12);
+  border: 0;
+  background: var(--sh-gradient-bevel);
+  color: var(--sh-color-text-secondary);
+  cursor: default;
+}
+.sh-segment button + button {
+  border-left: var(--sh-border-width) solid var(--sh-color-border-strong);
+}
+.sh-segment button:hover {
+  background: var(--sh-color-canvas);
+}
+.sh-segment button[aria-checked='true'] {
+  background: var(--sh-color-accent-subtle);
+  color: var(--sh-color-text);
+  font-weight: var(--sh-font-weight-semibold);
+}
+.sh-segment button:focus-visible {
+  outline-offset: calc(var(--sh-border-focus-offset) + 1px);
+}
+
+/* -- 4.7 표 --------------------------------------- */
+.sh-table {
+  border-collapse: collapse;
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  white-space: nowrap;
+}
+.sh-table th,
+.sh-table td {
+  height: var(--sh-size-row);
+  padding: 0 var(--sh-space-4);
+  border: var(--sh-border-width) solid var(--sh-color-grid);
+  text-align: left;
+}
+.sh-table th {
+  height: var(--sh-size-table-header);
+  padding: 0 var(--sh-space-6);
+  background: var(--sh-gradient-bevel);
+  border-color: var(--sh-color-control-border);
+  font-weight: var(--sh-font-weight-regular);
+}
+.sh-table td.sh-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sh-table tbody tr:hover,
+.sh-table tbody tr[data-state~='hover'] {
+  background: var(--sh-color-hover);
+}
+.sh-table tbody tr[aria-selected='true'] {
+  background: var(--sh-color-accent-subtle);
+}
+
+/* -- 4.8 트리 (연결선) ---------------------------- */
+/* 구조: ul.sh-tree > li[aria-expanded] > .sh-tree__row(.sh-tree__toggle + .sh-tree__label) + ul > li ... */
+.sh-tree,
+.sh-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sh-tree {
+  background: var(--sh-color-canvas);
+  padding: var(--sh-space-2) var(--sh-space-4);
+}
+.sh-tree ul {
+  padding-left: var(--sh-size-tree-indent);
+}
+.sh-tree li {
+  position: relative;
+}
+/* 세로 점선: 형제가 이어지는 동안 끝까지, 마지막 항목은 행 가운데까지 */
+.sh-tree ul > li::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--sh-size-tree-indent) / -2);
+  top: 0;
+  bottom: 0;
+  border-left: var(--sh-border-width) dotted var(--sh-color-tree-line);
+}
+.sh-tree ul > li:last-child::before {
+  bottom: auto;
+  height: calc(var(--sh-size-tree-row) / 2);
+}
+/* 가로 점선: 항목으로 꺾이는 선 */
+.sh-tree ul > li::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--sh-size-tree-indent) / -2);
+  top: calc(var(--sh-size-tree-row) / 2);
+  width: calc(var(--sh-size-tree-indent) / 2);
+  border-top: var(--sh-border-width) dotted var(--sh-color-tree-line);
+}
+.sh-tree__row {
+  display: flex;
+  align-items: center;
+  height: var(--sh-size-tree-row);
+}
+.sh-tree__toggle {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--sh-size-tree-indent) / -2 - var(--sh-size-tree-box) / 2);
+  top: calc((var(--sh-size-tree-row) - var(--sh-size-tree-box)) / 2);
+  width: var(--sh-size-tree-box);
+  height: var(--sh-size-tree-box);
+  padding: 0;
+  border: var(--sh-border-width) solid var(--sh-color-tree-box);
+  background: var(--sh-color-canvas);
+  cursor: default;
+}
+/* [+]/[-] 기호는 1px 선 두 개로 그린다 (글꼴에 의존하지 않음) */
+.sh-tree__toggle::before,
+.sh-tree__toggle::after {
+  content: '';
+  position: absolute;
+  background: var(--sh-color-text);
+  left: 1px;
+  right: 1px;
+  top: calc(50% - 0.5px);
+  height: var(--sh-border-width);
+}
+.sh-tree__toggle::after {
+  left: calc(50% - 0.5px);
+  right: auto;
+  width: var(--sh-border-width);
+  top: 1px;
+  bottom: 1px;
+  height: auto;
+}
+li[aria-expanded='true'] > .sh-tree__row > .sh-tree__toggle::after {
+  display: none;
+}
+.sh-tree > li > .sh-tree__row > .sh-tree__toggle {
+  left: calc(var(--sh-size-tree-box) * -0.5);
+}
+.sh-tree__label {
+  padding: 0 var(--sh-space-4);
+  border: var(--sh-border-width) solid transparent;
+  line-height: calc(var(--sh-size-tree-row) - var(--sh-space-4));
+  white-space: nowrap;
+  cursor: default;
+}
+.sh-tree > li {
+  padding-left: var(--sh-space-8);
+}
+.sh-tree__label:hover {
+  background: var(--sh-color-hover);
+}
+.sh-tree__label[aria-selected='true'] {
+  background: var(--sh-color-accent-subtle);
+  border-color: var(--sh-color-hover-edge);
+}
+.sh-tree li[aria-expanded='false'] > ul {
+  display: none;
+}
+
+/* -- 4.9 대화상자·그룹 박스 ----------------------- */
+.sh-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--sh-color-scrim);
+  z-index: 100;
+}
+.sh-dialog {
+  position: absolute;
+  min-width: 320px;
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  box-shadow: var(--sh-shadow-dialog);
+  display: flex;
+  flex-direction: column;
+}
+.sh-dialog--inline {
+  position: static;
+}
+.sh-dialog__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--sh-size-dialog-title);
+  padding: 0 var(--sh-space-2) 0 var(--sh-space-8);
+  background: var(--sh-gradient-chrome);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  font-size: var(--sh-font-size-emphasis);
+  font-weight: var(--sh-font-weight-bold);
+  cursor: move;
+  user-select: none;
+}
+.sh-dialog__body {
+  padding: var(--sh-space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+}
+.sh-dialog__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sh-space-8);
+  padding: var(--sh-space-8) var(--sh-space-12);
+  background: var(--sh-gradient-status);
+  border-top: var(--sh-border-width) solid var(--sh-color-border);
+}
+.sh-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  padding: var(--sh-space-2) var(--sh-space-8) var(--sh-space-8);
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+}
+.sh-group > legend {
+  padding: 0 var(--sh-space-4);
+  font-weight: var(--sh-font-weight-bold);
+}
+
+/* -- 4.10 상태 줄 --------------------------------- */
+.sh-statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-2);
+  height: var(--sh-size-statusbar);
+  padding: 0 var(--sh-space-2);
+  background: var(--sh-gradient-status);
+  border-top: var(--sh-border-width) solid var(--sh-color-chrome-status-top);
+  white-space: nowrap;
+}
+.sh-pane {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  height: var(--sh-size-status-pane);
+  padding: 0 var(--sh-space-6);
+  border-top: var(--sh-border-width) solid var(--sh-color-chrome-status-top);
+  border-left: var(--sh-border-width) solid var(--sh-color-chrome-status-top);
+  border-right: var(--sh-border-width) solid var(--sh-color-canvas);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-canvas);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sh-pane--grow {
+  flex: 1;
+}
+.sh-progress {
+  width: 160px;
+  height: 10px;
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-color-canvas);
+}
+.sh-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--sh-color-accent);
+}
+
+/* -- 4.11 타이틀바 -------------------------------- */
+.sh-titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-8);
+  height: var(--sh-size-titlebar);
+  padding-left: var(--sh-space-8);
+  background: var(--sh-gradient-chrome);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  user-select: none;
+}
+.sh-titlebar__title {
+  flex: 1;
+  font-weight: var(--sh-font-weight-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-titlebar__doc {
+  font-weight: var(--sh-font-weight-regular);
+  color: var(--sh-color-text-secondary);
+}
+.sh-winbtn {
+  width: var(--sh-size-window-button);
+  height: var(--sh-size-titlebar);
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-content: center;
+  cursor: default;
+}
+.sh-winbtn svg {
+  width: 10px;
+  height: 10px;
+  shape-rendering: crispEdges;
+}
+.sh-winbtn:hover {
+  background: var(--sh-color-chrome-toolbar-face);
+}
+.sh-winbtn--close:hover {
+  background: var(--sh-color-danger);
+  color: var(--sh-color-on-accent);
+}
+
+/* -- 4.12 패널 ------------------------------------ */
+.sh-panel {
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sh-panel__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--sh-size-panel-title);
+  padding: 0 var(--sh-space-6);
+  background: var(--sh-gradient-bevel);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  font-weight: var(--sh-font-weight-bold);
+  white-space: nowrap;
+}
+
+/* -- 4.13 툴팁·알림·칩 ---------------------------- */
+.sh-tooltip {
+  display: inline-block;
+  padding: var(--sh-space-2) var(--sh-space-6);
+  background: var(--sh-color-warning-subtle);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  box-shadow: var(--sh-shadow-raised);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text);
+  white-space: nowrap;
+}
+.sh-alert {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  padding: var(--sh-space-2) var(--sh-space-8);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-color-canvas);
+}
+.sh-alert--danger {
+  background: var(--sh-color-danger-subtle);
+  border-color: var(--sh-color-danger-border);
+  color: var(--sh-color-danger);
+}
+.sh-alert--warning {
+  background: var(--sh-color-warning-subtle);
+  color: var(--sh-color-warning);
+}
+.sh-alert--success {
+  background: var(--sh-color-success-subtle);
+  color: var(--sh-color-success);
+}
+.sh-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px; /* DESIGN.md 4.13절 칩 높이 */
+  padding: 0 var(--sh-space-6);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-color-sunken);
+  font-size: var(--sh-font-size-caption);
+}
+.sh-chip--danger {
+  background: var(--sh-color-danger-subtle);
+  border-color: var(--sh-color-danger-border);
+  color: var(--sh-color-danger);
+}
+.sh-chip--success {
+  background: var(--sh-color-success-subtle);
+  color: var(--sh-color-success);
+}
+.sh-chip--accent {
+  background: var(--sh-color-accent-subtle);
+  border-color: var(--sh-color-accent-pressed);
+  color: var(--sh-color-accent-pressed);
+}
+
+/* -- 4.14 스크롤바 -------------------------------- */
+.sh-scroll {
+  overflow: auto;
+  scrollbar-width: auto;
+}
+.sh-scroll::-webkit-scrollbar {
+  width: var(--sh-size-scrollbar);
+  height: var(--sh-size-scrollbar);
+}
+.sh-scroll::-webkit-scrollbar-track {
+  background: var(--sh-color-sunken);
+  border-left: var(--sh-border-width) solid var(--sh-color-border);
+}
+.sh-scroll::-webkit-scrollbar-thumb {
+  background: var(--sh-gradient-bevel);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+}
+.sh-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--sh-color-canvas);
+}
+.sh-scroll::-webkit-scrollbar-corner {
+  background: var(--sh-color-sunken);
+}
+.sh-scroll::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* -- 스테이지 ------------------------------------- */
+.sh-stage-document {
+  background: var(--sh-color-stage-document);
+  padding: var(--sh-space-16);
+}
+.sh-paper {
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  box-shadow: var(--sh-shadow-page);
+}

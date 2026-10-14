@@ -1,0 +1,21 @@
+SH Video Editor
+Copyright © 2026 이성현 (SeongHyun Lee). All rights reserved.
+
+이 소프트웨어는 아래 오픈소스 소프트웨어를 포함한다. 각 저작권자의 라이선스(MIT OR Apache-2.0)가
+해당 코드에 적용되며, 전문은 표시된 경로에 있다. 나머지 코드는 LICENSE(UNLICENSED, 이성현)를 따른다.
+
+1. FilmCraft (https://github.com/storytold/filmcraft), version 0.2.1
+   Copyright (c) the ArtCraft Team and FilmCraft contributors
+   License: MIT OR Apache-2.0
+   Location: packages/engine/vendor/filmcraft/ (LICENSE-MIT, LICENSE-APACHE, NOTICE, ATTRIBUTION.md)
+   변경: ui-egui 데스크톱 UI 와 ArtCraft 상표 자산을 제거하고, 이 프로젝트의 React 화면과
+   napi/wasm 바인딩에 맞게 수정한다. 수정 내역은 git 이력에 있다.
+
+2. EffectCraft (https://github.com/storytold/effectcraft), version 0.4.0
+   License: MIT OR Apache-2.0. 아직 이식 전(ADR-0003). 이식 시 이 항목을 갱신한다.
+
+3. SoundCraft (https://github.com/storytold/soundcraft), version 0.1.0
+   License: MIT OR Apache-2.0. 아직 이식 전(ADR-0003). 이식 시 이 항목을 갱신한다.
+
+ArtCraft 이름과 로고는 ArtCraft Team 의 상표이며 이 프로젝트에 포함되지 않는다.
+이 프로젝트는 ArtCraft 또는 Adobe 와 관련이 없다.

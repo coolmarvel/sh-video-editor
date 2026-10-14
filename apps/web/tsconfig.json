@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@editor": ["../../packages/editor/src/index.ts"],
+      "@editor/*": ["../../packages/editor/src/*"],
+      "@tokens/*": ["../../design-tokens/*"],
+      "@engine/*": ["../../packages/engine/bindings/wasm/pkg/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "../../packages/editor/src"]
+}

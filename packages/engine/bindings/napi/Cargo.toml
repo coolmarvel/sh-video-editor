@@ -1,0 +1,35 @@
+[package]
+name = "sh-video-engine-node"
+description = "sh-video-editor 엔진의 Node-API 바인딩 (Electron 메인/유틸리티 프로세스에서 로드)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+# napi-derive 가 FFI 글루에 #[allow(unsafe_code)] 를 생성하므로 워크스페이스의 forbid 를 못 쓴다. deny 로 두고
+# 우리 코드에는 unsafe 를 쓰지 않는다 (packages/engine/AGENTS.md 2번의 두 번째 예외).
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+dbg_macro = "warn"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+filmcraft-engine = { workspace = true }
+filmcraft-time = { workspace = true }
+serde_json = { workspace = true }
+napi = { version = "3", default-features = false, features = ["napi9"] }
+napi-derive = "3"
+
+[build-dependencies]
+napi-build = "2"

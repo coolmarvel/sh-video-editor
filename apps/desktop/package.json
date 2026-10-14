@@ -1,0 +1,73 @@
+{
+  "name": "@sh-video-editor/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SH Video Editor 데스크톱(Electron). packages/editor 화면 + @sh-video-editor/engine-node 네이티브 엔진",
+  "author": "이성현",
+  "license": "UNLICENSED",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build && node scripts/obfuscate.cjs",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "smoke": "xvfb-run -a node scripts/smoke.cjs",
+    "pack:win": "npm run build && electron-builder --win --dir",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@sh-video-editor/engine-node": "*"
+  },
+  "devDependencies": {
+    "@sh-video-editor/editor": "*",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^5.0.0",
+    "javascript-obfuscator": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vite": "^7.0.0"
+  },
+  "build": {
+    "appId": "seonghyunlee.shvideoeditor",
+    "productName": "SH Video Editor",
+    "copyright": "Copyright © 2026 이성현 (SeongHyun Lee)",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../NOTICE",
+        "to": "NOTICE"
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SH Video Editor",
+      "license": "build/license.txt",
+      "artifactName": "SH-Video-Editor-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.video"
+    }
+  }
+}

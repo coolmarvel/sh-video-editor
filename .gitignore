@@ -1,0 +1,44 @@
+# 환경 변수·시크릿
+.env
+.env.*
+!.env.example
+
+# 에이전트 로컬 설정 (permissions 캐시 등, 개인 것)
+.claude/settings.local.json
+
+# OS/에디터
+.DS_Store
+Thumbs.db
+
+# 로그
+*.log
+
+# 의존성·빌드 산출물 - 킥오프에서 스택에 맞게 보강한다
+# node_modules/
+# dist/
+# vendor/
+# __pycache__/
+
+# Node
+node_modules/
+dist/
+out/
+release/
+
+# Rust
+packages/engine/target/
+packages/engine/vendor/*/target/
+
+# 엔진 빌드 산출물 (napi .node, wasm-pack pkg)
+*.node
+packages/engine/bindings/wasm/pkg/
+packages/engine/bindings/napi/index.js
+packages/engine/bindings/napi/index.d.ts
+
+# 미디어 캐시·DB
+*.sqlite
+*.sqlite-journal
+
+# 미처리 피드백(스크린샷)은 커밋하지 않는다. 반영 후 docs/feedback-archive/ 로
+feedback/*
+!feedback/.gitkeep

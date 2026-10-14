@@ -1,0 +1,32 @@
+{
+  "name": "@sh-video-editor/engine-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "sh-video-editor Rust 엔진의 Node-API 애드온 (napi-rs). Electron 이 require 한다",
+  "author": "이성현",
+  "license": "UNLICENSED",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node"
+  ],
+  "napi": {
+    "binaryName": "engine-node",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin"
+    ]
+  },
+  "scripts": {
+    "build": "napi build --platform --release --manifest-path ../../Cargo.toml -p sh-video-engine-node",
+    "build:debug": "napi build --platform --manifest-path ../../Cargo.toml -p sh-video-engine-node",
+    "build:win": "napi build --platform --release --target x86_64-pc-windows-msvc --manifest-path ../../Cargo.toml -p sh-video-engine-node"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.10.0"
+  }
+}

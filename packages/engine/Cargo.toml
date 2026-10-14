@@ -1,0 +1,48 @@
+# sh-video-editor 엔진 워크스페이스: 우리가 쓰는 코드(바인딩, sh-* 크레이트)만 멤버다.
+# 이식한 filmcraft 는 vendor/filmcraft/ 가 자기 워크스페이스를 그대로 유지하고(상류 diff 보존, xtask 동작),
+# 여기서는 path 의존으로 가져다 쓴다 (ADR-0003).
+[workspace]
+resolver = "3"
+members = ["bindings/napi", "bindings/wasm"]  # crates/sh-* 가 생기면 "crates/*" 추가
+exclude = ["vendor"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "UNLICENSED"
+publish = false
+authors = ["이성현 (SeongHyun Lee)"]
+rust-version = "1.95"
+
+[workspace.dependencies]
+filmcraft-engine = { path = "vendor/filmcraft/crates/engine" }
+filmcraft-project = { path = "vendor/filmcraft/crates/project" }
+filmcraft-render = { path = "vendor/filmcraft/crates/render" }
+filmcraft-time = { path = "vendor/filmcraft/crates/time" }
+filmcraft-media = { path = "vendor/filmcraft/crates/media" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+thiserror = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+dbg_macro = "warn"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

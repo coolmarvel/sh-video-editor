@@ -1,0 +1,39 @@
+import { create } from 'zustand';
+import type { CommandSpec, EngineBridge } from './engine/bridge';
+
+interface EditorState {
+  bridge: EngineBridge | null;
+  version: string;
+  commands: CommandSpec[];
+  status: string;
+  error: string | null;
+  init(bridge: EngineBridge): Promise<void>;
+  run(id: string, params?: Record<string, unknown>): Promise<void>;
+}
+
+export const useEditor = create<EditorState>((set, get) => ({
+  bridge: null,
+  version: '',
+  commands: [],
+  status: '엔진 연결 중',
+  error: null,
+  async init(bridge) {
+    set({ bridge });
+    try {
+      const [version, commands] = await Promise.all([bridge.version(), bridge.commands()]);
+      set({ version, commands, status: `준비됨: 커맨드 ${commands.length}개`, error: null });
+    } catch (e) {
+      set({ status: '엔진 연결 실패', error: e instanceof Error ? e.message : String(e) });
+    }
+  },
+  async run(id, params) {
+    const bridge = get().bridge;
+    if (!bridge) return;
+    try {
+      const result = await bridge.execute(id, params);
+      set({ status: `${id}: ${JSON.stringify(result)}`, error: null });
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : String(e) });
+    }
+  },
+}));

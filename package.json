@@ -1,0 +1,32 @@
+{
+  "name": "sh-video-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SH Video Editor: CapCut 식 영상·오디오 편집기. Electron+React 데스크톱과 WASM 웹이 같은 화면(packages/editor)과 같은 Rust 엔진(packages/engine)을 쓴다",
+  "author": "이성현",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/editor",
+    "packages/engine/bindings/napi"
+  ],
+  "scripts": {
+    "build:engine:node": "npm run build -w @sh-video-editor/engine-node",
+    "build:engine:wasm": "wasm-pack build packages/engine/bindings/wasm --target web --out-dir pkg --release",
+    "build:engine": "npm run build:engine:node && npm run build:engine:wasm",
+    "check:engine": "cargo check --manifest-path packages/engine/Cargo.toml --workspace",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "prettier --check . && cargo clippy --manifest-path packages/engine/Cargo.toml --workspace --all-targets -- -D warnings",
+    "format": "prettier --write . && cargo fmt --manifest-path packages/engine/Cargo.toml",
+    "test": "cargo test --manifest-path packages/engine/Cargo.toml --workspace",
+    "build": "npm run build -w apps/web -w apps/desktop",
+    "verify": "npm run lint && npm run build:engine && npm run typecheck && npm run test && npm run build",
+    "dev:desktop": "npm run dev -w apps/desktop",
+    "dev:web": "npm run dev -w apps/web",
+    "dist:win": "npm run dist:win -w apps/desktop"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0"
+  }
+}

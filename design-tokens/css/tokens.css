@@ -1,0 +1,125 @@
+/**
+ * Do not edit directly, this file was auto-generated.
+ */
+
+:root {
+  --sh-color-accent: #3c71df; /** sh-messenger #3a6fde 를 바탕 대비 3:1·흰 글자 4.5:1 동시 충족하게 미세 조정 */
+  --sh-color-accent-hover: #4f80e8;
+  --sh-color-accent-pressed: #2f5fc4; /** 주 버튼 테두리·눌림 */
+  --sh-color-accent-subtle: #263651; /** 선택 행·선택 라벨·켜진 세그먼트 면 (진한 글자 유지) */
+  --sh-color-accent-subtle-hover: #2d4063;
+  --sh-color-hover-edge: #6fa3ff; /** 베벨·도구 버튼·입력 hover 테두리 - 크롬의 유일한 채도 (DEXT5 실측, sh-web-editor) */
+  --sh-color-canvas: #2a2c32; /** 흰 면 - 입력·표·대화상자·활성 탭 */
+  --sh-color-sunken: #212328; /** 앱 바탕·사이드바·비활성 컨트롤 면 */
+  --sh-color-hover: #33353c; /** 목록·표·트리 라벨 hover 면 */
+  --sh-color-border: #3a3d45; /** 안쪽 헤어라인 */
+  --sh-color-border-strong: #7a808b; /** 입력·메뉴 판·체크 상자 테두리 (비텍스트 대비 3:1) */
+  --sh-color-grid: #3a3d45; /** 표 격자선 */
+  --sh-color-text: #dde0e5; /** 본문·라벨·포커스 점선 (라이트에 순검정 금지) */
+  --sh-color-text-secondary: #a0a6b1;
+  --sh-color-text-muted: #9098a5;
+  --sh-color-text-disabled: #6b717c;
+  --sh-color-on-accent: #ffffff;
+  --sh-color-link: #6fa3ff; /** UI 링크. 편집 콘텐츠 안 링크는 브라우저 기본 파랑 */
+  --sh-color-danger: #f5686c; /** 삭제·오류·닫기 hover */
+  --sh-color-danger-subtle: #3d2326;
+  --sh-color-danger-border: #7a3236; /** 삭제류 외곽선 버튼 테두리 */
+  --sh-color-success: #4cc47a;
+  --sh-color-success-subtle: #1f3327;
+  --sh-color-warning: #e3b341;
+  --sh-color-warning-subtle: #3a3120; /** 툴팁 면·경고 띠 */
+  --sh-color-scrim: rgba(0, 0, 0, 0.6509803921568628); /** 대화상자 덮개 - 검정 15% */
+  --sh-color-control-top: #3a3d45; /** 베벨 버튼 면 위 (Money Forward·DEXT5 계열) */
+  --sh-color-control-bottom: #2a2c32; /** 베벨 버튼 면 아래 */
+  --sh-color-control-pressed: #212328; /** 눌린 베벨 버튼 - 오목한 단색 */
+  --sh-color-control-border: #7a808b; /** 베벨 버튼 테두리 */
+  --sh-color-chrome-frame: #17181c; /** 바깥 1px 테두리·패널 구분선 */
+  --sh-color-chrome-menubar-top: #33353c;
+  --sh-color-chrome-menubar-bottom: #2a2c32;
+  --sh-color-chrome-toolbar-light: #33353c;
+  --sh-color-chrome-toolbar-face: #2a2c32; /** 툴바 면·메뉴 항목 hover */
+  --sh-color-chrome-toolbar-row2-bottom: #26282d;
+  --sh-color-chrome-toolbar-hairline: #3a3d45; /** 툴바 줄 사이 1px */
+  --sh-color-chrome-toolbar-edge: #5e636d; /** 눌린·켜진 도구 버튼 테두리 */
+  --sh-color-chrome-pressed: #1c1d21; /** 켜진 도구 버튼·열린 드롭다운 면 아래 */
+  --sh-color-chrome-pressed-light: #26282d;
+  --sh-color-chrome-separator: #3a3d45; /** 툴바 세로 구분선 1px 단선 */
+  --sh-color-chrome-status-top: #3a3d45;
+  --sh-color-chrome-status-light: #2a2c32;
+  --sh-color-chrome-status-face: #212328; /** 상태 줄 면 - 파란 스킨에서도 회색 */
+  --sh-color-chrome-tab-active: #33353c;
+  --sh-color-chrome-tab-divider: #3a3d45;
+  --sh-color-stage-image: #1e2025; /** 이미지·영상을 보는 어두운 바탕 */
+  --sh-color-stage-document: #8a8f98; /** 종이 문서 편집 바탕 */
+  --sh-color-stage-viewer: #5a5e66; /** 작성·열람 뷰어 바탕 */
+  --sh-color-stage-checker-a: #3a3d45; /** 투명 표시 체커 */
+  --sh-color-stage-checker-b: #2a2c32;
+  --sh-color-tree-line: #5e636d; /** 연결선 점선 */
+  --sh-color-tree-box: #7b8490; /** [+]/[-] 상자 테두리 */
+  --sh-shadow-raised: 2px 2px 4px 0px #00000080; /** 메뉴·팝오버·툴팁 */
+  --sh-shadow-dialog: 3px 3px 6px 0px #00000099; /** 대화상자 */
+  --sh-shadow-page: 2px 2px 0px 0px #00000059; /** 문서 스테이지 위 종이 */
+  --sh-motion-duration-none: 0ms; /** 이동·크기 애니메이션 없음 - 기본 */
+  --sh-motion-duration-fast: 100ms; /** hover 색 전환에만 */
+  --sh-gradient-chrome: linear-gradient(to bottom, #33353c 0%, #2a2c32 100%); /** 타이틀바·메뉴바·대화상자 제목 띠 */
+  --sh-gradient-toolbar: linear-gradient(to bottom, #33353c 0%, #2a2c32 100%); /** 툴바 1줄 */
+  --sh-gradient-toolbar2: linear-gradient(to bottom, #2a2c32 0%, #26282d 100%); /** 툴바 2줄·옵션 바 */
+  --sh-gradient-status: linear-gradient(to bottom, #2a2c32 0%, #212328 100%); /** 상태 줄·대화상자 버튼 줄 */
+  --sh-gradient-pressed: linear-gradient(to bottom, #26282d 0%, #1c1d21 100%); /** 켜진 도구 버튼·열린 드롭다운 */
+  --sh-gradient-bevel: linear-gradient(to bottom, #3a3d45 0%, #2a2c32 100%); /** 베벨 버튼·표 머리글·패널 제목 띠·스크롤 엄지 */
+  --sh-size-control-sm: 22px; /** 작은 버튼·세그먼트·아이콘 버튼 */
+  --sh-size-control-md: 24px; /** 버튼·입력·콤보 기본 */
+  --sh-size-control-lg: 28px; /** 로그인 등 큰 입력 */
+  --sh-size-tool-button: 24px;
+  --sh-size-icon: 16px;
+  --sh-size-titlebar: 28px; /** 프레임리스 앱 타이틀바 */
+  --sh-size-menubar: 22px;
+  --sh-size-toolbar: 30px;
+  --sh-size-statusbar: 22px;
+  --sh-size-status-pane: 16px;
+  --sh-size-panel-title: 22px;
+  --sh-size-dialog-title: 28px;
+  --sh-size-dialog-button-min: 72px;
+  --sh-size-row: 22px; /** 목록·표 행 */
+  --sh-size-table-header: 24px;
+  --sh-size-menu-item: 22px;
+  --sh-size-menu-min-width: 180px;
+  --sh-size-tab: 24px; /** 활성·비활성 같은 높이 */
+  --sh-size-tree-row: 19px;
+  --sh-size-tree-indent: 16px;
+  --sh-size-tree-box: 9px;
+  --sh-size-checkbox: 13px;
+  --sh-size-scrollbar: 12px; /** sh-messenger */
+  --sh-size-splitter: 5px;
+  --sh-size-window-button: 40px; /** 타이틀바 창 버튼 폭 */
+  --sh-space-0: 0px;
+  --sh-space-2: 2px;
+  --sh-space-4: 4px;
+  --sh-space-6: 6px;
+  --sh-space-8: 8px;
+  --sh-space-12: 12px;
+  --sh-space-16: 16px;
+  --sh-space-20: 20px;
+  --sh-space-24: 24px;
+  --sh-space-32: 32px;
+  --sh-space-48: 48px;
+  --sh-radius-none: 0px; /** 모든 컨트롤·패널·대화상자·메뉴 */
+  --sh-radius-round: 9999px; /** 상태 점·dirty 점에만 */
+  --sh-border-width: 1px; /** 모든 선은 1px */
+  --sh-border-focus-offset: -3px; /** 포커스 점선을 안쪽 3px 에 */
+  --sh-font-family-ui: 돋움, Dotum, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; /** UI 기본 - 돋움 12px 정체성 */
+  --sh-font-family-ui-skia: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; /** Avalonia/Skia 렌더러 - 돋움 비트맵이 비정수 크기·합성 굵게에서 깨진다 (2026-10-01) */
+  --sh-font-family-content: 굴림, Gulim, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; /** 편집기 본문 콘텐츠 (sh-web-editor) */
+  --sh-font-family-mono: 'Cascadia Mono', Consolas, D2Coding, ui-monospace, monospace;
+  --sh-font-size-caption: 11px; /** 상태 칸·단축키·툴팁·배지 */
+  --sh-font-size-body: 12px; /** 본문·라벨·버튼·메뉴 - 기본 */
+  --sh-font-size-emphasis: 13px; /** 대화상자 제목·섹션 강조 */
+  --sh-font-size-title: 14px; /** 화면 제목 (크롬 글자 상한) */
+  --sh-font-size-heading: 16px; /** 문서·랜딩 제목 - 크롬에는 쓰지 않는다 */
+  --sh-font-weight-regular: 400;
+  --sh-font-weight-semibold: 600; /** 버튼 라벨 */
+  --sh-font-weight-bold: 700; /** 제목·legend - 상한 */
+  --sh-font-line-height-tight: 1.2;
+  --sh-font-line-height-dense: 1.3;
+  --sh-font-line-height-normal: 1.45;
+}

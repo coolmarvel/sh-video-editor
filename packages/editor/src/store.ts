@@ -7,6 +7,8 @@ interface EditorState {
   commands: CommandSpec[];
   status: string;
   error: string | null;
+  /** 엔진 project.inspect 의 revision. 모니터 폴링이 올리며, 화면을 거치지 않은 변경도 패널들이 알아채게 한다 */
+  engineRevision: number;
   init(bridge: EngineBridge): Promise<void>;
   run(id: string, params?: Record<string, unknown>): Promise<void>;
 }
@@ -17,6 +19,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   commands: [],
   status: '엔진 연결 중',
   error: null,
+  engineRevision: -1,
   async init(bridge) {
     set({ bridge });
     try {

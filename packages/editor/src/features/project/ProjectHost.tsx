@@ -1,12 +1,11 @@
 /**
  * 프로젝트 기능의 뿌리. 엔진이 준비되면 자동 저장을 시작하고 복구 후보를 안내하며, 1초마다 자동 저장 워커의 알림을
- * 반영하고 프로젝트 상태(이름·경로·수정됨)를 읽는다. 단축키와 대화상자·알림도 여기서 그린다.
+ * 반영하고 프로젝트 상태(이름·경로·수정됨)를 읽는다. 대화상자·알림도 여기서 그린다. 단축키는 features/shortcuts.
  */
 import { useEffect } from 'react';
 import { useEditor } from '../../store';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RecoveryDialog } from './RecoveryDialog';
-import { useProjectShortcuts } from './shortcuts';
 import { useProject } from './store';
 import '../export/export.css';
 import './project.css';
@@ -20,7 +19,6 @@ export function ProjectHost() {
   const name = useProject((s) => s.name);
   const dirty = useProject((s) => s.dirty);
   const notices = useProject((s) => s.notices);
-  useProjectShortcuts();
 
   useEffect(() => {
     if (!bridge || !version) return;

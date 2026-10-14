@@ -2,8 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useEditor } from '../../store';
 import { formatTimecode } from '../../engine/time';
 import { MonitorController } from './controller';
+import { setMonitorController } from './registry';
 import { Scrubber } from './Scrubber';
-import { useMonitor } from './store';
+import { PLAYBACK_RATES, useMonitor } from './store';
 import './monitor.css';
 
 const ICON = {
@@ -23,24 +24,17 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-function isTypingTarget(t: EventTarget | null): boolean {
-  if (!(t instanceof HTMLElement)) return false;
-  if (t.isContentEditable) return true;
-  const tag = t.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-}
-
 /**
- * 프로그램 모니터. 캔버스(레터박스, 검정 바탕) + 스크러버 + 이동 툴바 + 타임코드.
+ * 프로그램 모니터. 캔버스(레터박스, 검정 바탕) + 스크러버 + 이동 툴바 + 배율 선택 + 타임코드.
  * 재생 루프·프레임 요청은 MonitorController 가, 상태는 useMonitor 가 가진다. 플레이헤드 SSOT 는 엔진(store.ts 주석).
- * 단축키: Space 재생/정지, 좌우 화살표 1프레임(Shift 5프레임), Home/End 처음/끝.
- * 단축키는 입력란에 포커스가 없을 때만 받는다. 다른 패널이 처리한 키(defaultPrevented)는 건드리지 않는다.
+ * 단축키(Space, J/K/L, 화살표, Home/End)는 features/shortcuts 의 전역 키맵이 받아 registry 의 컨트롤러를 부른다.
  */
 export function MonitorPanel() {
   const bridge = useEditor((s) => s.bridge);
   const sequence = useMonitor((s) => s.sequence);
   const tick = useMonitor((s) => s.tick);
   const playing = useMonitor((s) => s.playing);
+  const rate = useMonitor((s) => s.rate);
   const error = useMonitor((s) => s.error);
 
   const controllerRef = useRef<MonitorController | null>(null);
@@ -52,11 +46,13 @@ export function MonitorPanel() {
     if (!bridge) return;
     const c = new MonitorController(bridge);
     controllerRef.current = c;
+    setMonitorController(c);
     c.attachCanvas(canvasRef.current);
     c.start();
     return () => {
       c.dispose();
       if (controllerRef.current === c) controllerRef.current = null;
+      setMonitorController(null);
     };
   }, [bridge]);
 
@@ -91,37 +87,6 @@ export function MonitorPanel() {
   useEffect(() => {
     controllerRef.current?.attachCanvas(sequence ? canvasRef.current : null);
   }, [sequence]);
-
-  useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      const c = controllerRef.current;
-      if (!c || e.defaultPrevented || isTypingTarget(e.target)) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const n = e.shiftKey ? 5 : 1;
-      switch (e.key) {
-        case ' ':
-          c.toggle();
-          break;
-        case 'ArrowLeft':
-          void c.step(-n);
-          break;
-        case 'ArrowRight':
-          void c.step(n);
-          break;
-        case 'Home':
-          void c.goToStart();
-          break;
-        case 'End':
-          void c.goToEnd();
-          break;
-        default:
-          return;
-      }
-      e.preventDefault();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   const onScrub = useCallback((ratio: number) => {
     const seq = useMonitor.getState().sequence;
@@ -218,6 +183,24 @@ export function MonitorPanel() {
         >
           <Icon d={ICON.end} />
         </button>
+        <span className="sh-separator" />
+        <select
+          className="sh-select mon-rate"
+          aria-label="재생 배율"
+          title="재생 배율 (J 뒤로, K 정지, L 앞으로)"
+          disabled={disabled}
+          value={String(Math.abs(rate))}
+          onChange={(e) => {
+            ctl()?.setRate(Number(e.target.value));
+            e.currentTarget.blur();
+          }}
+        >
+          {PLAYBACK_RATES.map((r) => (
+            <option key={r} value={String(r)}>
+              {r}x
+            </option>
+          ))}
+        </select>
         <span className="sh-separator" />
         <span className="sh-tnum mon-timecode" aria-live="off">
           <b data-testid="mon-current">{current}</b> / <span data-testid="mon-total">{total}</span>

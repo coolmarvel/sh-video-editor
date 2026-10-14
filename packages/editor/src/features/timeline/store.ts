@@ -28,11 +28,14 @@ interface TimelineState {
   busy: boolean;
   /** 마지막 커맨드 실패 메시지. 상태 줄에도 올린다 */
   lastError: string | null;
+  /** "시퀀스 전체 보기" 요청 횟수. Timeline 화면이 바뀜을 보고 줌을 맞춘다(화면 폭은 화면만 안다) */
+  fitRequest: number;
 
   refresh(): Promise<void>;
   syncPlayhead(): Promise<void>;
   setPlayhead(tick: number): Promise<void>;
   setZoom(pxPerSec: number): void;
+  requestFit(): void;
   toggleRipple(): void;
   toggleInsert(): void;
   toggleSnapping(): Promise<void>;
@@ -94,6 +97,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
     snapping: true,
     busy: false,
     lastError: null,
+    fitRequest: 0,
 
     async refresh() {
       const bridge = bridgeOrNull();
@@ -136,6 +140,9 @@ export const useTimeline = create<TimelineState>((set, get) => {
 
     setZoom(pxPerSec) {
       set({ pxPerSec: clampZoom(pxPerSec) });
+    },
+    requestFit() {
+      set({ fitRequest: get().fitRequest + 1 });
     },
     toggleRipple() {
       set({ ripple: !get().ripple });

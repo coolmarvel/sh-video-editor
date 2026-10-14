@@ -89,3 +89,8 @@
     min-height: 160px;
   }
 }
+/* 재생 배율 select: 툴바 한 줄 높이에 맞춘 좁은 콤보(글자 4자 + 화살표) */
+.mon-rate {
+  width: calc(var(--sh-space-48) + var(--sh-space-16));
+  flex: none;
+}

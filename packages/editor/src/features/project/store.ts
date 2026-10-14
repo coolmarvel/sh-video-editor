@@ -115,9 +115,11 @@ export const useProject = create<ProjectState>((set, get) => {
           dirty: boolean;
           revision: number;
         };
+        // 엔진의 기본 이름 "Untitled" 는 화면에서 "제목 없음" 으로 보여 준다
+        const name = r.name === 'Untitled' ? UNTITLED : r.name;
         const s = get();
-        if (s.name !== r.name || s.path !== r.path || s.dirty !== r.dirty || s.revision !== r.revision) {
-          set({ name: r.name, path: r.path, dirty: r.dirty, revision: r.revision });
+        if (s.name !== name || s.path !== r.path || s.dirty !== r.dirty || s.revision !== r.revision) {
+          set({ name, path: r.path, dirty: r.dirty, revision: r.revision });
         }
       } catch {
         // 엔진이 아직 준비되지 않았으면 다음 주기에 다시 읽는다

@@ -73,6 +73,7 @@ function laneAt(x: number, y: number, kind: TrackKind): number | null {
 /**
  * 타임라인 본체. 트랙 머리 + 눈금자 + 클립 레인, 플레이헤드, 줌·스크롤, 클립 선택·이동·트림·자르기·삭제,
  * 미디어 끌어다 놓기. 모든 편집은 store 를 거쳐 엔진 커맨드로 간다.
+ * 단축키(Ctrl+K, Delete, +/-, S 등)는 features/shortcuts 의 전역 키맵이 받아 store 를 부른다(패널 포커스 불필요).
  */
 export function Timeline() {
   const bridge = useEditor((s) => s.bridge);
@@ -83,6 +84,7 @@ export function Timeline() {
   const insert = useTimeline((s) => s.insert);
   const snapping = useTimeline((s) => s.snapping);
   const busy = useTimeline((s) => s.busy);
+  const fitRequest = useTimeline((s) => s.fitRequest);
 
   const sectionRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -101,14 +103,14 @@ export function Timeline() {
   const hasClips = useMemo(() => (seq ? allClips(seq).length > 0 : false), [seq]);
   const selection = seq?.selection ?? [];
 
-  // 엔진이 연결되면 읽고, 메뉴 등 다른 곳의 커맨드 실행(상태 줄 변화) 뒤에도 다시 읽는다
+  // 엔진이 연결되면 읽고, 메뉴 등 다른 곳의 커맨드 실행(상태 줄 변화)이나 엔진 revision 변화 뒤에도 다시 읽는다
   useEffect(() => {
     if (!bridge) return;
     const { refresh } = useTimeline.getState();
     void refresh();
     let timer = 0;
     const unsubscribe = useEditor.subscribe((s, prev) => {
-      if (s.status === prev.status) return;
+      if (s.status === prev.status && s.engineRevision === prev.engineRevision) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => void useTimeline.getState().refresh(), 60);
     });
@@ -352,36 +354,20 @@ export function Timeline() {
     void useTimeline.getState().placeItem(item, row.track.id, row.kind, dropTickFor(e, row));
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-    const state = useTimeline.getState();
-    const ctrl = e.ctrlKey || e.metaKey;
-    const ft = frameTicks(frameRate);
-    let handled = true;
-    if (ctrl && e.key.toLowerCase() === 'k') void state.razorAtPlayhead();
-    else if (!ctrl && (e.key === 'Delete' || e.key === 'Backspace')) void state.deleteSelection();
-    else if (ctrl && !e.shiftKey && e.key.toLowerCase() === 'z') void state.undo();
-    else if (ctrl && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) void state.redo();
-    else if (!ctrl && (e.key === '=' || e.key === '+')) state.setZoom(state.pxPerSec * 1.25);
-    else if (!ctrl && e.key === '-') state.setZoom(state.pxPerSec / 1.25);
-    else if (e.key === 'Home') void state.setPlayhead(0);
-    else if (e.key === 'End' && seq) void state.setPlayhead(seq.duration);
-    else if (e.key === 'ArrowLeft') void state.setPlayhead(state.playhead - ft * (e.shiftKey ? 5 : 1));
-    else if (e.key === 'ArrowRight') void state.setPlayhead(state.playhead + ft * (e.shiftKey ? 5 : 1));
-    else if (!ctrl && e.key.toLowerCase() === 's') void state.toggleSnapping();
-    else handled = false;
-    if (handled) e.preventDefault();
-  };
-
-  const fitToSequence = () => {
+  const fitToSequence = useCallback(() => {
     const el = scrollRef.current;
     const row = rulerRowRef.current;
-    if (!el || !row || !seq || seq.duration <= 0) return;
+    const s = useTimeline.getState().sequence;
+    if (!el || !row || !s || s.duration <= 0) return;
     const avail = Math.max(50, el.clientWidth - headerWidth(row) - 24);
-    useTimeline.getState().setZoom((avail / seq.duration) * 254_016_000_000);
+    useTimeline.getState().setZoom((avail / s.duration) * 254_016_000_000);
     el.scrollLeft = 0;
-  };
+  }, []);
+
+  // 보기 메뉴·단축키의 "시퀀스 전체 보기"(store.requestFit)
+  useEffect(() => {
+    if (fitRequest > 0) fitToSequence();
+  }, [fitRequest, fitToSequence]);
 
   const contentPx = seq ? tickToPx(seq.duration, pxPerSec) + TAIL_SECONDS * pxPerSec : 0;
   const visibleFrom = pxToTick(Math.max(0, view.scrollLeft - 120), pxPerSec);
@@ -394,7 +380,6 @@ export function Timeline() {
       className="sh-panel ve-timeline tl"
       aria-label="타임라인"
       tabIndex={0}
-      onKeyDown={onKeyDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}

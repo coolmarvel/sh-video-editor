@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import type { EngineBridge } from './engine/bridge';
 import { useEditor } from './store';
 import { MenuBar } from './shell/MenuBar';
@@ -9,6 +9,7 @@ import { MonitorStatusPane } from './features/monitor';
 import { ExportDialog } from './features/export/ExportDialog';
 import { ProjectHost } from './features/project/ProjectHost';
 import { ProjectStatus } from './features/project/ProjectStatus';
+import { useShortcuts } from './features/shortcuts';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';
@@ -24,27 +25,15 @@ export function App({ bridge, host }: AppProps) {
   const status = useEditor((s) => s.status);
   const error = useEditor((s) => s.error);
   const version = useEditor((s) => s.version);
-  const commands = useEditor((s) => s.commands);
 
   useEffect(() => {
     void init(bridge);
   }, [bridge, init]);
-
-  const menus = useMemo(() => {
-    const byMenu = new Map<string, typeof commands>();
-    for (const c of commands) {
-      const top = c.menu[0];
-      if (!top) continue;
-      const list = byMenu.get(top) ?? [];
-      list.push(c);
-      byMenu.set(top, list);
-    }
-    return byMenu;
-  }, [commands]);
+  useShortcuts();
 
   return (
     <div className="sh-root ve-root" data-host={host}>
-      <MenuBar menus={menus} />
+      <MenuBar host={host} />
       <div className="ve-body">
         <MediaPanel />
         <Monitor />

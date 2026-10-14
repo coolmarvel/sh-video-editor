@@ -6,7 +6,15 @@ registerMediaPanelTab({ id: 'templates', label: '템플릿', order: 40, componen
 
 export { TEMPLATES, templateDef } from './catalog';
 export type { TemplateDef, MediaNeed } from './catalog';
-export { useTemplates, pickItems, templateSequenceName } from './store';
+export { useTemplates, pickItems, templateSequenceName, applyRecipe } from './store';
+export { useUserTemplates, resetUserTemplateMemory, templateDownload, slotHint } from './user-store';
+export type { UserTemplateEntry } from './user-store';
+export { parseTemplateFile, stringifyTemplate, templateFileName, newTemplateId, aspectLabel, TEMPLATE_FORMAT, TEMPLATE_VERSION } from './format';
+export type { TemplateFile, TemplateClip, TemplateSlot, TemplateTrack, TemplateTransition, TemplateKeyframes, TemplateEffect } from './format';
+export { serializeSequence } from './serialize';
+export { templateRecipe, assignSlots, needsMedia } from './apply';
+export { MemoryTemplateStore } from './memory-store';
+export { renderTemplateThumb, encodeFrame } from './thumbnail';
 export { runRecipe, hasTransactions, BEGIN_TRANSACTION, END_TRANSACTION } from './recipe';
 export type { Recipe, RecipeContext, RecipeResult, Exec } from './recipe';
 export { TemplateGallery } from './TemplateGallery';

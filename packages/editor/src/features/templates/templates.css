@@ -85,3 +85,64 @@
     justify-self: start;
   }
 }
+/* 도구 줄·절 제목·사용자 템플릿 카드·저장 대화상자 */
+.tpl-toolbar {
+  flex: none;
+}
+.tpl-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.tpl-gallery .tpl-list {
+  flex: none;
+  overflow: visible;
+}
+.tpl-section {
+  margin: 0;
+  padding: var(--sh-space-4) var(--sh-space-6);
+  font-size: var(--sh-font-size-caption);
+  font-weight: var(--sh-font-weight-bold);
+  color: var(--sh-color-text-secondary);
+}
+.tpl-empty {
+  padding: 0 var(--sh-space-6) var(--sh-space-6);
+}
+.tpl-card__pic--thumb {
+  object-fit: contain;
+  display: block;
+}
+.tpl-card__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpl-card__meta {
+  margin: 0;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.tpl-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4);
+  align-items: stretch;
+}
+.tpl-save-form {
+  margin-top: var(--sh-space-8);
+}
+.tpl-save-desc {
+  height: auto;
+  min-height: 56px;
+  resize: vertical;
+  line-height: var(--sh-font-line-height-normal);
+}
+@media (max-width: 900px) {
+  .tpl-card__actions {
+    grid-column: 2;
+    flex-direction: row;
+    justify-self: start;
+  }
+}

@@ -1,5 +1,5 @@
 # sh-video-editor CI. 층 구조·전제·로컬 대응 명령은 docs/guides/testing.md.
-#  - PR·main 푸시: lint-unit, engine(clippy·빌드·엔진 기능 테스트·워크플로 회귀), typecheck, web(e2e 데스크톱 뷰포트), web-mobile(allow-failure),
+#  - PR·main 푸시: lint-unit, engine(clippy·빌드·엔진 기능 테스트·워크플로 회귀), typecheck, web(e2e 데스크톱 1440 + 모바일 390 뷰포트),
 #    desktop(xvfb e2e). web·desktop·typecheck 는 engine 의 산출물(artifact engine-build)을 받아 쓴다.
 #  - nightly(schedule)·수동: vendor-ci(이식 엔진 cargo xtask ci, 느림).
 #  - 수동(workflow_dispatch 입력 windows_installer): cargo-xwin 으로 Windows .node 를 크로스 빌드해 NSIS 인스톨러를 artifact 로.
@@ -143,10 +143,10 @@ jobs:
       - run: npm run typecheck
 
   web:
-    name: 웹 빌드 + e2e (desktop-1440)
+    name: 웹 빌드 + e2e (desktop-1440, mobile-390)
     needs: engine
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -160,39 +160,12 @@ jobs:
           path: packages/engine/bindings
       - run: npm run build -w apps/web
       - run: npx playwright install --with-deps chromium
-      - name: e2e (포트는 playwright.config.ts 가 빈 포트를 고른다)
-        run: npx playwright test -c apps/web/playwright.config.ts --project desktop-1440
+      - name: e2e 1440 + 390 (포트는 playwright.config.ts 가 빈 포트를 고른다. 390 은 2026-10-15 부터 PR 을 막는다)
+        run: npx playwright test -c apps/web/playwright.config.ts --project desktop-1440 --project mobile-390
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: web-e2e-results
-          path: apps/web/e2e/.results
-          retention-days: 7
-
-  web-mobile:
-    name: 웹 e2e (mobile-390, 실패 허용)
-    needs: engine
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    # 좁은 뷰포트는 드래그·스크롤 경로가 흔들리기 쉬워 결과를 보고만 하고 PR 을 막지 않는다. 안정되면 web 에 합친다
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-      - run: npm ci
-      - uses: actions/download-artifact@v4
-        with:
-          name: engine-build
-          path: packages/engine/bindings
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test -c apps/web/playwright.config.ts --project mobile-390
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: web-mobile-e2e-results
           path: apps/web/e2e/.results
           retention-days: 7
 

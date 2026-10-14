@@ -1,7 +1,7 @@
 ---
 title: 기능 로드맵 - 경쟁 제품 조사·엔진 갭·마일스톤 2~4
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 domain: development
 ---
 
@@ -187,10 +187,10 @@ domain: development
   - (b) 내보내기 프리셋에 "HEVC(용량 절반)"·"WebM(웹용)" 추가
   - (c) 인코드 -> 우리 디코더 -> 디코드 왕복 PSNR 35dB 이상, ffprobe 로 재생 가능, Windows Movies & TV·Chrome 재생
   - (d) L
-- [~] **M3-6 템플릿** (2026-10-14 레시피 4종, feat/keyframes-templates)
-  - (a) [ ] `file.saveAsTemplate`·`file.newProjectFromTemplate`(사용자 템플릿 저장은 미구현. `file.templates` 는 기본 폴더에 저장한 것만 보인다), `clip.automateToSequence` 는 쓰지 않았다(활성 편집본 끝에 끼우며 기존 클립을 건드려 레시피에 맞지 않음), `graphics.template.apply` 내장 8종은 쓰지 않음(영문 Lower Third 류)
+- [x] **M3-6 템플릿** (2026-10-14 레시피 4종, feat/keyframes-templates; 2026-10-15 사용자 템플릿 저장·적용·가져오기, feat/user-templates)
+  - (a) [x] 사용자 템플릿(2026-10-15, feat/user-templates): 엔진 `file.saveAsTemplate`·`file.newProjectFromTemplate` 대신 화면이 `sequence.inspect`·`effects.keyframes` 로 편집본 구조를 미디어와 떼어 템플릿 JSON(`format.ts`, `docs/guides/timeline.md` "템플릿 JSON")으로 적고(미디어 클립은 슬롯), 적용은 같은 레시피 경로(`apply.ts`, `applyRecipe`)로 새 편집본을 만든다. 저장소는 호스트(`EngineBridge.templates`: 데스크톱 `userData/templates/<id>.json + .png`, 웹 IndexedDB, 없으면 메모리). 카드 메뉴로 이름·설명 바꾸기, JSON 내보내기·가져오기(검증, 같은 id 는 새 id, 파일 이름이 될 수 없는 id 는 새 id), 삭제. 썸네일은 저장 때 플레이헤드 renderFrame. `clip.automateToSequence` 는 쓰지 않았다(활성 편집본 끝에 끼우며 기존 클립을 건드려 레시피에 맞지 않음), `graphics.template.apply` 내장 8종은 쓰지 않음(영문 Lower Third 류). 한계: 색 매트 색은 읽을 수 없어 기본색, 비활성 클립·sourceIn 은 저장하지 않음
   - (b) [x] features/templates: 미디어 패널 "템플릿" 탭, 자체 레시피 4종(인트로 제목 5초, 세로 Shorts 틀 9:16, 사진 슬라이드쇼 3초+디졸브, 엔딩 카드). 레시피 = 엔진 커맨드 순서(`recipe.ts`: newSequence, newColorMatte, timeline.place, clip.fillFrame, graphics.newText/set/alignFrame.*, opacity 키프레임, applyVideoTransition). 묶음 실행 취소는 `edit.beginTransaction/endTransaction` 이 카탈로그에 생기면 `runRecipe` 가 자동으로 감싼다(지금은 단계별 항목). 플레이스홀더 교체 플로우는 없음(제목 클립을 선택하고 텍스트 탭을 연다)
-  - (c) [ ] 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내(지금: 가져오기 1, 선택, 템플릿 탭 1, 만들기 1, 내보내기 1)
+  - (c) [x] 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내(가져오기 1, 선택, 템플릿 탭 1, 만들기 1, 내보내기 1. 내 템플릿도 같은 경로: 슬롯 수만큼 고르고 만들기 1). 검증은 웹 e2e `user-templates.spec.ts`(1440·390), 데스크톱 e2e `templates.spec.ts`, 단위 `test/unit/templates/user-templates.test.ts`
   - (d) M
 - [x] **M3-7 텍스트 기반 편집·정리 도구** (2026-10-14 feat/audio-cleanup: 전사 탭, 문장 지우기, 무음·군말 제거, 장면마다 자르기): `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M
 - [x] **M3-8 오디오 정리** (2026-10-14 feat/timestretch + feat/audio-cleanup: 음정 유지, 음성 깨끗하게(denoise·dereverb·enhance), 소리 크기 맞추기 -14/-16/-23 LUFS): `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S

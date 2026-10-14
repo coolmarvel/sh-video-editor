@@ -124,6 +124,26 @@ export interface CacheStore {
   forgetProject(path: string): Promise<void>;
 }
 
+/**
+ * 사용자 템플릿 저장소(features/templates). 템플릿은 미디어와 분리한 레시피 JSON(`TemplateFile`, 화면이 만들고 읽는다)과 썸네일 PNG 다.
+ * 데스크톱은 `<userData>/templates/<id>.json` + `<id>.png`, 웹은 IndexedDB. 호스트는 내용을 해석하지 않고 그대로 둔다.
+ * 없는 호스트에서는 화면이 메모리 저장소(세션 동안만)를 쓴다.
+ */
+export interface StoredTemplate {
+  /** 템플릿 JSON 객체(features/templates/format.ts 의 TemplateFile). 호스트는 불투명한 값으로 다룬다 */
+  template: unknown;
+  /** 썸네일 PNG 바이트. 없으면 null */
+  thumb: Uint8Array | null;
+}
+export interface TemplateStore {
+  /** 저장한 템플릿 전부(만든 순서는 화면이 정렬한다) */
+  list(): Promise<StoredTemplate[]>;
+  /** 같은 id 는 덮어쓴다. `thumb` 이 null 이면 썸네일을 지운다 */
+  put(id: string, template: unknown, thumb: Uint8Array | null): Promise<void>;
+  /** 없는 id 는 무시 */
+  remove(id: string): Promise<void>;
+}
+
 export interface EngineBridge {
   version(): Promise<string>;
   commands(): Promise<CommandSpec[]>;
@@ -217,4 +237,6 @@ export interface EngineBridge {
   stt?: SttHost;
   /** 호스트 캐시(썸네일·파형·최근 프로젝트). 없으면 화면은 메모리 캐시만 쓴다(features/cache). */
   cache?: CacheStore;
+  /** 사용자 템플릿 저장소. 없으면 화면은 메모리 저장소(세션 동안만)를 쓴다(features/templates). */
+  templates?: TemplateStore;
 }

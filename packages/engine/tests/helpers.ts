@@ -31,7 +31,9 @@ export interface NapiEngine {
   setPlayhead(tick: number): void;
   pumpJobs(budgetMs: number): boolean;
   renderFrame(tick: number, scale: number): { width: number; height: number; rgba: Buffer } | null;
+  /** JSON 배열 문자열 `[{type, ...}]` (bridge.ts 의 EngineEvent) */
   drainEvents(): string;
+  renderItemThumbnail(item: number, tick: number, width: number): { width: number; height: number; rgba: Buffer };
 }
 
 export interface NapiModule {
@@ -76,6 +78,9 @@ export interface WasmEngine {
   setPlayhead(tick: bigint): void;
   pumpJobs(budgetMs: number): boolean;
   renderFrame(tick: bigint, scale: number): Uint8Array;
+  drainEvents(): string;
+  /** renderFrame 과 같은 포장([w, h] LE u32 + RGBA8). 실패는 throw */
+  renderItemThumbnail(item: bigint, tick: bigint, width: number): Uint8Array;
   putFile(path: string, data: Uint8Array): void;
   removeFile(path: string): boolean;
   takeWrittenFile(path: string): Uint8Array | undefined;

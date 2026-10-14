@@ -4,7 +4,7 @@
  * 편집 의미는 단순화한다(클립 배치·razor·이동·트림·삭제·undo). 호출 기록(`calls`)과 실패 주입(`failNext`)으로
  * store 의 경로를 검증한다. 실제 엔진의 불변식은 packages/engine/tests 가 본다.
  */
-import type { CommandSpec, EngineBridge, FileFilter, Frame } from '../src/engine/bridge';
+import type { CommandSpec, EngineBridge, EngineEvent, FileFilter, Frame } from '../src/engine/bridge';
 import { TICKS_PER_SECOND } from '../src/engine/time';
 
 export const T = TICKS_PER_SECOND;
@@ -180,6 +180,10 @@ export interface FakeBridgeOptions {
   exportStep?: number;
   /** file.recoveryList 가 돌려줄 후보 */
   recovery?: FakeRecovery[];
+  /** drainEvents 를 노출할지(기본 true). false 면 화면이 project.inspect 폴백을 쓴다 */
+  events?: boolean;
+  /** renderItemThumbnail 을 노출할지(기본 true) */
+  thumbnails?: boolean;
 }
 
 export const FAKE_COMMANDS: CommandSpec[] = [
@@ -280,6 +284,11 @@ export class FakeEngine {
   pickFilesResult: string[] = ['/tmp/fake/a.mp4'];
   autosaveStarted = 0;
   pollCount = 0;
+  /** 아직 비우지 않은 엔진 이벤트(실제 엔진의 Session.events). drainEvents 가 비운다 */
+  events: EngineEvent[] = [];
+  drainCount = 0;
+  /** renderItemThumbnail 호출 기록 */
+  thumbnailCalls: Array<{ item: number; tick: number; width: number }> = [];
   state: State;
   readonly bridge: EngineBridge;
   private nextId = 100;
@@ -311,6 +320,15 @@ export class FakeEngine {
         this.pollCount += 1;
       },
     };
+    if (opts.events ?? true) {
+      bridge.drainEvents = async () => {
+        this.drainCount += 1;
+        return this.events.splice(0, this.events.length);
+      };
+    }
+    if (opts.thumbnails ?? true) {
+      bridge.renderItemThumbnail = async (item, tick, width) => this.renderItemThumbnail(item, tick, width);
+    }
     if (autosave) {
       bridge.startAutosave = async () => {
         if (this.failures.has('startAutosave')) {
@@ -420,6 +438,7 @@ export class FakeEngine {
     this.state.sequence = seq;
     this.state.playhead = 0;
     this.touch();
+    this.events.push({ type: 'openSequence', item: id });
     return seq;
   }
 
@@ -476,11 +495,23 @@ export class FakeEngine {
     track.items.sort((a, b) => a.start - b.start);
   }
 
+  // ----- 엔진 이벤트 도우미 ---------------------------------------------------
+
+  /** 실제 엔진의 toast/error_toast 처럼 이벤트를 쌓는다 */
+  pushToast(message: string, error = false): void {
+    this.events.push({ type: 'toast', message, error });
+  }
+
+  pushEvent(ev: EngineEvent): void {
+    this.events.push(ev);
+  }
+
   // ----- EngineBridge 구현 ----------------------------------------------------
 
   private touch(): void {
     this.state.revision += 1;
     this.state.dirty = true;
+    this.events.push({ type: 'projectChanged', revision: this.state.revision });
   }
 
   private snapshot(label: string): void {
@@ -493,6 +524,7 @@ export class FakeEngine {
     if (!top) return null;
     this.redoStack.push({ label: top.label, state: clone(this.state) });
     this.state = top.state;
+    this.events.push({ type: 'projectChanged', revision: this.state.revision });
     return top.label;
   }
 
@@ -501,7 +533,26 @@ export class FakeEngine {
     if (!top) return null;
     this.undoStack.push({ label: top.label, state: clone(this.state) });
     this.state = top.state;
+    this.events.push({ type: 'projectChanged', revision: this.state.revision });
     return top.label;
+  }
+
+  /** 항목 id 로 색이 정해지는 작은 프레임. 소리 항목·없는 항목은 실제 엔진처럼 거부한다 */
+  renderItemThumbnail(item: number, tick: number, width: number): Frame {
+    this.thumbnailCalls.push({ item, tick, width });
+    const it = this.state.items.find((x) => x.item === item);
+    if (!it) throw new FakeEngineError(`no such item ${item}`);
+    if (it.type === 'Audio' || it.type === 'Adjustment Layer') throw new FakeEngineError(`\`${it.name}\` has no picture to render`);
+    const w = Math.max(1, Math.min(width, 1920));
+    const h = Math.max(1, Math.round((w * 9) / 16));
+    const rgba = new Uint8ClampedArray(new ArrayBuffer(w * h * 4));
+    for (let i = 0; i < rgba.length; i += 4) {
+      rgba[i] = item % 256;
+      rgba[i + 1] = (tick < 0 ? 0 : tick) % 256;
+      rgba[i + 2] = 128;
+      rgba[i + 3] = 255;
+    }
+    return { width: w, height: h, rgba };
   }
 
   setPlayhead(tick: number): void {
@@ -779,6 +830,7 @@ export class FakeEngine {
         this.snapshot('New Project');
         this.state = FakeEngine.freshState((p['name'] as string) ?? '제목 없음');
         this.state.revision = s.revision + 1;
+        this.events.push({ type: 'projectChanged', revision: this.state.revision });
         return null;
       case 'file.newSequence': {
         this.snapshot('New Sequence');
@@ -1114,6 +1166,7 @@ export class FakeEngine {
         );
         this.state.path = path;
         this.state.revision = s.revision + 1;
+        this.events.push({ type: 'projectChanged', revision: this.state.revision });
         return { migrated: path.includes('old'), schemaVersion: 12, missingMedia: path.includes('lost') ? 2 : 0 };
       }
       case 'file.recoveryList':

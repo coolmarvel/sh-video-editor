@@ -33,6 +33,13 @@
 }
 .ve-media-tree {
   min-width: 0;
+  /* 썸네일 48x27(16:9): 트리 들여쓰기 토큰의 3배. 항목 행은 썸네일 + 위아래 2px */
+  --ve-thumb-w: calc(var(--sh-size-tree-indent) * 3);
+  --ve-thumb-h: calc(var(--ve-thumb-w) * 9 / 16);
+  --ve-thumb-row: calc(var(--ve-thumb-h) + var(--sh-space-4));
+}
+.ve-media-tree .ve-media-row--item {
+  height: var(--ve-thumb-row);
 }
 .ve-media-label {
   display: inline-flex;
@@ -47,6 +54,23 @@
   width: var(--sh-size-icon);
   height: var(--sh-size-icon);
   color: var(--sh-color-text-secondary);
+}
+.ve-media-thumb {
+  flex: none;
+  width: var(--ve-thumb-w);
+  height: var(--ve-thumb-h);
+  object-fit: cover;
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-border);
+}
+/* 썸네일이 올 때까지 같은 자리를 차지하는 아이콘(줄이 흔들리지 않게) */
+.ve-media-icon--thumb {
+  width: var(--ve-thumb-w);
+  height: var(--ve-thumb-h);
+  align-items: center;
+  justify-content: center;
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-border);
 }
 .ve-media-name {
   min-width: 0;

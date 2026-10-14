@@ -15,8 +15,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 filmcraft-engine = { workspace = true }
+filmcraft-project = { workspace = true }
 filmcraft-time = { workspace = true }
 filmcraft-media = { workspace = true }
+filmcraft-render = { workspace = true }
 serde_json = { workspace = true }
 wasm-bindgen = "0.2.129"
 js-sys = "0.3"

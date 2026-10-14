@@ -1,12 +1,8 @@
 import type { EngineBridge, Frame } from '../../engine/bridge';
 import { TICKS_PER_SECOND } from '../../engine/time';
-import { useEditor } from '../../store';
+import { useEngineEvents } from '../events/store';
 import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
 
-/** 정지 중 엔진 상태(플레이헤드·프로젝트 revision)를 다시 읽는 주기 */
-const POLL_PAUSED_MS = 300;
-/** 재생 중에는 프레임마다 플레이헤드를 직접 쓰므로 revision 만 드물게 본다 */
-const POLL_PLAYING_MS = 2000;
 /** 재생 중 백그라운드 작업(pumpJobs) 호출 간격과 1회 예산 */
 const PUMP_INTERVAL_MS = 100;
 const PUMP_BUDGET_MS = 2;
@@ -24,7 +20,8 @@ const SCALES: RenderScale[] = [0.25, 0.5, 1];
  *
  * 규칙:
  * - 플레이헤드 SSOT 는 엔진. 이 쪽이 바꿨어도 bridge.playhead() 를 다시 읽어 store.tick 을 맞춘다(syncPlayhead).
- *   정지 중에는 POLL_PAUSED_MS 마다 읽어 타임라인 등 다른 화면이 옮긴 플레이헤드를 따라간다.
+ *   정지 중에는 features/events 의 신호(playheadChanged)로 타임라인 등 다른 화면이 옮긴 플레이헤드를 따라간다.
+ *   프로젝트 변경(projectChanged)·시퀀스 열림(sequenceChanged)도 같은 신호로 받는다. 여기서는 폴링하지 않는다.
  * - renderFrame 은 한 번에 하나만 건다. 앞 요청이 끝나기 전에 온 요청은 "가장 마지막 tick" 하나만 기억했다가 이어서 보낸다.
  * - 재생은 requestAnimationFrame 에서 벽시계로 tick 을 계산한다. 렌더가 프레임 간격보다 느리면 그 사이 프레임은 건너뛴다.
  *   배율(store.rate)을 곱해 전진하고, 음수면 뒤로 간다(역재생도 프레임을 건너뛰며 그린다). 끝(또는 0)에 닿으면 멈춘다.
@@ -53,11 +50,8 @@ export class MonitorController {
   private lastRequestedTick = -1;
   private lastPump = 0;
 
-  private pollTimer = 0;
-  private polling = false;
-  private lastPlayingPoll = 0;
+  private unsubscribe: (() => void) | null = null;
   private revision = -1;
-  private activeSequence: number | null | undefined = undefined;
 
   private renderTimes: number[] = [];
   private framesDrawn = 0;
@@ -68,14 +62,19 @@ export class MonitorController {
   constructor(private readonly bridge: EngineBridge) {}
 
   start(): void {
-    this.pollTimer = window.setInterval(() => void this.poll(), POLL_PAUSED_MS);
-    void this.poll();
+    this.unsubscribe?.();
+    this.unsubscribe = useEngineEvents.subscribe((s, prev) => {
+      if (s.projectChanged !== prev.projectChanged || s.sequenceChanged !== prev.sequenceChanged) void this.onProjectChanged(s.revision);
+      else if (s.playheadChanged !== prev.playheadChanged) this.onPlayheadChanged(s.playhead);
+    });
+    void this.onProjectChanged(useEngineEvents.getState().revision);
   }
 
   dispose(): void {
     this.disposed = true;
     this.pause();
-    window.clearInterval(this.pollTimer);
+    this.unsubscribe?.();
+    this.unsubscribe = null;
     this.canvas = null;
     this.ctx = null;
   }
@@ -267,40 +266,29 @@ export class MonitorController {
     }
   }
 
-  /** 다른 화면(효과 패널 등)이 엔진을 바꾼 직후 부른다. 폴링을 기다리지 않고 revision 을 다시 읽어 바뀐 프레임을 그린다. */
-  refreshNow(): Promise<void> {
-    return this.poll();
+  /** 엔진 이벤트: 프로젝트가 바뀌었거나 다른 시퀀스가 열렸다. 시퀀스 정보를 다시 읽고 플레이헤드를 맞춰 다시 그린다 */
+  private async onProjectChanged(revision: number): Promise<void> {
+    if (this.disposed) return;
+    this.revision = revision;
+    await this.refreshSequence();
+    if (this.disposed) return;
+    await this.syncPlayhead();
+    if (!this.disposed && useMonitor.getState().error) useMonitor.setState({ error: null });
   }
 
-  private async poll(): Promise<void> {
-    if (this.polling || this.disposed) return;
-    const now = performance.now();
-    if (this.playing && now - this.lastPlayingPoll < POLL_PLAYING_MS) return;
-    this.polling = true;
-    try {
-      const info = (await this.bridge.execute('project.inspect')) as {
-        revision?: number;
-        activeSequence?: number | null;
-      };
-      if (this.disposed) return;
-      this.lastPlayingPoll = now;
-      const revision = info.revision ?? -1;
-      const active = info.activeSequence ?? null;
-      const changed = revision !== this.revision || active !== this.activeSequence;
-      this.revision = revision;
-      this.activeSequence = active;
-      if (changed) {
-        // 다른 패널(타임라인 등)도 엔진이 바뀐 것을 알게 한다
-        if (useEditor.getState().engineRevision !== revision) useEditor.setState({ engineRevision: revision });
-        await this.refreshSequence();
-      }
-      if (!this.playing || changed) await this.syncPlayhead();
-      if (useMonitor.getState().error) useMonitor.setState({ error: null });
-    } catch (e) {
-      this.fail(e);
-    } finally {
-      this.polling = false;
-    }
+  /** 엔진 이벤트: 다른 화면(타임라인 등)이 플레이헤드를 옮겼다. 재생 중에는 이 쪽이 프레임마다 쓰므로 무시한다 */
+  private onPlayheadChanged(tick: number): void {
+    if (this.disposed || this.playing) return;
+    if (useMonitor.getState().tick !== tick) useMonitor.setState({ tick });
+    this.requestRender(tick);
+  }
+
+  /** 다른 화면(효과 패널 등)이 엔진을 바꾼 직후 부른다. 이벤트 폴링을 기다리지 않고 시퀀스를 다시 읽고 현재 프레임을 다시 그린다. */
+  async refreshNow(): Promise<void> {
+    if (this.disposed) return;
+    await this.refreshSequence();
+    if (this.disposed) return;
+    await this.syncPlayhead();
   }
 
   private async runCommand(id: string, params?: Record<string, unknown>): Promise<void> {

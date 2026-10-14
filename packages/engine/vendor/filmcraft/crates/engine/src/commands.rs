@@ -2473,6 +2473,7 @@ fn build() -> Vec<CommandSpec> {
             ))
         }),
         query!("project.inspect", "Inspect Project", "{}", |s, _| Ok(crate::commands::inspect_project(s))),
+        query!("project.thumbnail", "Item Thumbnail", r#"{"item":id,"time":ticks?,"width":px?}"#, item_thumbnail),
         query!("sequence.inspect", "Inspect Sequence", r#"{"item":id?}"#, |s, p| {
             let id = item_p(p, "item").or(s.state.active_sequence).ok_or(EngineError::NoSequence)?;
             let q = s.project.sequence(id).ok_or(EngineError::NoSequence)?;
@@ -3077,6 +3078,19 @@ fn apply_transition(s: &mut Session, p: &Value, kind: TrackKind) -> Result<Value
     let label = format!("Apply {}", def.name);
     let id = s.edit_sequence(&label, |q, ctx, _| Ok(edit::add_transition(q, track, tr, ctx)?))?;
     Ok(json!({"transition": id.0}))
+}
+
+/// `project.thumbnail`: one frame of an item (clip, still, sequence) as a PNG, `width` pixels
+/// wide (default 160, never upscaled). `time` is media ticks; omitted = poster frame or 0.
+fn item_thumbnail(s: &mut Session, p: &Value) -> Result<Value> {
+    const CMD: &str = "project.thumbnail";
+    let item = item_p(p, "item").ok_or_else(|| bad(CMD, "need `item`"))?;
+    let time = p.get("time").and_then(Value::as_i64).map(Tick);
+    let width = checked_u32_p(p, "width", CMD)?.unwrap_or(160);
+    let img = s.render_item_thumbnail(item, time, width)?;
+    let (w, h) = u32::try_from(img.w).ok().zip(u32::try_from(img.h).ok()).ok_or_else(|| EngineError::Other("thumbnail too large".into()))?;
+    let png = filmcraft_export::encode_png(img.over_black_rgba8(), w, h).map_err(|e| EngineError::Other(e.to_string()))?;
+    Ok(json!({"item": item.0, "width": w, "height": h, "pngBase64": filmcraft_project::gtemplate::base64_encode(&png)}))
 }
 
 /// JSON description of the project (bins, items) for agents.

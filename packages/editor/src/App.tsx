@@ -16,6 +16,7 @@ import './features/speed';
 import { RatioDialog } from './features/ratio';
 import './features/effects';
 import './features/transitions/register';
+import { useEnginePolling } from './features/events';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';
@@ -37,6 +38,8 @@ export function App({ bridge, host }: AppProps) {
   }, [bridge, init]);
 
   useShortcuts();
+  // 엔진 이벤트 폴링 하나. 미디어·타임라인·프로젝트·모니터는 useEngineEvents 를 구독한다
+  useEnginePolling();
 
   // 패널 크기 조절: 저장값(null 은 CSS 기본값)을 루트의 커스텀 속성으로 내려 주고, 실제 크기는 화면에서 잰다
   const rootRef = useRef<HTMLDivElement>(null);

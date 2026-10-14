@@ -1,7 +1,19 @@
 import { TransitionBlocks } from '../transitions/TransitionBlocks';
+import { useEditor } from '../../store';
+import { useThumbnail } from '../media/thumbs';
 import { tickToPx } from './geometry';
 import type { ClipInfo, TrackRow } from './types';
 import { SpeedBadge } from '../speed/SpeedBadge';
+
+/** 폭이 이보다 좁은 클립에는 썸네일을 넣지 않는다(px) */
+const THUMB_MIN_CLIP_PX = 64;
+
+/** 영상 클립의 첫 프레임(sourceIn) 썸네일 한 장. 엔진이 만들고 features/media/thumbs 가 캐시한다 */
+function ClipThumb({ clip }: { clip: ClipInfo }) {
+  const bridge = useEditor((s) => s.bridge);
+  const url = useThumbnail(bridge, clip.item, clip.sourceIn);
+  return url ? <img className="tl-clip__thumb" src={url} alt="" draggable={false} /> : null;
+}
 
 /** 드래그 중 미리보기. 엔진에 보내기 전 화면만 먼저 움직인다 */
 export interface ClipPreview {
@@ -140,6 +152,7 @@ function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPoint
       onPointerDown={(e) => part(e, 'body')}
     >
       <div className="tl-clip__handle tl-clip__handle--in" onPointerDown={(e) => part(e, 'in')} />
+      {!audio && width >= THUMB_MIN_CLIP_PX && <ClipThumb clip={clip} />}
       <span className="tl-clip__name">{clip.name}</span>
       <SpeedBadge clip={clip} />
       <div className="tl-clip__handle tl-clip__handle--out" onPointerDown={(e) => part(e, 'out')} />

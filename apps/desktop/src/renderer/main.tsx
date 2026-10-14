@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client';
-import { App, type EngineBridge, type Frame } from '@editor';
+import { App, type EngineBridge, type EngineEvent, type Frame } from '@editor';
 import '@tokens/css/tokens.css';
 import '@tokens/css/sh-classic.css';
 
@@ -29,6 +29,11 @@ const bridge: EngineBridge = {
           rgba: new Uint8ClampedArray(f.rgba),
         }
       : null;
+  },
+  drainEvents: () => api.drainEvents() as Promise<EngineEvent[]>,
+  renderItemThumbnail: async (item, tick, width): Promise<Frame> => {
+    const f = await api.renderItemThumbnail(item, tick, width);
+    return { width: f.width, height: f.height, rgba: new Uint8ClampedArray(f.rgba) };
   },
   pickFiles: () => api.pickFiles(),
   pathForFile: (file) => api.pathForFile(file),

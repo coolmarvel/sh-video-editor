@@ -36,6 +36,9 @@ if (!Element.prototype.setPointerCapture) {
 if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = () => undefined;
 }
+// jsdom 의 canvas 는 getContext 마다 "not implemented" 경고를 낸다. 컨텍스트 없음(null)으로 조용히 답하게 한다.
+// 썸네일 인코더(features/media/thumbs)는 이를 실패로 처리하고, 모니터 테스트는 인스턴스마다 가짜 컨텍스트를 끼운다
+HTMLCanvasElement.prototype.getContext = (() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 if (typeof globalThis.ImageData === 'undefined') {
   class ImageDataStub {
     constructor(

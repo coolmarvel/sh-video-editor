@@ -24,6 +24,10 @@ const shEngine = {
       height: number;
       rgba: Uint8Array;
     } | null>('renderFrame', tick, scale),
+  /** 엔진 이벤트 배열(`{type, ...}`). 엔진 프로세스가 JSON 을 풀어 보낸다 */
+  drainEvents: () => call<unknown[]>('drainEvents'),
+  renderItemThumbnail: (item: number, tick: number, width: number) =>
+    call<{ width: number; height: number; rgba: Uint8Array }>('renderItemThumbnail', item, tick, width),
   /** 엔진 프로세스가 죽었을 때(main 이 자동 재시작) 알림 구독. 해제 함수를 돌려준다. */
   onCrashed,
   // 호스트 기능(엔진 아님): 파일 대화상자와 끌어다 놓은 File 의 실제 경로. Electron 32+ 는 File.path 가 없다

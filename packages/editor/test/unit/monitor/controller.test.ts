@@ -1,10 +1,11 @@
 /**
- * features/monitor/controller.ts: 플레이헤드 동기화, 탐색·프레임 이동, 재생 루프(가짜 rAF·시계), 배율 적응, 폴링.
+ * features/monitor/controller.ts: 플레이헤드 동기화, 탐색·프레임 이동, 재생 루프(가짜 rAF·시계), 배율 적응, 엔진 이벤트 구독.
  * 플레이헤드 SSOT 는 엔진이므로 모든 검증은 "엔진 값이 store 에 반영되는가" 로 한다.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MonitorController } from '@editor/features/monitor/controller';
 import { useMonitor } from '@editor/features/monitor/store';
+import { useEngineEvents } from '@editor/features/events/store';
 import { FT30, FakeEngine, T, engineWithClips } from '../../fake-bridge';
 import { resetStores } from '../../stores';
 
@@ -331,8 +332,10 @@ describe('재생 루프', () => {
   });
 });
 
-describe('poll', () => {
-  it('start 는 revision 이 바뀔 때 시퀀스를 다시 읽고 오류를 지운다', async () => {
+describe('엔진 이벤트 구독', () => {
+  const ev = () => useEngineEvents.getState();
+
+  it('start 는 시퀀스를 읽고, projectChanged 신호가 오면 다시 읽고 오류를 지운다', async () => {
     const { engine } = engineWithClips();
     const c = make(engine);
     c.start();
@@ -341,36 +344,60 @@ describe('poll', () => {
     useMonitor.setState({ error: '이전' });
     engine.sequence.video[0]!.items[1]!.end = 12 * T;
     engine.state.revision += 1;
-    await vi.advanceTimersByTimeAsync(300);
+    useEngineEvents.setState({ revision: engine.state.revision, projectChanged: ev().projectChanged + 1 });
+    await vi.advanceTimersByTimeAsync(0);
     expect(mon().sequence?.duration).toBe(12 * T);
     expect(mon().error).toBeNull();
+    // 신호가 없으면 다시 읽지 않는다(폴링 없음)
     const inspects = engine.callsOf('sequence.inspect').length;
-    await vi.advanceTimersByTimeAsync(900);
+    await vi.advanceTimersByTimeAsync(2000);
     expect(engine.callsOf('sequence.inspect').length).toBe(inspects);
+    expect(engine.callsOf('project.inspect')).toHaveLength(0);
   });
 
-  it('project.inspect 실패는 오류로, 재생 중에는 드물게 본다', async () => {
+  it('sequenceChanged 신호도 시퀀스를 다시 읽는다', async () => {
     const { engine } = engineWithClips();
     const c = make(engine);
     c.start();
     await vi.advanceTimersByTimeAsync(0);
-    engine.failNext('project.inspect', '끊김');
-    await vi.advanceTimersByTimeAsync(300);
-    expect(mon().error).toBe('끊김');
-    const before = engine.callsOf('project.inspect').length;
+    const inspects = engine.callsOf('sequence.inspect').length;
+    useEngineEvents.setState({ openedSequence: engine.sequence.id, sequenceChanged: ev().sequenceChanged + 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.callsOf('sequence.inspect').length).toBe(inspects + 1);
+  });
+
+  it('정지 중 playheadChanged 는 tick 을 맞추고 그린다, 재생 중에는 무시한다', async () => {
+    const { engine } = engineWithClips();
+    const c = make(engine);
+    c.setViewport(960);
+    c.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const { canvas, ctx } = fakeCanvas();
+    c.attachCanvas(canvas);
+    await vi.advanceTimersByTimeAsync(0);
+    const drawn = ctx.putImageData.mock.calls.length;
+    engine.setPlayhead(FT30 * 9);
+    useEngineEvents.setState({ playhead: FT30 * 9, playheadChanged: ev().playheadChanged + 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mon().tick).toBe(FT30 * 9);
+    expect(ctx.putImageData.mock.calls.length).toBe(drawn + 1);
+    // 재생 중에는 이 쪽이 프레임마다 쓰므로 바깥 신호를 따르지 않는다
     c.play();
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(engine.callsOf('project.inspect').length - before).toBeLessThanOrEqual(1);
+    const during = mon().tick;
+    useEngineEvents.setState({ playhead: FT30 * 100, playheadChanged: ev().playheadChanged + 1 });
+    expect(mon().tick).toBe(during);
     c.pause();
   });
 
-  it('dispose 뒤에는 폴링도 렌더도 없다', async () => {
+  it('dispose 뒤에는 신호에도 렌더에도 반응하지 않는다', async () => {
     const { engine } = engineWithClips();
     const c = make(engine);
     c.start();
     await vi.advanceTimersByTimeAsync(0);
     c.dispose();
     const n = engine.calls.length;
+    useEngineEvents.setState({ revision: 99, projectChanged: ev().projectChanged + 1 });
+    useEngineEvents.setState({ playhead: FT30, playheadChanged: ev().playheadChanged + 1 });
     await vi.advanceTimersByTimeAsync(2000);
     expect(engine.calls.length).toBe(n);
     await c.syncPlayhead();

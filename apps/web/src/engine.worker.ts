@@ -57,6 +57,16 @@ function opfsPaths(v: unknown, out: Set<string>): void {
   }
 }
 
+/** 바인딩의 `[w, h]` LE u32 머리 + RGBA8 포장을 Frame 으로. 8바이트 미만이면 프레임 없음 */
+function unpackFrame(bytes: Uint8Array): { result: { width: number; height: number; rgba: Uint8ClampedArray } | null; transfer?: Transferable[] } {
+  if (bytes.length < 8) return { result: null };
+  const view = new DataView(bytes.buffer, bytes.byteOffset, 8);
+  const width = view.getUint32(0, true);
+  const height = view.getUint32(4, true);
+  const rgba = new Uint8ClampedArray(bytes.subarray(8));
+  return { result: { width, height, rgba }, transfer: [rgba.buffer] };
+}
+
 async function handle(method: string, args: unknown[]): Promise<{ result: unknown; transfer?: Transferable[] }> {
   await ready;
   if (!engine) throw new Error('엔진이 초기화되지 않았습니다');
@@ -100,13 +110,15 @@ async function handle(method: string, args: unknown[]): Promise<{ result: unknow
       return { result: undefined };
     case 'renderFrame': {
       const [tick, scale] = args as [number, number];
-      const bytes = engine.renderFrame(BigInt(tick), scale);
-      if (bytes.length < 8) return { result: null };
-      const view = new DataView(bytes.buffer, bytes.byteOffset, 8);
-      const width = view.getUint32(0, true);
-      const height = view.getUint32(4, true);
-      const rgba = new Uint8ClampedArray(bytes.subarray(8));
-      return { result: { width, height, rgba }, transfer: [rgba.buffer] };
+      return unpackFrame(engine.renderFrame(BigInt(tick), scale));
+    }
+    case 'drainEvents':
+      return { result: JSON.parse(engine.drainEvents()) };
+    case 'renderItemThumbnail': {
+      const [item, tick, width] = args as [number, number, number];
+      const r = unpackFrame(engine.renderItemThumbnail(BigInt(item), BigInt(tick), width));
+      if (!r.result) throw new Error('썸네일을 만들지 못했습니다');
+      return r;
     }
     // ----- 웹 전용: 파일 -----
     case 'registerFiles': {

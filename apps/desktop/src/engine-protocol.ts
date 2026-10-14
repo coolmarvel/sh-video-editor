@@ -16,6 +16,8 @@ export type EngineMethod =
   | 'setPlayhead'
   | 'pumpJobs'
   | 'renderFrame'
+  | 'drainEvents'
+  | 'renderItemThumbnail'
   | 'isDirty'
   | 'startAutosave'
   | 'pollPersistence'

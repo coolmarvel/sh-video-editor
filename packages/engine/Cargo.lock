@@ -1266,6 +1266,7 @@ version = "0.1.2"
 dependencies = [
  "filmcraft-engine",
  "filmcraft-platform",
+ "filmcraft-project",
  "filmcraft-time",
  "napi",
  "napi-build",
@@ -1280,6 +1281,8 @@ dependencies = [
  "console_error_panic_hook",
  "filmcraft-engine",
  "filmcraft-media",
+ "filmcraft-project",
+ "filmcraft-render",
  "filmcraft-time",
  "getrandom",
  "js-sys",

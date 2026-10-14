@@ -40,6 +40,12 @@ const methods: Record<EngineRequest['m'], (...a: never[]) => unknown> = {
     // Buffer 를 그대로 보낸다. 구조적 복제가 받는 쪽에서 Uint8Array 로 만들며, 여기서 복사하지 않는다.
     return f ? { width: f.width, height: f.height, rgba: f.rgba } : null;
   },
+  // 바인딩은 JSON 문자열을 돌려준다. 여기서 풀어 배열로 보낸다(렌더러는 EngineEvent[] 를 받는다).
+  drainEvents: () => JSON.parse(getSession().drainEvents()) as unknown[],
+  renderItemThumbnail: (item: number, tick: number, width: number) => {
+    const f = getSession().renderItemThumbnail(item, tick, width);
+    return { width: f.width, height: f.height, rgba: f.rgba };
+  },
 };
 
 function serve(post: (r: EngineResponse) => void, data: unknown) {

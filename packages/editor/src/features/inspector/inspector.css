@@ -1,0 +1,20 @@
+/* 속성 패널 배치. 값은 --sh-* 토큰만 */
+.ve-inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.ve-inspector__hint {
+  margin: 0;
+  padding: var(--sh-space-3);
+  color: var(--sh-color-text-secondary, var(--sh-color-text));
+}
+.ve-inspector__tabs {
+  flex: none;
+}
+.ve-inspector__body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--sh-space-3);
+}

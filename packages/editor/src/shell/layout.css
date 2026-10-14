@@ -48,10 +48,11 @@ body {
 }
 .ve-body {
   display: grid;
-  /* 미디어 | 세로 스플리터 | 미리보기. 미디어 기본 폭은 본문의 1/4 */
+  /* 미디어 | 세로 스플리터 | 미리보기 | 속성. 미디어 기본 폭은 본문의 1/4, 속성 패널은 고정 폭 */
   grid-template-columns:
     clamp(var(--ve-media-min), var(--ve-media-w, 25%), var(--ve-media-max)) var(--sh-size-splitter)
-    minmax(0, 1fr);
+    minmax(0, 1fr) var(--ve-inspector-w, 300px);
+  column-gap: var(--sh-space-2);
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
@@ -154,6 +155,9 @@ body {
 }
 /* 미디어 패널: 한 열 배치(모바일)에서는 모니터 자리를 남기도록 높이를 제한한다. 내부 배치는 features/media/media.css */
 @media (max-width: 900px) {
+  .ve-inspector {
+    max-height: 30vh;
+  }
   .ve-media {
     max-height: 42vh;
   }

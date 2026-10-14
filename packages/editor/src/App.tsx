@@ -28,6 +28,7 @@ import './features/transcript';
 import './features/keyframes';
 import './features/stickers';
 import './features/templates';
+import './features/motion-fx';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';

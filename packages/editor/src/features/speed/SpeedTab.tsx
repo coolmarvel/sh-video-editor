@@ -2,9 +2,12 @@
 import { useEffect } from 'react';
 import type { InspectorContext } from '../inspector/registry';
 import { SpeedForm } from './SpeedForm';
+import { useSpeedSections } from './sections';
 import { FREEZE_SECONDS, useSpeed } from './store';
 
-export function SpeedTab({ sequence, clips, clip, playhead }: InspectorContext) {
+export function SpeedTab(ctx: InspectorContext) {
+  const { sequence, clips, clip, playhead } = ctx;
+  const sections = useSpeedSections((s) => s.sections);
   const syncFrom = useSpeed((s) => s.syncFrom);
   const apply = useSpeed((s) => s.apply);
   const freeze = useSpeed((s) => s.freeze);
@@ -40,6 +43,9 @@ export function SpeedTab({ sequence, clips, clip, playhead }: InspectorContext) 
           이 프레임 고정
         </button>
       </div>
+      {sections.map((s) => (
+        <s.component key={s.id} {...ctx} />
+      ))}
     </div>
   );
 }

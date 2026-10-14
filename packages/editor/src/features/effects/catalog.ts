@@ -84,7 +84,14 @@ export function effectDef(effectId: string): EffectDef | undefined {
 
 /** 효과 id 의 한국어 이름. 카탈로그 밖(lumetri 등)은 엔진 id 그대로 보이지 않게 몇 개 더 적는다 */
 export function effectLabel(effectId: string): string {
-  const known: Record<string, string> = { lumetri: '색 보정 (Lumetri)', motion: '움직임', opacity: '불투명도', time_remap: '시간 재배치' };
+  const known: Record<string, string> = {
+    lumetri: '색 보정 (Lumetri)',
+    motion: '움직임',
+    opacity: '불투명도',
+    time_remap: '시간 재배치',
+    ultra_key: '배경 지우기(크로마키)',
+    warp_stabilizer: '흔들림 줄이기',
+  };
   return effectDef(effectId)?.label ?? known[effectId] ?? effectId;
 }
 

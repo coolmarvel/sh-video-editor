@@ -71,6 +71,12 @@ export default defineConfig({
         'src/features/templates/recipe.ts',
         'src/features/templates/catalog.ts',
         'src/features/templates/store.ts',
+        'src/features/motion-fx/ramp.ts',
+        'src/features/motion-fx/pip.ts',
+        'src/features/motion-fx/chroma.ts',
+        'src/features/motion-fx/store.ts',
+        'src/features/effects/sections.ts',
+        'src/features/speed/sections.ts',
       ],
       // 임계는 CI 가 강제한다(`npm run test:unit:coverage` 가 미달이면 실패). 2026-10-14 실측 93/84/91/96 에서 2~3%p 여유
       thresholds: { statements: 90, branches: 82, functions: 88, lines: 93 },

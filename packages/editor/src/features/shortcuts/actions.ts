@@ -21,6 +21,7 @@ import { focusArea } from './keymap';
 import { useShortcutsUi } from './store';
 import { useAudio } from '../audio/store';
 import { applyDucking, applyFade } from '../audio/ducking';
+import { useMotionFx } from '../motion-fx/store';
 
 type Params = Record<string, unknown>;
 
@@ -254,6 +255,7 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'effects.resetColor': () => useEffects.getState().resetColor(selectedVideoClipIds()),
   'effects.clearFilter': () => useEffects.getState().clearFilter(selectedVideoClipIds()),
   'effects.compare': () => useEffects.getState().toggleCompare(selectedVideoClipIds()),
+  'effects.stabilize': () => void useMotionFx.getState().stabilize(selectedVideoClipIds()),
   'audio.toggleMute': () => useAudio.getState().toggleMuted(),
   'audio.fadeIn': () => audioFade('in'),
   'audio.fadeOut': () => audioFade('out'),

@@ -8,6 +8,7 @@ import type { ClipInfo } from '../timeline/types';
 import { BASIC_PARAMS, POSITION_PARAM, USER_EFFECTS, effectDef, effectLabel, isIntrinsic } from './catalog';
 import { BoolParam, ChoiceParam, ColorParam, NumberParam, PointParam } from './ParamControl';
 import { readNumber, readParam, readPoint, toEngineValue } from './params';
+import { useEffectsSections } from './sections';
 import { effectsOf, hasVideoEffects, useEffects } from './store';
 import type { ClipEffectInfo, ParamDef } from './types';
 import './effects.css';
@@ -50,6 +51,7 @@ export function EffectsTab(ctx: InspectorContext) {
   const toggleEffect = useEffects((s) => s.toggleEffect);
   const removeEffect = useEffects((s) => s.removeEffect);
   const resetEffect = useEffects((s) => s.resetEffect);
+  const sections = useEffectsSections((s) => s.sections);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -136,6 +138,10 @@ export function EffectsTab(ctx: InspectorContext) {
           onChange={(x, y) => void setParam(clipId, 'motion', 'position', [x, y], {})}
         />
       </fieldset>
+
+      {sections.map((s) => (
+        <s.component key={s.id} {...ctx} />
+      ))}
 
       <ul className="fx-list" aria-label="적용된 효과">
         {effects.map((e, index) =>

@@ -9,3 +9,5 @@ export { SpeedForm } from './SpeedForm';
 export { SpeedBadge } from './SpeedBadge';
 export { SpeedTab } from './SpeedTab';
 export * from './model';
+export { registerSpeedSection, useSpeedSections } from './sections';
+export type { SpeedSection } from './sections';

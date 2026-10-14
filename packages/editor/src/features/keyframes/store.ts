@@ -11,6 +11,7 @@
  */
 import { create } from 'zustand';
 import type { EngineBridge } from '../../engine/bridge';
+import { withTransaction } from '../../engine/transaction';
 import { useEditor } from '../../store';
 import { readParam } from '../effects/params';
 import { monitorController } from '../monitor/registry';
@@ -43,6 +44,14 @@ export type Tracks = Record<ParamKey, ParamTrack>;
 export interface SetValueOptions {
   merge?: boolean;
   begin?: boolean;
+  /** 값을 넣을 시퀀스 시각. 없으면 플레이헤드(곡선 편집기가 점을 끌 때 준다) */
+  time?: number;
+}
+
+/** 곡선 하나를 통째로 넣을 때의 점(시퀀스 시각, 값) */
+export interface CurvePoint {
+  time: number;
+  value: KeyframeValue;
 }
 
 interface KeyframesState {
@@ -66,6 +75,13 @@ interface KeyframesState {
   /** 클립의 모든 파라미터에서 플레이헤드 앞/뒤 가장 가까운 키프레임으로 플레이헤드를 옮긴다. 옮겼으면 true */
   goToNeighbour(clip: number, direction: -1 | 1): Promise<boolean>;
   applyPreset(clip: number, preset: MotionPresetId): Promise<void>;
+  /**
+   * 파라미터의 키프레임을 주어진 점들로 통째로 바꾼다(있던 것은 지운다). 엔진 트랜잭션 한 단계(label). 성공하면 true.
+   * 속도 램프 프리셋(features/motion-fx)이 쓴다
+   */
+  setCurve(clip: number, effect: string, param: string, points: CurvePoint[], label: string): Promise<boolean>;
+  /** 엔진 `effects.keyframes` 로 파라미터의 목록을 다시 읽어 화면 목록을 맞춘다(stale 해소). 커맨드가 없으면 false */
+  load(clip: number, effect: string, param: string): Promise<boolean>;
   /** inspect 결과와 목록 대조(타임라인 store 구독이 부른다) */
   reconcile(seq: SequenceInfo): void;
   /** features/effects 가 effects.setParam 을 보낼 때 알려 준다(애니메이션 중이면 플레이헤드에 키프레임이 생긴다) */
@@ -237,7 +253,7 @@ export const useKeyframes = create<KeyframesState>((set, get) => {
     async setValue(clipId, effect, param, value, opts) {
       const clip = currentClip(clipId);
       if (!clip) return;
-      const time = playhead();
+      const time = opts?.time ?? playhead();
       const mt = mediaTimeAt(clip, time);
       const key = paramKey(clipId, effect, param);
       const track = get().tracks[key];
@@ -386,6 +402,78 @@ export const useKeyframes = create<KeyframesState>((set, get) => {
           return `${preset.kind === 'in' ? '등장' : '퇴장'} 애니메이션을 넣었습니다: ${preset.label}`;
         },
       );
+    },
+
+    async setCurve(clipId, effect, param, points, label) {
+      const clip = currentClip(clipId);
+      if (!clip || points.length === 0) return false;
+      const key = paramKey(clipId, effect, param);
+      const animated = (get().tracks[key]?.length ?? 0) > 0 || keyframeCount(clip, effect, param) > 0;
+      const sorted = [...points].sort((a, b) => a.time - b.time);
+      const ok = await run(
+        true,
+        (tracks) => {
+          let next: ParamTrack = [];
+          for (const p of sorted) next = putKeyframe(next, mediaTimeAt(clip, p.time), p.value);
+          tracks[key] = next;
+          return tracks;
+        },
+        async (bridge) => {
+          await withTransaction(bridge, label, async () => {
+            // 있던 키프레임을 모두 지우고(엔진 toggleAnimation) 첫 점에서 애니메이션을 다시 켠 뒤 점마다 값을 넣는다
+            if (animated) await bridge.execute('effects.toggleAnimation', { clip: clipId, effect, param });
+            const first = sorted[0] as CurvePoint;
+            await bridge.execute('effects.addKeyframe', { clip: clipId, effect, param, time: first.time });
+            for (const p of sorted) await bridge.execute('effects.setParam', { clip: clipId, effect, param, value: p.value, time: p.time });
+          });
+          return label;
+        },
+      );
+      set((s) => {
+        if (!s.stale[key]) return s;
+        const stale = { ...s.stale };
+        delete stale[key];
+        return { stale };
+      });
+      return ok;
+    },
+
+    async load(clipId, effect, param) {
+      const bridge = bridgeOrNull();
+      const clip = currentClip(clipId);
+      if (!bridge || !clip) return false;
+      const key = paramKey(clipId, effect, param);
+      try {
+        const r = (await bridge.execute('effects.keyframes', { clip: clipId, effect, param })) as {
+          params?: Record<
+            string,
+            { keyframes?: Array<{ mediaTime: number; value: unknown; interpolation: string; inInfluence: number; outInfluence: number }> }
+          >;
+        };
+        const list = r.params?.[param]?.keyframes;
+        if (!list) return false;
+        const known = new Set<string>(['linear', 'bezier', 'autoBezier', 'continuousBezier', 'hold', 'easeIn', 'easeOut']);
+        const track = sortTrack(
+          list.map((k) => ({
+            time: k.mediaTime,
+            value: toValue(k.value) ?? 0,
+            interp: (known.has(k.interpolation) ? k.interpolation : 'linear') as Interpolation,
+            inInfluence: k.inInfluence,
+            outInfluence: k.outInfluence,
+          })),
+        );
+        set((s) => {
+          const tracks = { ...s.tracks };
+          if (track.length === 0) delete tracks[key];
+          else tracks[key] = track;
+          const stale = { ...s.stale };
+          delete stale[key];
+          return { tracks, stale };
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
 
     reconcile(seq) {

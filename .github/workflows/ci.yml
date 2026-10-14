@@ -85,9 +85,13 @@ jobs:
             packages/engine/vendor/filmcraft -> target
           # vendor 크레이트는 워크스페이스 밖 path 의존이라 캐시 정리 대상이다. 키에 vendor Cargo.lock 을 넣어 상류 갱신 때 새로 만든다
           key: ${{ hashFiles('packages/engine/vendor/filmcraft/Cargo.lock') }}
-      - name: wasm-pack
+      - name: wasm-pack 0.15.0 (로컬과 같은 버전. 설치 스크립트의 구버전은 --profile 을 모른다)
         run: |
-          if ! command -v wasm-pack >/dev/null; then curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh; fi
+          v=0.15.0
+          if ! wasm-pack --version 2>/dev/null | grep -q "wasm-pack $v"; then
+            url="https://github.com/drager/wasm-pack/releases/download/v$v/wasm-pack-v$v-x86_64-unknown-linux-musl.tar.gz"
+            if curl -fsSL "$url" | tar -xz --strip-components=1 -C /usr/local/bin --wildcards '*/wasm-pack' 2>/dev/null; then :; else cargo install wasm-pack --version "$v" --locked; fi
+          fi
           wasm-pack --version
       - name: ffmpeg (엔진 기능 테스트의 오라클·코퍼스 생성)
         run: |

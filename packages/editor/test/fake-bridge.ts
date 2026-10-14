@@ -706,10 +706,7 @@ export class FakeEngine {
         for (const t of [...seq.video, ...seq.audio]) {
           const next: FakeClip[] = [];
           for (const c of t.items) {
-            const target =
-              only === undefined
-                ? true
-                : only === c.clip || (c.link !== null && this.linkedOf(seq, c).some((x) => x.clip === only));
+            const target = only === undefined ? true : only === c.clip || (c.link !== null && this.linkedOf(seq, c).some((x) => x.clip === only));
             if (target && c.start < time && time < c.end) {
               let link: number | null = null;
               if (c.link !== null) {

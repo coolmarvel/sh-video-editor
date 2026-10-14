@@ -42,34 +42,43 @@ export function clampZoom(pxPerSec: number): number {
  * 눈금자 큰 눈금 간격(tick). 라벨 사이가 minLabelPx 이상 벌어지는 가장 촘촘한 단위를 고른다.
  * 후보는 프레임 단위 몇 개와 초·분 단위.
  */
+/** n 의 약수 중 target 이하에서 가장 큰 것(최소 1). 작은 눈금이 큰 눈금을 정확히 나누게 한다 */
+function divisorNear(n: number, target: number): number {
+  for (let d = Math.max(1, Math.min(n, Math.floor(target))); d > 1; d--) if (n % d === 0) return d;
+  return 1;
+}
+
 export function rulerStep(pxPerSec: number, fr: FrameRate, minLabelPx = 80): { major: number; minor: number } {
   const ft = frameTicks(fr);
-  // 초 단위도 정수 프레임의 배수로 잡는다. 23.976 같은 소수 프레임레이트에서 라벨이 00:00:01:23 로 밀리지 않게
-  const sec = ft * Math.round(fpsOf(fr));
+  // 모든 눈금은 정수 프레임의 배수다. 초 단위도 명목 프레임 수(23.976 은 24)로 잡아 라벨이 00:00:01:23 로 밀리지 않게.
+  const n = Math.max(1, Math.round(fpsOf(fr)));
+  const half = Math.max(1, Math.floor(n / 2));
+  // [큰 눈금 프레임 수, 작은 눈금 목표 프레임 수]. 작은 눈금은 큰 눈금의 약수로 맞춘다
   const candidates: Array<[number, number]> = [
-    [ft, ft],
-    [ft * 2, ft],
-    [ft * 5, ft],
-    [ft * 10, ft * 2],
-    [sec / 2, ft * 5],
-    [sec, sec / 4],
-    [sec * 2, sec / 2],
-    [sec * 5, sec],
-    [sec * 10, sec * 2],
-    [sec * 15, sec * 5],
-    [sec * 30, sec * 10],
-    [sec * 60, sec * 15],
-    [sec * 120, sec * 30],
-    [sec * 300, sec * 60],
-    [sec * 600, sec * 120],
-    [sec * 1800, sec * 300],
-    [sec * 3600, sec * 600],
+    [1, 1],
+    [2, 1],
+    [5, 1],
+    [10, 2],
+    [half, half / 3],
+    [n, n / 4],
+    [n * 2, n / 2],
+    [n * 5, n],
+    [n * 10, n * 2],
+    [n * 15, n * 5],
+    [n * 30, n * 10],
+    [n * 60, n * 15],
+    [n * 120, n * 30],
+    [n * 300, n * 60],
+    [n * 600, n * 120],
+    [n * 1800, n * 300],
+    [n * 3600, n * 600],
   ];
-  for (const [major, minor] of candidates) {
-    if (tickToPx(major, pxPerSec) >= minLabelPx) return { major, minor };
+  for (const [majorFrames, minorTarget] of candidates) {
+    const major = ft * majorFrames;
+    if (tickToPx(major, pxPerSec) >= minLabelPx) return { major, minor: ft * divisorNear(majorFrames, minorTarget) };
   }
-  const last = candidates[candidates.length - 1] ?? [sec * 3600, sec * 600];
-  return { major: last[0], minor: last[1] };
+  const last = candidates[candidates.length - 1] ?? [1, 1];
+  return { major: ft * last[0], minor: ft * divisorNear(last[0], last[1]) };
 }
 
 /**

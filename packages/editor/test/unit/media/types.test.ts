@@ -1,14 +1,6 @@
 /** features/media/types.ts: 유형 라벨, 시퀀스 가능 여부, 트리 순회. */
 import { describe, expect, it } from 'vitest';
-import {
-  DEMO_SCENES,
-  findItem,
-  isClipLike,
-  typeLabelKo,
-  walkItems,
-  type MediaBin,
-  type MediaItem,
-} from '@editor/features/media/types';
+import { DEMO_SCENES, findItem, isClipLike, typeLabelKo, walkItems, type MediaBin, type MediaItem } from '@editor/features/media/types';
 
 const item = (id: number, type = 'Movie'): MediaItem => ({
   kind: 'item',
@@ -76,14 +68,7 @@ describe('walkItems / findItem', () => {
 
 describe('DEMO_SCENES', () => {
   it('엔진 file.importDemoFootage 가 받는 여섯 장면이고 라벨에 특수기호가 없다', () => {
-    expect(DEMO_SCENES.map((d) => d.scene)).toEqual([
-      'OceanSunset',
-      'Aurora',
-      'CityNight',
-      'Dunes',
-      'Plasma',
-      'Forest',
-    ]);
+    expect(DEMO_SCENES.map((d) => d.scene)).toEqual(['OceanSunset', 'Aurora', 'CityNight', 'Dunes', 'Plasma', 'Forest']);
     for (const d of DEMO_SCENES) expect(d.label).toMatch(/^[가-힣 ]+$/);
   });
 });

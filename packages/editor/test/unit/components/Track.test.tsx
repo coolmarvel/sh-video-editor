@@ -86,9 +86,7 @@ describe('Lane / ClipBlock', () => {
 
   it('클립을 시작·길이에 맞춘 px 위치로 놓고 이름을 보인다', () => {
     const h = handlers();
-    const { container } = render(
-      <Lane row={row('video')} pxPerSec={10} selection={[2]} preview={null} dropTick={null} {...h} />,
-    );
+    const { container } = render(<Lane row={row('video')} pxPerSec={10} selection={[2]} preview={null} dropTick={null} {...h} />);
     const blocks = container.querySelectorAll<HTMLElement>('.tl-clip');
     expect(blocks).toHaveLength(2);
     expect(blocks[0]!.style.left).toBe('0px');
@@ -107,9 +105,7 @@ describe('Lane / ClipBlock', () => {
 
   it('너비는 최소 1px 이고 음성 클립은 audio 클래스', () => {
     const r = row('audio', { items: [clip(1, 0, 1)] });
-    const { container } = render(
-      <Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...handlers()} />,
-    );
+    const { container } = render(<Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...handlers()} />);
     const block = container.querySelector<HTMLElement>('.tl-clip')!;
     expect(block.style.width).toBe('1px');
     expect(block.classList.contains('tl-clip--audio')).toBe(true);
@@ -117,9 +113,7 @@ describe('Lane / ClipBlock', () => {
 
   it('비활성·잠김·음소거 상태를 클래스로', () => {
     const r = row('audio', { muted: true, locked: true, items: [clip(1, 0, T, { enabled: false })] });
-    const { container } = render(
-      <Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...handlers()} />,
-    );
+    const { container } = render(<Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...handlers()} />);
     expect(container.querySelector('.tl-lane')!.classList.contains('is-locked')).toBe(true);
     expect(container.querySelector('.tl-clip')!.classList.contains('is-disabled')).toBe(true);
   });
@@ -127,14 +121,7 @@ describe('Lane / ClipBlock', () => {
   it('미리보기(고스트)는 시작·끝 보정과 대상 트랙 표시', () => {
     const r = row('video');
     const { container } = render(
-      <Lane
-        row={r}
-        pxPerSec={10}
-        selection={[]}
-        preview={{ clip: 2, dxStart: 5, dxEnd: 15, targetTrack: 7 }}
-        dropTick={null}
-        {...handlers()}
-      />,
+      <Lane row={r} pxPerSec={10} selection={[]} preview={{ clip: 2, dxStart: 5, dxEnd: 15, targetTrack: 7 }} dropTick={null} {...handlers()} />,
     );
     const ghost = container.querySelector<HTMLElement>('[data-clip="2"]')!;
     expect(ghost.classList.contains('is-ghost')).toBe(true);
@@ -146,9 +133,7 @@ describe('Lane / ClipBlock', () => {
 
   it('놓을 위치 표시선은 dropTick 이 있을 때만', () => {
     const r = row('video');
-    const { container, rerender } = render(
-      <Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...handlers()} />,
-    );
+    const { container, rerender } = render(<Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...handlers()} />);
     expect(container.querySelector('.tl-drop')).toBeNull();
     rerender(<Lane row={r} pxPerSec={10} selection={[]} preview={null} dropTick={3 * T} {...handlers()} />);
     expect(container.querySelector<HTMLElement>('.tl-drop')!.style.left).toBe('30px');
@@ -156,24 +141,14 @@ describe('Lane / ClipBlock', () => {
 
   it('클립 몸통·손잡이의 포인터 다운은 part 로 구분되고 레인으로 전파되지 않는다', () => {
     const h = handlers();
-    const { container } = render(
-      <Lane row={row('video')} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...h} />,
-    );
+    const { container } = render(<Lane row={row('video')} pxPerSec={10} selection={[]} preview={null} dropTick={null} {...h} />);
     const block = container.querySelector<HTMLElement>('[data-clip="1"]')!;
     fireEvent.pointerDown(block, { button: 0, pointerId: 1 });
-    expect(h.onClipPointerDown).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ clip: 1 }),
-      'body',
-    );
+    expect(h.onClipPointerDown).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ clip: 1 }), 'body');
     fireEvent.pointerDown(block.querySelector('.tl-clip__handle--in')!, { button: 0, pointerId: 1 });
     expect(h.onClipPointerDown).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ clip: 1 }), 'in');
     fireEvent.pointerDown(block.querySelector('.tl-clip__handle--out')!, { button: 0, pointerId: 1 });
-    expect(h.onClipPointerDown).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({ clip: 1 }),
-      'out',
-    );
+    expect(h.onClipPointerDown).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ clip: 1 }), 'out');
     expect(h.onClipPointerDown).toHaveBeenCalledTimes(3);
     expect(h.onLanePointerDown).not.toHaveBeenCalled();
     fireEvent.pointerDown(container.querySelector('[data-lane]')!, { button: 0, pointerId: 1 });

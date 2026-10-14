@@ -1,96 +1,73 @@
-/** shell/MenuBar.tsx: 메뉴 순서·한글 라벨, 열고 닫기, 항목 실행(엔진 / 가로채기). */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/** shell/MenuBar.tsx: 큐레이션 메뉴(한국어 라벨·Ctrl 표기), 열고 닫기, 항목 실행(actions 표·엔진 커맨드). */
+import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MenuBar } from '@editor/shell/MenuBar';
-import { useEditor } from '@editor/store';
-import { useExport } from '@editor/features/export/store';
-import type { CommandSpec } from '@editor/engine/bridge';
-import { FAKE_COMMANDS } from '../../fake-bridge';
-import { connect, resetStores } from '../../stores';
+import { useTimeline } from '@editor/features/timeline/store';
+import { engineWithClips } from '../../fake-bridge';
+import { connect, flush, resetStores } from '../../stores';
 
 beforeEach(resetStores);
 
-function menusOf(commands: CommandSpec[]): Map<string, CommandSpec[]> {
-  const byMenu = new Map<string, CommandSpec[]>();
-  for (const c of commands) {
-    const top = c.menu[0];
-    if (!top) continue;
-    byMenu.set(top, [...(byMenu.get(top) ?? []), c]);
-  }
-  return byMenu;
-}
-
 describe('MenuBar', () => {
-  it('정해진 순서로 한글 메뉴 이름을 보이고 모르는 메뉴는 원문으로 뒤에', () => {
-    const menus = menusOf([...FAKE_COMMANDS, { id: 'x.y', label: 'X', menu: ['Zeta'], shortcut: null, params: '{}' }]);
-    render(<MenuBar menus={menus} />);
+  it('메뉴 이름이 한국어로 정해진 순서대로 보인다', async () => {
+    await connect();
+    render(<MenuBar host="web" />);
     const items = within(screen.getByRole('menubar')).getAllByRole('button');
-    expect(items.map((b) => b.textContent)).toEqual(['파일', '편집', '클립', '시퀀스', '보기', '도움말', 'Zeta']);
+    expect(items.map((b) => b.textContent)).toEqual(['파일', '편집', '클립', '시퀀스', '보기', '도움말']);
     for (const b of items) expect(b).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('클릭하면 열리고 다시 클릭하면 닫히며 다른 메뉴를 열면 바뀐다', () => {
-    render(<MenuBar menus={menusOf(FAKE_COMMANDS)} />);
+  it('클릭하면 열리고 다시 클릭하면 닫히며, 항목은 한국어 라벨과 Ctrl 단축키 표기를 가진다', async () => {
+    await connect();
+    render(<MenuBar host="web" />);
     expect(screen.queryByRole('menu')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '파일' }));
     const menu = screen.getByRole('menu');
-    expect(
-      within(menu)
-        .getAllByRole('menuitem')
-        .map((m) => m.textContent),
-    ).toEqual([
-      'Project…Cmd+Alt+N',
-      'Sequence…Cmd+N',
-      'Open Project…Cmd+O',
-      'SaveCmd+S',
-      'Save As…Cmd+Shift+S',
-      'Media…',
-      'Demo Footage',
-    ]);
-    expect(screen.getByRole('button', { name: '파일' })).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(screen.getByRole('button', { name: '편집' }));
-    expect(screen.getAllByRole('menu')).toHaveLength(1);
-    expect(within(screen.getByRole('menu')).getAllByRole('menuitem')[0]).toHaveTextContent('Undo');
-    fireEvent.click(screen.getByRole('button', { name: '편집' }));
+    const labels = within(menu)
+      .getAllByRole('menuitem')
+      .map((m) => m.textContent ?? '');
+    expect(labels[0]).toBe('새 프로젝트Ctrl+N');
+    expect(labels.some((l) => l.startsWith('내보내기'))).toBe(true);
+    for (const l of labels) {
+      expect(l, l).not.toMatch(/Cmd|Undo|Redo|Violet|Iris|Demo Project/);
+    }
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('항목을 누르면 엔진 커맨드를 실행하고 메뉴를 닫는다', async () => {
-    const engine = await connect();
-    render(<MenuBar menus={menusOf(FAKE_COMMANDS)} />);
-    fireEvent.click(screen.getByRole('button', { name: '파일' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /Sequence…/ }));
+  it('편집 > 실행 취소를 누르면 엔진 undo 가 실행되고 메뉴가 닫힌다', async () => {
+    const { engine, clips } = engineWithClips();
+    await connect({}, engine);
+    const first = clips[0];
+    if (!first) throw new Error('클립이 없습니다');
+    engine.execute('timeline.razor', { time: first.start + Math.floor((first.end - first.start) / 2) });
+    render(<MenuBar host="web" />);
+    fireEvent.click(screen.getByRole('button', { name: '편집' }));
+    const before = engine.undoStack.length;
+    fireEvent.click(screen.getByRole('menuitem', { name: /실행 취소/ }));
+    await flush();
+    expect(engine.undoStack.length).toBeLessThan(before);
     expect(screen.queryByRole('menu')).toBeNull();
-    await vi.waitFor(() => expect(engine.callsOf('file.newSequence')).toHaveLength(1));
-    expect(useEditor.getState().status).toMatch(/^file\.newSequence:/);
   });
 
-  it('파일 대화상자가 필요한 항목은 features 가 가로채고 엔진에 보내지 않는다', async () => {
-    const engine = await connect({ desktop: true });
-    const show = vi.spyOn(useExport.getState(), 'show').mockResolvedValue();
-    render(<MenuBar menus={menusOf(FAKE_COMMANDS)} />);
+  it('시퀀스 > 스냅은 체크 항목이고 누르면 타임라인 스냅이 바뀐다', async () => {
+    await connect();
+    render(<MenuBar host="web" />);
+    const snapping = useTimeline.getState().snapping;
+    fireEvent.click(screen.getByRole('button', { name: '시퀀스' }));
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /스냅/ }));
+    await flush();
+    expect(useTimeline.getState().snapping).toBe(!snapping);
+  });
+
+  it('종료 항목은 데스크톱에서만 보인다', async () => {
+    await connect();
+    const { unmount } = render(<MenuBar host="web" />);
     fireEvent.click(screen.getByRole('button', { name: '파일' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /Media…/ }));
-    expect(show).toHaveBeenCalledTimes(1);
-    await new Promise((r) => setTimeout(r, 0));
-    expect(engine.callsOf('file.exportMedia')).toEqual([]);
-  });
-
-  it('메뉴당 40개까지만 보인다', () => {
-    const many: CommandSpec[] = Array.from({ length: 50 }, (_, i) => ({
-      id: `view.c${i}`,
-      label: `c${i}`,
-      menu: ['View'],
-      shortcut: null,
-      params: '{}',
-    }));
-    render(<MenuBar menus={menusOf(many)} />);
-    fireEvent.click(screen.getByRole('button', { name: '보기' }));
-    expect(screen.getAllByRole('menuitem')).toHaveLength(40);
-  });
-
-  it('메뉴가 없으면 빈 메뉴바', () => {
-    render(<MenuBar menus={new Map()} />);
-    expect(within(screen.getByRole('menubar')).queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryByRole('menuitem', { name: /종료/ })).toBeNull();
+    unmount();
+    render(<MenuBar host="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
+    expect(screen.getByRole('menuitem', { name: /종료/ })).toBeTruthy();
   });
 });

@@ -166,9 +166,7 @@ describe('start / cancel', () => {
     const engine = await opened();
     await ex().start();
     expect(engine.callsOf('export.queue.clear')).toEqual([{ all: false }]);
-    expect(engine.callsOf('export.queue.add')).toEqual([
-      { preset: 'High Quality 1080p HD', format: 'h264', path: '/tmp/fake/out.mp4', start: true },
-    ]);
+    expect(engine.callsOf('export.queue.add')).toEqual([{ preset: 'High Quality 1080p HD', format: 'h264', path: '/tmp/fake/out.mp4', start: true }]);
     expect(ex().job?.status).toBe('encoding');
     await vi.advanceTimersByTimeAsync(500);
     expect(ex().job?.status).toBe('done');
@@ -232,8 +230,7 @@ describe('start / cancel', () => {
   it('큐에 아무것도 안 들어가면 시작 실패', async () => {
     const engine = await opened();
     const original = engine.bridge.execute;
-    engine.bridge.execute = async (id, params) =>
-      id === 'export.queue.add' ? { added: [], items: [] } : original(id, params);
+    engine.bridge.execute = async (id, params) => (id === 'export.queue.add' ? { added: [], items: [] } : original(id, params));
     await ex().start();
     expect(ex().outcome?.text).toBe('내보내기를 시작하지 못했습니다: 큐에 작업이 추가되지 않았습니다');
   });

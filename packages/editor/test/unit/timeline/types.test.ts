@@ -1,13 +1,6 @@
 /** features/timeline/types.ts: 트랙 행 순서, 클립 평탄화, 클립 찾기. */
 import { describe, expect, it } from 'vitest';
-import {
-  allClips,
-  findClip,
-  trackRows,
-  type ClipInfo,
-  type SequenceInfo,
-  type TrackInfo,
-} from '@editor/features/timeline/types';
+import { allClips, findClip, trackRows, type ClipInfo, type SequenceInfo, type TrackInfo } from '@editor/features/timeline/types';
 
 function clip(id: number, start = 0, end = 10): ClipInfo {
   return {

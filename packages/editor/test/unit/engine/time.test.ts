@@ -76,7 +76,7 @@ describe('formatTimecode (NDF)', () => {
    * 간다(예: 30fps 프레임 245 가 00:00:08:04). 모니터 타임코드가 이 함수를 쓰므로 실제 버그다.
    * geometry.timecodeAt 처럼 tick / frameTicks 를 반올림하면 된다.
    */
-  it.fails('30fps 프레임 경계마다 timecodeAt 과 같아야 한다 (알려진 버그: 부동소수 내림)', () => {
+  it('30fps 프레임 경계마다 timecodeAt 과 같아야 한다', () => {
     const fr = { num: 30, den: 1 };
     const ft = T / 30;
     for (let f = 0; f < 30 * 60; f++) {
@@ -90,7 +90,7 @@ describe('formatTimecode (NDF)', () => {
    * 모니터·미디어 패널이 이 함수를 쓰므로 실제 버그다(geometry.timecodeAt 은 프레임 수 기준이라 정확하다).
    * 고쳐지면 이 테스트는 통과로 바뀌고 test.fails 를 떼면 된다.
    */
-  it.fails('29.97 fps 에서 연속 프레임의 타임코드는 단조 증가해야 한다 (알려진 버그)', () => {
+  it('29.97 fps 에서 연속 프레임의 타임코드는 단조 증가해야 한다', () => {
     const fps = 30000 / 1001;
     const ft = (T * 1001) / 30000;
     let prev = '';
@@ -101,7 +101,7 @@ describe('formatTimecode (NDF)', () => {
     }
   });
 
-  it.fails('23.976 fps 에서 프레임 경계의 타임코드는 timecodeAt 과 같아야 한다 (알려진 버그)', () => {
+  it('23.976 fps 에서 프레임 경계의 타임코드는 timecodeAt 과 같아야 한다', () => {
     const fr = { num: 24000, den: 1001 };
     const ft = (T * 1001) / 24000;
     for (let f = 0; f < 24 * 65; f++) {

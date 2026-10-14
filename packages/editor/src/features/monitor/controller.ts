@@ -175,6 +175,8 @@ export class MonitorController {
     this.playing = false;
     cancelAnimationFrame(this.rafId);
     useMonitor.setState({ playing: false });
+    // 재생 중 내려갔던 배율이 상태 줄에 남지 않게 표시 배율로 바로 갱신한다
+    this.publishStats(performance.now(), true);
     // 재생 중 기록한 마지막 tick 을 엔진에서 다시 읽어 확정한다
     void this.syncPlayhead();
   }

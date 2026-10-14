@@ -19,8 +19,7 @@ expect.extend({
     const pass = value === undefined ? has : has && e.getAttribute(name) === value;
     return {
       pass,
-      message: () =>
-        `속성 ${name} = ${JSON.stringify(e.getAttribute(name))} (기대: ${value === undefined ? '존재' : JSON.stringify(value)})`,
+      message: () => `속성 ${name} = ${JSON.stringify(e.getAttribute(name))} (기대: ${value === undefined ? '존재' : JSON.stringify(value)})`,
     };
   },
   toHaveTextContent(received: unknown, text: string | RegExp) {

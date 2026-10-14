@@ -241,9 +241,7 @@ describe('moveClips / trimClip / placeItem / setTrack', () => {
     expect(engine.callsOf('timeline.move')).toEqual([]);
     const track = tl().sequence!.video[0]!.id;
     await tl().moveClips([{ clip: clips[2]!.clip, track, time: 10 * T }]);
-    expect(engine.callsOf('timeline.move')).toEqual([
-      { moves: [{ clip: clips[2]!.clip, track, time: 10 * T }], insert: true },
-    ]);
+    expect(engine.callsOf('timeline.move')).toEqual([{ moves: [{ clip: clips[2]!.clip, track, time: 10 * T }], insert: true }]);
     expect(useEditor.getState().status).toBe('이동: 클립 1개');
     expect(tl().sequence!.video[0]!.items[1]!.start).toBe(10 * T);
     expect(tl().sequence!.audio[0]!.items[1]!.start).toBe(10 * T);
@@ -254,9 +252,7 @@ describe('moveClips / trimClip / placeItem / setTrack', () => {
     await tl().trimClip(clips[0]!.clip, 'out', 0);
     expect(engine.callsOf('timeline.trim')).toEqual([]);
     await tl().trimClip(clips[0]!.clip, 'out', -30);
-    expect(engine.callsOf('timeline.trim')).toEqual([
-      { clip: clips[0]!.clip, edge: 'out', mode: 'regular', deltaFrames: -30 },
-    ]);
+    expect(engine.callsOf('timeline.trim')).toEqual([{ clip: clips[0]!.clip, edge: 'out', mode: 'regular', deltaFrames: -30 }]);
     expect(useEditor.getState().status).toBe('끝 트림: -30프레임');
     expect(tl().sequence!.video[0]!.items[0]!.end).toBe(3 * T);
     tl().toggleRipple();
@@ -274,9 +270,7 @@ describe('moveClips / trimClip / placeItem / setTrack', () => {
     const { engine, items } = await ready();
     const v = tl().sequence!.video[1]!.id;
     await tl().placeItem(items[0]!.item, v, 'video', FT30 * 2.4);
-    expect(engine.callsOf('timeline.place')).toEqual([
-      { item: items[0]!.item, track: v, time: FT30 * 2, insert: true },
-    ]);
+    expect(engine.callsOf('timeline.place')).toEqual([{ item: items[0]!.item, track: v, time: FT30 * 2, insert: true }]);
     expect(useEditor.getState().status).toBe('클립을 놓았습니다');
     expect(tl().sequence!.video[1]!.items).toHaveLength(1);
     const a = tl().sequence!.audio[1]!.id;
@@ -385,8 +379,7 @@ describe('커맨드 실패', () => {
     const { engine, clips } = await ready();
     let release: (() => void) | null = null;
     const original = engine.bridge.execute;
-    engine.bridge.execute = (id, params) =>
-      id === 'timeline.select' ? new Promise((r) => (release = () => r(original(id, params)))) : original(id, params);
+    engine.bridge.execute = (id, params) => (id === 'timeline.select' ? new Promise((r) => (release = () => r(original(id, params)))) : original(id, params));
     const p = tl().selectClip(clips[0]!.clip);
     await Promise.resolve();
     expect(tl().busy).toBe(true);

@@ -1,13 +1,6 @@
 /** features/export/presets.ts: 화면 프리셋 구성, 형식 필터, 크기·남은 시간 표기. */
 import { describe, expect, it } from 'vitest';
-import {
-  buildUiPresets,
-  formatBytes,
-  formatEta,
-  usableFormats,
-  type EngineFormat,
-  type EnginePreset,
-} from '@editor/features/export/presets';
+import { buildUiPresets, formatBytes, formatEta, usableFormats, type EngineFormat, type EnginePreset } from '@editor/features/export/presets';
 
 const hd: EnginePreset = {
   name: 'HQ 1080p',

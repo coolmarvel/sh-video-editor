@@ -114,11 +114,12 @@ describe('rulerStep', () => {
   });
 
   /** 25fps 에서 후보 sec/2 는 12.5 프레임이라 라벨이 프레임 경계에 놓이지 않는다(00:00:00:13 처럼 보인다). */
-  it.fails('25fps 에서도 큰 눈금은 프레임의 정수 배여야 한다 (알려진 버그)', () => {
+  it('25fps 에서도 큰 눈금은 프레임의 정수 배이고 작은 눈금의 정수 배다', () => {
     const fr = { num: 25, den: 1 };
-    const { major } = rulerStep(170, fr);
-    expect(major).toBe(frameTicks(fr) * 12.5);
+    const { major, minor } = rulerStep(170, fr);
+    expect(major).toBe(frameTicks(fr) * 12);
     expect(major % frameTicks(fr)).toBe(0);
+    expect(major % minor).toBe(0);
   });
 
   it('30fps 에서 큰 눈금은 항상 작은 눈금의 정수 배다', () => {
@@ -133,7 +134,7 @@ describe('rulerStep', () => {
    * Ruler 는 작은 눈금을 minor 씩 걷다가 `t % major` 로 큰 눈금을 판정하므로 이 줌에서는 라벨이 대부분 빠진다.
    * 24fps 계열의 후보를 [sec/2, ft*4] 또는 [sec/2, ft*6] 으로 바꾸면 된다.
    */
-  it.fails('24fps 계열에서도 큰 눈금은 작은 눈금의 정수 배여야 한다 (알려진 버그)', () => {
+  it('24fps 계열에서도 큰 눈금은 작은 눈금의 정수 배여야 한다', () => {
     // 170px/s: 프레임당 약 7px 라 [ft*10, ft*2] 는 70px 로 모자라고 [sec/2, ft*5] 가 뽑힌다
     for (const fr of [FR2397, { num: 24, den: 1 }]) {
       const { major, minor } = rulerStep(170, fr);

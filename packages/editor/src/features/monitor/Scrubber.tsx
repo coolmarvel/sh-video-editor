@@ -68,7 +68,7 @@ export function Scrubber({ value, disabled, onScrub, onStep, onHome, onEnd, labe
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={1000}
-      aria-valuenow={Math.round(value * 1000)}
+      aria-valuenow={Math.round(Math.min(1, Math.max(0, value)) * 1000)}
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : 0}
       onPointerDown={onPointerDown}

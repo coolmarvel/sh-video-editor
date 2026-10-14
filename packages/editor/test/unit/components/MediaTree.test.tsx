@@ -30,13 +30,7 @@ describe('MediaTree', () => {
     render(<MediaTree root={root} selectedId={1} onSelect={vi.fn()} onOpen={vi.fn()} />);
     const tree = screen.getByRole('tree', { name: '미디어 목록' });
     const labels = within(tree).getAllByRole('treeitem');
-    expect(labels.map((l) => l.textContent)).toEqual([
-      '프로젝트3',
-      'a.mp400:00:02:00',
-      '폴더1',
-      's00:00:02:00',
-      '빈 폴더0',
-    ]);
+    expect(labels.map((l) => l.textContent)).toEqual(['프로젝트3', 'a.mp400:00:02:00', '폴더1', 's00:00:02:00', '빈 폴더0']);
     expect(within(tree).getByTitle('a.mp4 (영상)')).toHaveAttribute('aria-selected', 'true');
     expect(within(tree).getByTitle('s (시퀀스)')).toHaveAttribute('aria-selected', 'false');
   });

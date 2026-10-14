@@ -52,7 +52,7 @@ describe('Scrubber', () => {
   });
 
   /** 채움 폭은 자르지만 aria-valuenow 는 자르지 않아 aria-valuemax(1000)를 넘길 수 있다. 같은 clamp 를 쓰면 된다. */
-  it.fails('aria-valuenow 도 0..1000 안이어야 한다 (알려진 결함)', () => {
+  it('aria-valuenow 도 0..1000 안이어야 한다', () => {
     const a = setup({ value: 1.7 });
     expect(a.slider).toHaveAttribute('aria-valuenow', '1000');
   });

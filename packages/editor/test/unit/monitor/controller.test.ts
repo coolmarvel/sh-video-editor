@@ -33,15 +33,7 @@ function make(engine: FakeEngine): MonitorController {
 beforeEach(() => {
   resetStores();
   vi.useFakeTimers({
-    toFake: [
-      'setTimeout',
-      'clearTimeout',
-      'setInterval',
-      'clearInterval',
-      'performance',
-      'requestAnimationFrame',
-      'cancelAnimationFrame',
-    ],
+    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'],
   });
 });
 afterEach(() => {
@@ -301,7 +293,7 @@ describe('재생 루프', () => {
    * 다시 그릴 일이 없으면 상태 줄의 "배율 1/4" 가 사용자가 스크럽할 때까지 남는다. pause 에서
    * publishStats(now, true) 를 부르면 된다.
    */
-  it.fails('정지하면 상태 줄 배율도 표시 배율로 돌아와야 한다 (알려진 결함)', async () => {
+  it('정지하면 상태 줄 배율도 표시 배율로 돌아와야 한다', async () => {
     const { engine } = engineWithClips();
     const c = make(engine);
     await c.refreshSequence();

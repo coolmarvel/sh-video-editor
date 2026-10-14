@@ -67,9 +67,7 @@ describe('RecoveryDialog', () => {
     await useProject.getState().openRecovery();
     render(<RecoveryDialog />);
     const dialog = screen.getByRole('dialog', { name: '저장하지 않은 변경 복구' });
-    expect(dialog).toHaveTextContent(
-      "이전 세션이 예기치 않게 종료되어 'p1' 의 저장하지 않은 변경이 남아 있습니다 (2026-10-14 01:00:00). 되살릴까요?",
-    );
+    expect(dialog).toHaveTextContent("이전 세션이 예기치 않게 종료되어 'p1' 의 저장하지 않은 변경이 남아 있습니다 (2026-10-14 01:00:00). 되살릴까요?");
     expect(screen.getByText('원본 파일: /p/a.fcproj')).toBeInTheDocument();
     expect(screen.queryByLabelText('후보')).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: '복구' }));

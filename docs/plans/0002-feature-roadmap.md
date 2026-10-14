@@ -171,8 +171,8 @@ domain: development
   - (c) [x] `packages/engine/tests/keyframes.test.ts`: 중간 프레임 위치가 선형 보간값과 4px(0.25 배율 1px) 이내, 홀드·이즈아웃, 불투명도 밝기 증가
   - (e) [ ] 엔진 갭: `sequence.inspect` 가 키프레임 **개수**만 주고 시각·값 목록을 주는 커맨드가 없다. 화면이 보낸 커맨드로 목록을 쌓고 개수로 대조하며(실행 취소·다시 실행은 스냅샷), 프로젝트를 다시 열면 마커가 비는다. `effects.keyframes {clip, effect, param}` 조회 커맨드가 필요하다
   - (d) M
-- [ ] **M3-2 속도 램프**: `time_remap` 효과의 speed 파라미터에 키프레임(M3-1 재사용), 곡선 프리셋(몽타주·히어로·총알). (d) S
-- [ ] **M3-3 크로마키·PIP·오버레이**
+- [x] **M3-2 속도 램프** (2026-10-14 feat/motion-fx: 상류가 time_remap speed 키프레임을 렌더에서 무시해 vendor 에 적분 추가, 곡선 프리셋 3종 + 편집기): `time_remap` 효과의 speed 파라미터에 키프레임(M3-1 재사용), 곡선 프리셋(몽타주·히어로·총알). (d) S
+- [x] **M3-3 크로마키·PIP·오버레이** (2026-10-14 feat/motion-fx: ultra_key + 스포이트, PIP 모서리 프리셋, V2 끌어다 놓기 확인)
   - (a) `ultra_key`(key_color·tolerance·pedestal), `graphics.newFromFile`, `motion` 효과의 position·scale, `opacity` 의 blend
   - (b) features/overlay: "배경 색 지우기" 스포이드, PIP 위치 프리셋(모서리 4개), 불투명도·블렌드
   - (c) 그린스크린 샘플 클립에서 배경 알파 0, 피사체 알파 255(픽셀 샘플링)
@@ -182,7 +182,7 @@ domain: development
   - (b) [x] 스티커 패널(분류 5개, 자체 제작 SVG 20종, `features/stickers/assets` + `.attribution` + `ATTRIBUTION.md`). 화면이 PNG 로 래스터해 웹은 `registerFiles`, 데스크톱은 `writeTempFile` 로 넘기고 엔진 `graphics.newFromFile {path, time}`(두 번째부터는 `timeline.place {duration}`). 엔진은 SVG 를 읽지 못한다(media: unrecognised format). 위치·크기는 모션 탭·변형 상자. 검색은 없음
   - (c) [ ] Lottie 샘플 10개 렌더 골든
   - (d) L
-- [~] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export: WebM(VP9 + Opus) 완료, 프리셋 2종. HEVC(hevcenc) 는 미이식)
+- [x] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export + feat/hevc-export: WebM(VP9 + Opus)·HEVC(hevcenc) 소프트웨어 인코더, 프리셋 각 2종. 둘 다 단일 스레드라 1080p 는 H.264 의 5~9배 느림)
   - (a) effectcraft `hevcenc`·`vp9enc`·`opusenc` 이식, `export::VideoEncoder`·`AudioEncoder` 구현, `export.formats` 에 hevc `available:true`, webm 포맷 신규(matroska 먹서는 디먹스만 있어 먹서 신규)
   - (b) 내보내기 프리셋에 "HEVC(용량 절반)"·"WebM(웹용)" 추가
   - (c) 인코드 -> 우리 디코더 -> 디코드 왕복 PSNR 35dB 이상, ffprobe 로 재생 가능, Windows Movies & TV·Chrome 재생
@@ -192,9 +192,9 @@ domain: development
   - (b) [x] features/templates: 미디어 패널 "템플릿" 탭, 자체 레시피 4종(인트로 제목 5초, 세로 Shorts 틀 9:16, 사진 슬라이드쇼 3초+디졸브, 엔딩 카드). 레시피 = 엔진 커맨드 순서(`recipe.ts`: newSequence, newColorMatte, timeline.place, clip.fillFrame, graphics.newText/set/alignFrame.*, opacity 키프레임, applyVideoTransition). 묶음 실행 취소는 `edit.beginTransaction/endTransaction` 이 카탈로그에 생기면 `runRecipe` 가 자동으로 감싼다(지금은 단계별 항목). 플레이스홀더 교체 플로우는 없음(제목 클립을 선택하고 텍스트 탭을 연다)
   - (c) [ ] 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내(지금: 가져오기 1, 선택, 템플릿 탭 1, 만들기 1, 내보내기 1)
   - (d) M
-- [ ] **M3-7 텍스트 기반 편집·정리 도구**: `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M
-- [~] **M3-8 오디오 정리** (2026-10-14 feat/timestretch: WSOLA 음정 유지만. 아래 정리 버튼은 미착수): `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S
-- [ ] **M3-9 손떨림 보정**: `warp_stabilizer`(2D 근사) 를 "흔들림 줄이기" 버튼으로. 분석 시간이 길어 `jobs.*` 진행률 필요. (d) S
+- [x] **M3-7 텍스트 기반 편집·정리 도구** (2026-10-14 feat/audio-cleanup: 전사 탭, 문장 지우기, 무음·군말 제거, 장면마다 자르기): `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M
+- [x] **M3-8 오디오 정리** (2026-10-14 feat/timestretch + feat/audio-cleanup: 음정 유지, 음성 깨끗하게(denoise·dereverb·enhance), 소리 크기 맞추기 -14/-16/-23 LUFS): `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S
+- [x] **M3-9 손떨림 보정** (2026-10-14 feat/motion-fx: 흔들림 줄이기 버튼. 분석이 렌더 안 동기라 진행률 없음, wasm 16초 클립 40~50초): `warp_stabilizer`(2D 근사) 를 "흔들림 줄이기" 버튼으로. 분석 시간이 길어 `jobs.*` 진행률 필요. (d) S
 - [ ] **M3-10 macOS dmg**(0001 이월). (d) M
 
 ### 마일스톤 4 - 품질·성능·호환성

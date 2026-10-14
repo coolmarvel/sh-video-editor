@@ -21,7 +21,10 @@ domain: development
 
 ## P2 - 가까운 로드맵
 
-- [ ] VP9 인코더가 단일 스레드라 1080p 는 4 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`)
+- [ ] VP9·HEVC 인코더가 단일 스레드라 1080p 는 4 fps·2.3 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`, `crates/hevcenc`)
+- [ ] 흔들림 줄이기 분석을 엔진 잡(`jobs.*`)으로 빼서 진행률·취소 (지금은 첫 renderFrame 안에서 동기, wasm 16초 클립 40~50초) (`vendor/.../render`, `features/motion-fx`)
+- [ ] 장면마다 자르기 진행률(`clip.sceneEditDetection wait:true` 동기) (`features/audio/cleanup.ts`)
+- [ ] 엔진 toast 이벤트 영문 문구("Scene Edit Detection found no cut points" 등)를 번역표로 (`features/events/poller.ts`)
 - [ ] SNS 프리셋 카드가 H.264 비트레이트로 WebM 을 고르면 VP9 가 16~45 Mbps 로 인코딩. WebM 용 비트레이트 표 (`features/ratio/SnsPresets.tsx`, `features/export/presets.ts`)
 - [ ] 미리보기의 4096 프레임 블록에서 WSOLA 가 1초 블록의 3.5배 비용. `SYNC_SEGMENTS` 조정 또는 renderAudio 요청 크기 (`crates/audio-dsp/src/timestretch.rs`)
 - [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
@@ -42,5 +45,5 @@ domain: development
 
 ## P4 - 아이디어
 
-- [ ] effectcraft hevcenc·av1enc 이식으로 HEVC/AV1 내보내기 (WebM 은 끝남, `docs/guides/webm-export.md`)
+- [ ] effectcraft av1enc 이식으로 AV1 내보내기 (WebM·HEVC 는 끝남, `docs/guides/webm-export.md`)
 - [ ] 템플릿 갤러리(인트로·세로 SNS·슬라이드쇼)

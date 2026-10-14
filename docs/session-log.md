@@ -12,6 +12,26 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - 오디오 정리·전사 편집, 속도 램프·크로마키·PIP·흔들림, HEVC (feat/audio-cleanup, motion-fx, hevc-export 병합, v0.1.6)
+
+- **요청**: 로드맵 M3 잔여(M3-2, M3-3, M3-5 HEVC, M3-7, M3-8, M3-9)와 M4 운영 품질을 워크트리 4개로 병렬.
+- **수정**:
+  - audio-cleanup(엔진 변경 없음): 오디오 탭 "음성 깨끗하게"(essentialSound.setType dialogue + set 으로 denoise·dereverb·enhance 조합, 강도
+    3단, 원래대로)·"소리 크기 맞추기"(essentialSound.autoMatch -14/-16/-23 + normalizeMixTrack -1 dB, 측정 LUFS·게인 표시), 인스펙터
+    "전사" 탭(transcript.inspect/search/extract/removePauses/removeFillers, 문장 클릭 이동), 클립 메뉴 "장면마다 자르기"(clip.sceneEditDetection).
+    실측 16초: 정리 렌더 89ms 에서 574ms, autoMatch 643ms, 장면 2.0s.
+  - motion-fx: 상류가 time_remap speed 키프레임을 렌더에서 무시하던 것을 vendor `project`(`remapped_source_time_at`, 곡선 적분)와
+    `render`(frame_time·base_layer·interpolation_blend)에 고쳐 속도 램프가 실제로 작동. 속도 탭 "속도 곡선"(프리셋 3종 + SVG 곡선 편집기,
+    배지 "램프", 클립 길이 불변·소리는 원래 속도), 효과 탭 "배경 지우기"(ultra_key, 모니터 스포이트는 효과를 잠깐 끄고 renderFrame 픽셀 읽기)·
+    "작은 화면"(motion scale·position 모서리 4곳)·"흔들림 줄이기"(warp_stabilizer, 첫 렌더에서 분석: napi 5초 클립 691ms, wasm 16초 40~50초).
+  - hevc-export: effectcraft `hevcenc` 이식(`crates/hevcenc`, 의존성 0), export 에 `HevcEncoder`·hvcC, `hevc` 형식 available, 프리셋
+    "HEVC 1080p (Half Size)"·"HEVC 2160p 4K". 형식 콤보 3개(H.264, HEVC, WebM). 실측 1080p 18초: HEVC 236.7초(2.3 fps, 11.1MB) 대
+    H.264 26.3초(12.7MB) 대 WebM 128.6초(14.5MB).
+  - 병합 충돌: 클립 메뉴(장면마다 자르기 + 흔들림 줄이기 둘 다), usage.md 절 번호(오디오 3.10~3.13, 모션 3.14~3.16), engine-commands·
+    데스크톱/웹 표의 내보내기 행, motion-fx 엔진 테스트의 inspect 타입.
+- **검증**: 아래 "병합 뒤 검증(v0.1.6)" 줄(ops-quality 병합 뒤 한 번에).
+- **다음**: ops-quality 병합(크래시 리포트, 워크플로 회귀, 한글화), 흔들림·장면 분석을 엔진 잡으로, AV1, Lottie, 사용자 템플릿.
+
 ## 2026-10-14 - wasm 크기·속도, WebCodecs 디코더 (M4-4, feat/wasm-perf 병합, v0.1.5)
 
 - **요청**: 로드맵 M4-4. 측정으로 정당화된 변경만.

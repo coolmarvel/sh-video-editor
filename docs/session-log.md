@@ -28,6 +28,8 @@ domain: development
 - **병합 뒤 검증(v0.1.6, main)**: prettier, typecheck, clippy, 단위 685(커버리지 임계 유지), 엔진 기능 170(napi + wasm), 워크플로 회귀 13초,
   웹 e2e 143 통과(skip 1, 9.8분. 클립 메뉴 항목 2개 추가로 기대값 갱신), 데스크톱 e2e 6 + 스모크(686 커맨드), vendor `cargo xtask ci`
   (frame pool 테스트의 전역 reused 카운터 기대를 하한으로). Windows 엔진 0.1.6 크로스 빌드, 인스톨러 0.1.6 바탕화면(0.1.5 제거).
+  GitHub Actions 첫 성공(run 38590188018): lint-unit, engine, typecheck, web, web-mobile, desktop 전부 통과. 앞선 실패는 설치 스크립트의
+  구버전 wasm-pack 이 `--profile` 을 몰라서였고 0.15.0 을 고정해 해결.
 
 ## 2026-10-14 - 오디오 정리·전사 편집, 속도 램프·크로마키·PIP·흔들림, HEVC (feat/audio-cleanup, motion-fx, hevc-export 병합, v0.1.6)
 

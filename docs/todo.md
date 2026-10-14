@@ -38,7 +38,7 @@ domain: development
 ## P3 - 품질
 
 - [ ] 웹 e2e `keyframes.spec.ts` 모바일에서 부하(load 13) 때 상태 줄 기대가 1회 어긋남(재실행 통과). flaky 후보로 관찰
-- [ ] GitHub Actions 첫 실행 확인: wasm-pack 설치, electron-builder 의 wine 패키지명, rust-cache 가 vendor 를 매번 재빌드하는지 (`.github/workflows/ci.yml`)
+- [ ] CI web-mobile job 이 통과하므로 continue-on-error 를 빼고 web job 에 합치기. windows-installer dispatch job(wine 패키지명)은 아직 미실행 (`.github/workflows/ci.yml`)
 - [ ] 웹에서 Ctrl+N 은 Chrome 예약 키라 가로채지 못함. 메뉴 표기만 두거나 다른 키로
 - [ ] 바인딩 단위 테스트(napi: Node 스크립트, wasm: wasm-bindgen-test)와 Playwright e2e 를 `npm run verify` 에 포함
 - [ ] 데스크톱 렌더러 번들 651KB 원인 확인(난독화 전후 비교)

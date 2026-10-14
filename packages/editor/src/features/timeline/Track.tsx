@@ -14,6 +14,7 @@ function ClipThumb({ clip }: { clip: ClipInfo }) {
   const url = useThumbnail(bridge, clip.item, clip.sourceIn);
   return url ? <img className="tl-clip__thumb" src={url} alt="" draggable={false} /> : null;
 }
+import { ClipWaveform } from '../audio/ClipWaveform';
 
 /** 드래그 중 미리보기. 엔진에 보내기 전 화면만 먼저 움직인다 */
 export interface ClipPreview {
@@ -153,6 +154,7 @@ function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPoint
     >
       <div className="tl-clip__handle tl-clip__handle--in" onPointerDown={(e) => part(e, 'in')} />
       {!audio && width >= THUMB_MIN_CLIP_PX && <ClipThumb clip={clip} />}
+      {audio && <ClipWaveform clip={clip} width={width} />}
       <span className="tl-clip__name">{clip.name}</span>
       <SpeedBadge clip={clip} />
       <div className="tl-clip__handle tl-clip__handle--out" onPointerDown={(e) => part(e, 'out')} />

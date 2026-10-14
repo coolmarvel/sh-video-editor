@@ -37,6 +37,8 @@ const bridge: EngineBridge = {
   },
   pickFiles: () => api.pickFiles(),
   pathForFile: (file) => api.pathForFile(file),
+  renderAudio: (tick, frames, sampleRate) => api.renderAudio(tick, frames, sampleRate),
+  audioPeaks: (item, perSecond) => api.audioPeaks(item, perSecond),
 };
 
 const el = document.getElementById('root');

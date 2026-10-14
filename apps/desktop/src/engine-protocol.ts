@@ -18,6 +18,8 @@ export type EngineMethod =
   | 'renderFrame'
   | 'drainEvents'
   | 'renderItemThumbnail'
+  | 'renderAudio'
+  | 'audioPeaks'
   | 'isDirty'
   | 'startAutosave'
   | 'pollPersistence'

@@ -5,6 +5,7 @@ import { MonitorController } from './controller';
 import { setMonitorController, useMonitorOverlays } from './registry';
 import { Scrubber } from './Scrubber';
 import { PLAYBACK_RATES, useMonitor } from './store';
+import { AudioToolbar } from '../audio/AudioToolbar';
 import './monitor.css';
 
 const ICON = {
@@ -181,6 +182,7 @@ export function MonitorPanel() {
             </option>
           ))}
         </select>
+        <AudioToolbar />
         <span className="sh-separator" />
         <span className="sh-tnum mon-timecode" aria-live="off">
           <b data-testid="mon-current">{current}</b> / <span data-testid="mon-total">{total}</span>

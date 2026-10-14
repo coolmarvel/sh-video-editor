@@ -191,3 +191,11 @@ body {
     max-height: 26vh;
   }
 }
+/* 한 열 배치: 미디어·미리보기·속성이 각자 필요한 높이를 갖고 본문이 세로로 스크롤된다. 1fr 한 행에 셋을 넣으면 미리보기의
+   이동 툴바가 넘쳐 속성 패널 아래로 깔려 탭·슬라이더를 누를 수 없었다(2026-10-14 오디오 e2e, 390px) */
+@media (max-width: 900px) {
+  .ve-root .ve-body {
+    grid-template-rows: auto auto auto;
+    overflow-y: auto;
+  }
+}

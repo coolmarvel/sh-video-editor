@@ -68,6 +68,8 @@ export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
     renderFrame: (tick, scale) => call<Frame | null>('renderFrame', tick, scale),
     drainEvents: () => call<EngineEvent[]>('drainEvents'),
     renderItemThumbnail: (item, tick, width) => call<Frame>('renderItemThumbnail', item, tick, width),
+    renderAudio: (tick, frames, sampleRate) => call<Float32Array>('renderAudio', tick, frames, sampleRate),
+    audioPeaks: (item, perSecond) => call<Float32Array>('audioPeaks', item, perSecond),
 
     // File 은 structured clone 으로 Worker 에 넘어간다(바이트 복사 없음, 핸들만)
     registerFiles: (files) => call<string[]>('registerFiles', files),

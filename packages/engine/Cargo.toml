@@ -21,6 +21,7 @@ filmcraft-render = { path = "vendor/filmcraft/crates/render" }
 filmcraft-time = { path = "vendor/filmcraft/crates/time" }
 filmcraft-media = { path = "vendor/filmcraft/crates/media" }
 filmcraft-platform = { path = "vendor/filmcraft/crates/platform" }
+filmcraft-audio-dsp = { path = "vendor/filmcraft/crates/audio-dsp" }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 thiserror = "2"

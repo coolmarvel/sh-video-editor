@@ -120,6 +120,16 @@ async function handle(method: string, args: unknown[]): Promise<{ result: unknow
       if (!r.result) throw new Error('썸네일을 만들지 못했습니다');
       return r;
     }
+    case 'renderAudio': {
+      const [tick, frames, sampleRate] = args as [number, number, number | undefined];
+      const pcm = engine.renderAudio(BigInt(tick), frames, sampleRate);
+      return { result: pcm, transfer: [pcm.buffer] };
+    }
+    case 'audioPeaks': {
+      const [item, perSecond] = args as [number, number];
+      const peaks = engine.audioPeaks(item, perSecond);
+      return { result: peaks, transfer: [peaks.buffer] };
+    }
     // ----- 웹 전용: 파일 -----
     case 'registerFiles': {
       const files = args[0] as File[];

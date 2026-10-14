@@ -28,6 +28,10 @@ use filmcraft_project::ItemId;
 use filmcraft_time::Tick;
 use wasm_bindgen::prelude::*;
 
+/// 오디오 미리듣기·파형. napi 바인딩과 같은 파일(bindings/shared/audio.rs).
+#[path = "../../shared/audio.rs"]
+mod audio;
+
 pub const BASE_ENGINE: &str = "filmcraft 0.2.1";
 
 /// Blob 범위 읽기의 청크 크기.
@@ -570,6 +574,22 @@ impl Engine {
         let t = (tick >= 0).then_some(Tick(tick));
         let img = self.session.render_item_thumbnail(ItemId(item), t, width).map_err(|e| JsError::new(&e.to_string()))?;
         pack_frame(&img).ok_or_else(|| JsError::new("thumbnail too large"))
+    }
+
+    /// napi 와 같은 모양: 활성 시퀀스의 믹스를 `tick` 부터 `frames` 프레임, interleaved 스테레오 f32 PCM 으로
+    /// (길이 `frames * 2`, Float32Array). `sample_rate` 기본 48000. 시퀀스가 없으면 무음. 한 번에 최대 10초.
+    #[wasm_bindgen(js_name = renderAudio)]
+    pub fn render_audio(&self, tick: i64, frames: u32, sample_rate: Option<u32>) -> Vec<f32> {
+        audio::render_audio(&self.session, tick, frames as usize, sample_rate.unwrap_or(audio::DEFAULT_SAMPLE_RATE))
+    }
+
+    /// napi 와 같은 모양: 미디어 항목 `item` 의 파형, 초당 `per_second` 칸의 min/max 피크(interleaved). 소리가 없으면 빈 배열.
+    #[wasm_bindgen(js_name = audioPeaks)]
+    pub fn audio_peaks(&self, item: f64, per_second: u32) -> Vec<f32> {
+        if !item.is_finite() || item < 0.0 {
+            return Vec::new();
+        }
+        audio::audio_peaks(&self.session, item as u64, per_second)
     }
 }
 

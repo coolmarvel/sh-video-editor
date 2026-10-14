@@ -18,6 +18,8 @@ import './features/effects';
 import './features/transitions/register';
 import { useEnginePolling } from './features/events';
 import './features/text';
+// 오디오 탭·음악 탭 등록(레지스트리 방식). 재생기는 모니터 툴바의 AudioToolbar 가 띄운다
+import './features/audio';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';

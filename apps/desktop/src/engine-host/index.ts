@@ -46,6 +46,9 @@ const methods: Record<EngineRequest['m'], (...a: never[]) => unknown> = {
     const f = getSession().renderItemThumbnail(item, tick, width);
     return { width: f.width, height: f.height, rgba: f.rgba };
   },
+  // 오디오 미리듣기(interleaved 스테레오 f32)와 클립 파형 피크. Float32Array 는 구조적 복제로 그대로 넘어간다
+  renderAudio: (tick: number, frames: number, sampleRate?: number) => getSession().renderAudio(tick, frames, sampleRate),
+  audioPeaks: (item: number, perSecond: number) => getSession().audioPeaks(item, perSecond),
 };
 
 function serve(post: (r: EngineResponse) => void, data: unknown) {

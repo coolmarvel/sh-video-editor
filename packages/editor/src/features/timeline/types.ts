@@ -33,6 +33,8 @@ export interface ClipInfo {
   link: number | null;
   /** 적용된 효과(고정 효과 motion, opacity, time_remap 포함). 엔진이 주지 않으면 없다 */
   effects?: ClipEffectInfo[];
+  /** 클립 게인(dB). 음성 클립만 뜻이 있다(features/audio) */
+  gainDb?: number;
 }
 
 /** 트랙의 전환 하나(`sequence.inspect` 의 `transitions[]`). from/to 중 하나가 null 이면 한쪽 편집점(페이드 인·아웃) */

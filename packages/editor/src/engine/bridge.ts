@@ -78,6 +78,17 @@ export interface EngineBridge {
    * 확대하지 않음). 소리만 있는 항목·없는 항목은 거부(throw). 캐시는 features/media/thumbs.ts.
    */
   renderItemThumbnail?(item: number, tick: number, width: number): Promise<Frame>;
+  /**
+   * 오디오 미리듣기(features/audio). 활성 시퀀스의 믹스를 `tick` 부터 `frames` 프레임, interleaved 스테레오 f32
+   * (길이 `frames * 2`)로. `sampleRate` 기본 48000. 시퀀스가 없으면 무음. 한 번에 최대 10초. 두 호스트가 구현하지만
+   * 선택 메서드로 두어 없는 호스트(테스트 가짜 엔진)에서는 소리 없이 돈다.
+   */
+  renderAudio?(tick: number, frames: number, sampleRate?: number): Promise<Float32Array>;
+  /**
+   * 미디어 항목 `item` 의 소리 전체를 초당 `perSecond` 칸의 min/max 피크로(interleaved `[min, max]`, 길이 칸 수 * 2).
+   * 소리가 없으면 빈 배열. 타임라인 파형(features/audio)이 항목마다 한 번 받아 캐시하고 클립의 소스 구간을 잘라 그린다.
+   */
+  audioPeaks?(item: number, perSecond: number): Promise<Float32Array>;
   /** 호스트 파일 대화상자. 데스크톱만 구현한다(없으면 가져오기 버튼을 숨긴다). 취소하면 빈 배열 */
   pickFiles?(): Promise<string[]>;
   /** 끌어다 놓은 File 의 실제 경로. 데스크톱만 구현한다(Electron 의 webUtils.getPathForFile) */

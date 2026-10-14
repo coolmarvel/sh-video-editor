@@ -17,6 +17,7 @@ crate-type = ["cdylib", "rlib"]
 filmcraft-engine = { workspace = true }
 filmcraft-project = { workspace = true }
 filmcraft-time = { workspace = true }
+filmcraft-audio-dsp = { workspace = true }
 filmcraft-media = { workspace = true }
 filmcraft-render = { workspace = true }
 serde_json = { workspace = true }

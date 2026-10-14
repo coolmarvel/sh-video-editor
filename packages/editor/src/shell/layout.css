@@ -106,3 +106,9 @@ body {
     display: none;
   }
 }
+/* 미디어 패널: 한 열 배치(모바일)에서는 모니터 자리를 남기도록 높이를 제한한다. 내부 배치는 features/media/media.css */
+@media (max-width: 900px) {
+  .ve-media {
+    max-height: 42vh;
+  }
+}

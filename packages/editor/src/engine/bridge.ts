@@ -28,4 +28,8 @@ export interface EngineBridge {
   setPlayhead(tick: number): Promise<void>;
   pumpJobs(budgetMs: number): Promise<boolean>;
   renderFrame(tick: number, scale: number): Promise<Frame | null>;
+  /** 호스트 파일 대화상자. 데스크톱만 구현한다(없으면 가져오기 버튼을 숨긴다). 취소하면 빈 배열 */
+  pickFiles?(): Promise<string[]>;
+  /** 끌어다 놓은 File 의 실제 경로. 데스크톱만 구현한다(Electron 의 webUtils.getPathForFile) */
+  pathForFile?(file: File): string | null;
 }

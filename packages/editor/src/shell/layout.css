@@ -195,7 +195,8 @@ body {
    이동 툴바가 넘쳐 속성 패널 아래로 깔려 탭·슬라이더를 누를 수 없었다(2026-10-14 오디오 e2e, 390px) */
 @media (max-width: 900px) {
   .ve-root .ve-body {
-    grid-template-rows: auto auto auto;
+    /* 미리보기 행은 max-content: auto 행은 min-height:0 인 패널을 컨테이너 높이에 맞춰 눌러 이동 툴바가 잘린다 */
+    grid-template-rows: auto max-content auto;
     overflow-y: auto;
   }
 }

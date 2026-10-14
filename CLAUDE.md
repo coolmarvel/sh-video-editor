@@ -65,17 +65,17 @@ Chrome 에서 같은 결과. 상세는 `docs/brief.md`, 스택은 ADR-0002, 엔�
 
 ## 문서 인덱스 (docs/)
 
-| 파일                     | 용도                                                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `docs/writing-guide.md`  | **문서 지배 규칙** (SSOT·frontmatter·코드 1:1 대조). 문서 쓰기 전 필독                                        |
-| `docs/brief.md`          | 프로젝트 **왜/무엇 SSOT**: 킥오프 산출물                                                                      |
-| `docs/session-log.md`    | 세션별 진행 이력. **"언제 무슨 일" SSOT** (최신이 위)                                                         |
-| `docs/todo.md`           | 미해결·향후 작업만 (P1~P4). 완료분은 session-log 로                                                           |
-| `docs/changelog.md`      | 릴리스 단위 사람용 요약                                                                                       |
-| `docs/adr/*.md`          | 구조적 결정 기록 - 0001 하네스, 0002 스택, 0003 엔진 이식·라이선스                                            |
-| `docs/plans/*.md`        | 앞으로 만들 것 - 0001 MVP 마일스톤 (역할 구분은 `plans/README.md`)                                            |
-| `docs/guides/*.md`       | 현재 구현된 동작·코드 위치 - `usage.md` 사용법 SSOT(앱 도움말에 번들), `packaging.md` 인스톨러, `timeline.md` |
-| `docs/feedback-archive/` | 처리 완료한 사용자 피드백 보관소                                                                              |
+| 파일                     | 용도                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/writing-guide.md`  | **문서 지배 규칙** (SSOT·frontmatter·코드 1:1 대조). 문서 쓰기 전 필독                                                             |
+| `docs/brief.md`          | 프로젝트 **왜/무엇 SSOT**: 킥오프 산출물                                                                                           |
+| `docs/session-log.md`    | 세션별 진행 이력. **"언제 무슨 일" SSOT** (최신이 위)                                                                              |
+| `docs/todo.md`           | 미해결·향후 작업만 (P1~P4). 완료분은 session-log 로                                                                                |
+| `docs/changelog.md`      | 릴리스 단위 사람용 요약                                                                                                            |
+| `docs/adr/*.md`          | 구조적 결정 기록 - 0001 하네스, 0002 스택, 0003 엔진 이식·라이선스                                                                 |
+| `docs/plans/*.md`        | 앞으로 만들 것 - 0001 MVP 마일스톤 (역할 구분은 `plans/README.md`)                                                                 |
+| `docs/guides/*.md`       | 현재 구현된 동작·코드 위치 - `usage.md` 사용법 SSOT(앱 도움말에 번들), `packaging.md` 인스톨러, `testing.md` 테스트, `timeline.md` |
+| `docs/feedback-archive/` | 처리 완료한 사용자 피드백 보관소                                                                                                   |
 
 ## 자주 쓰는 명령
 

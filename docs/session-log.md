@@ -12,6 +12,23 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-14 - CI 워크플로, e2e 안정화, 커버리지 임계 (M4 품질, feat/ci-quality 병합)
+
+- **요청**: 로드맵 M4 의 품질 축. 다음 물결(webm-export, timestretch, wasm-perf)과 병렬로 진행.
+- **수정**:
+  - `.github/workflows/ci.yml`: lint-unit(prettier + 커버리지 임계 90/82/88/93) / engine(clippy, napi·wasm 빌드, cargo test,
+    엔진 기능 테스트, artifact) / typecheck / web(desktop-1440) / web-mobile(390, 실패 허용) / desktop(xvfb 스모크·e2e) /
+    vendor-ci(매일 03:00 KST `cargo xtask ci`) / windows-installer(dispatch, cargo-xwin + LLVM). GitHub 에서 첫 실행은 아직.
+  - 데스크톱 e2e 복구 테스트를 `recovery.spec.ts` 로 분리해 `app` 뒤 단독 실행. onCrashed 등록을 기다린 뒤 kill, 20초 상한 +
+    재kill 3회, 단계 로그.
+  - 웹 e2e: `SH_E2E_PORT` 없으면 빈 포트 자동 선택, retries CI 1/로컬 0, 390 폭 전환 2건은 드래그 대신 카드 Enter(`TransitionGallery`
+    키보드 경로 신규)로 skip 0건. `scripts/test-report.mjs`(`npm run test:report`) 층별 표.
+  - vendor xtask `wasm` 검사를 ui-egui 대신 L0~L4(filmcraft-engine)로(`engine(vendor):`). `docs/guides/testing.md` 신규.
+- **검증**(병합 뒤 main): prettier, typecheck, 단위 604(커버리지 93.4/84.7/91.4/96.3), 데스크톱 e2e app 5 + recovery 1(복구 1.2초),
+  웹 e2e transitions·usability·keyframes 38(두 뷰포트, skip 0). 병합 뒤 고친 것: 복구 테스트가 빨라져 크래시 전 토스트가 남아 둘이
+  되던 것은 `.last()`, 내보내기 프리셋 수는 엔진 응답 뒤라 `expect.poll`(부하 35 에서 0개로 실패). vendor `cargo xtask ci` 는 아래 줄.
+- **다음**: GitHub Actions 첫 실행 확인(wasm-pack 설치, wine 패키지명, rust-cache 시간), keyframes.spec 모바일 flaky 1건 관찰.
+
 ## 2026-10-14 - 사용법 문서, 자동 자막, 캐시·웹 저장, 키프레임·스티커·템플릿, 엔진 커맨드 보강 (v0.1.4)
 
 - **요청**: "기능은 있는데 사용법이 없다", 로드맵·todo 를 마일스톤 단위로 계속.

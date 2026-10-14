@@ -43,7 +43,8 @@ function enginePids(app: ElectronApplication): Promise<number[]> {
 async function makeDemoSequence(page: Page): Promise<void> {
   await page.getByRole('button', { name: '데모 영상', exact: true }).click();
   await page.getByRole('menuitem', { name: '바다 노을' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다' })).toBeVisible();
+  // 복구가 빠르면(1초대) 크래시 전 토스트가 아직 떠 있어 둘이 될 수 있다. 마지막 것만 본다
+  await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다' }).last()).toBeVisible();
   await page.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
   await expect(page.locator('.tl-clip')).toHaveCount(2);
   await expect(page.getByTestId('mon-total')).toHaveText('00:00:18:00');

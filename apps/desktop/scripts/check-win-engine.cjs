@@ -20,9 +20,7 @@ if (existsSync(path)) {
     '  4) WSL: npm run dist:win',
   ].join('\n');
   if (process.env.SH_ALLOW_MISSING_WIN_ENGINE) {
-    console.warn(
-      msg + '\nSH_ALLOW_MISSING_WIN_ENGINE 이 설정되어 계속한다. 이 산출물은 사용자 PC 에서 엔진 로드에 실패한다.',
-    );
+    console.warn(msg + '\nSH_ALLOW_MISSING_WIN_ENGINE 이 설정되어 계속한다. 이 산출물은 사용자 PC 에서 엔진 로드에 실패한다.');
   } else {
     console.error(msg);
     process.exit(1);

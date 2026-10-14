@@ -39,12 +39,7 @@ export type HostControl = { type: 'port'; who: 'main' | 'renderer' };
 export type HostNotice = { type: 'ready' };
 
 export function isEngineRequest(d: unknown): d is EngineRequest {
-  return (
-    typeof d === 'object' &&
-    d !== null &&
-    typeof (d as EngineRequest).id === 'number' &&
-    typeof (d as EngineRequest).m === 'string'
-  );
+  return typeof d === 'object' && d !== null && typeof (d as EngineRequest).id === 'number' && typeof (d as EngineRequest).m === 'string';
 }
 
 export function isEngineResponse(d: unknown): d is EngineResponse {

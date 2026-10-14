@@ -13,8 +13,8 @@ body {
   --ve-timeline-max: 70vh;
   /* 타임라인 기본 높이 = 4.15 의 6트랙 합. timeline.css 와 같은 식이며 그쪽 --tl-* 는 .tl 안에서만 보여 토큰으로 다시 적는다 */
   --ve-timeline-h-default: calc(
-    var(--sh-size-panel-title) + var(--sh-size-toolbar) + var(--sh-size-row) + var(--sh-size-row) * 2 * 3 +
-      (var(--sh-size-row) + var(--sh-space-8)) * 3 + var(--sh-border-width) * 2
+    var(--sh-size-panel-title) + var(--sh-size-toolbar) + var(--sh-size-row) + var(--sh-size-row) * 2 * 3 + (var(--sh-size-row) + var(--sh-space-8)) * 3 +
+      var(--sh-border-width) * 2
   );
   display: grid;
   /* 메뉴바 | 본문 | 가로 스플리터 | 타임라인 | 상태 줄. 본문·타임라인 크기는 App 이 --ve-media-w, --ve-timeline-h 로 내려 준다 */

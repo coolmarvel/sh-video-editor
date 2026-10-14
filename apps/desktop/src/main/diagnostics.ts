@@ -26,9 +26,7 @@ async function smoke(win: BrowserWindow, engine: EngineSupervisor) {
   const viaRenderer = await win.webContents.executeJavaScript('window.shEngine.version()');
   if (viaRenderer !== version) throw new Error(`renderer path mismatch: ${String(viaRenderer)}`);
   // 크래시 복구: 엔진 프로세스를 죽이면 렌더러가 'engine:crashed' 를 받고, 재시작된 엔진이 다시 응답해야 한다.
-  const crashed = win.webContents.executeJavaScript(
-    'new Promise((r) => window.shEngine.onCrashed((info) => r(info.code)))',
-  );
+  const crashed = win.webContents.executeJavaScript('new Promise((r) => window.shEngine.onCrashed((info) => r(info.code)))');
   engine.kill();
   const code = await crashed;
   const again = await win.webContents.executeJavaScript('window.shEngine.version()');
@@ -44,9 +42,7 @@ async function bench(win: BrowserWindow, engine: EngineSupervisor) {
   for (let i = 0; i < 60; i++) await engine.call('renderFrame', 0, 0.5);
   const mainMs = (performance.now() - t0) / 60;
   const r = (await win.webContents.executeJavaScript(BENCH_JS)) as { w: number; h: number; bytes: number; ms: number };
-  console.log(
-    `bench: main roundtrip ${mainMs.toFixed(2)} ms, renderer roundtrip ${r.ms.toFixed(2)} ms, frame ${r.w}x${r.h} ${r.bytes} bytes`,
-  );
+  console.log(`bench: main roundtrip ${mainMs.toFixed(2)} ms, renderer roundtrip ${r.ms.toFixed(2)} ms, frame ${r.w}x${r.h} ${r.bytes} bytes`);
 }
 
 /** 진단 모드면 창 로드 후 실행하고 종료한다. 진단 모드가 아니면 아무것도 하지 않는다. */

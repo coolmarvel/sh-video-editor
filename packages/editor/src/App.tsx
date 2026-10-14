@@ -61,13 +61,7 @@ export function App({ bridge, host }: AppProps) {
   } as CSSProperties;
 
   return (
-    <div
-      ref={rootRef}
-      className="sh-root ve-root"
-      data-host={host}
-      data-resizing={resizing ?? undefined}
-      style={layoutStyle}
-    >
+    <div ref={rootRef} className="sh-root ve-root" data-host={host} data-resizing={resizing ?? undefined} style={layoutStyle}>
       <MenuBar host={host} />
       <div className="ve-body">
         <MediaPanel />

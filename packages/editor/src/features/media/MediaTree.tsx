@@ -62,12 +62,7 @@ export function MediaTree({ root, selectedId, onSelect, onOpen }: Props) {
       <li key={`b${bin.id}`} role="none" aria-expanded={expanded}>
         <div className="sh-tree__row">
           {bin.children.length > 0 && (
-            <button
-              type="button"
-              className="sh-tree__toggle"
-              aria-label={expanded ? '접기' : '펼치기'}
-              onClick={() => toggle(bin.id)}
-            />
+            <button type="button" className="sh-tree__toggle" aria-label={expanded ? '접기' : '펼치기'} onClick={() => toggle(bin.id)} />
           )}
           <span
             role="treeitem"

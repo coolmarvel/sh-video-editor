@@ -30,11 +30,7 @@ export function SpeedDialog() {
   const submit = () => {
     if (!valid) return;
     setOpen(false);
-    void execCommand(
-      'clip.speedDuration',
-      { speed: value, reverse, ripple },
-      `속도 ${value}%${reverse ? ', 역방향' : ''}: 클립 ${count}개`,
-    );
+    void execCommand('clip.speedDuration', { speed: value, reverse, ripple }, `속도 ${value}%${reverse ? ', 역방향' : ''}: 클립 ${count}개`);
   };
 
   return (

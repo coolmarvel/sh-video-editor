@@ -263,8 +263,7 @@
 @media (min-width: 901px) {
   .ve-timeline.tl {
     height: calc(
-      var(--sh-size-panel-title) + var(--sh-size-toolbar) + var(--tl-ruler-h) + var(--tl-video-h) * 3 +
-        var(--tl-audio-h) * 3 + var(--sh-border-width) * 2
+      var(--sh-size-panel-title) + var(--sh-size-toolbar) + var(--tl-ruler-h) + var(--tl-video-h) * 3 + var(--tl-audio-h) * 3 + var(--sh-border-width) * 2
     );
   }
 }

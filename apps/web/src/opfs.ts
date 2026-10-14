@@ -20,9 +20,7 @@ type FileHandle = FileSystemFileHandle & { createSyncAccessHandle?: () => Promis
 export type Bytes = Uint8Array<ArrayBuffer>;
 
 export function available(): boolean {
-  return (
-    typeof navigator !== 'undefined' && !!navigator.storage && typeof navigator.storage.getDirectory === 'function'
-  );
+  return typeof navigator !== 'undefined' && !!navigator.storage && typeof navigator.storage.getDirectory === 'function';
 }
 
 function parts(rel: string): string[] {

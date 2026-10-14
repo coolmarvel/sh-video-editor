@@ -29,10 +29,8 @@ const shEngine = {
   // 호스트 기능(엔진 아님): 파일 대화상자와 끌어다 놓은 File 의 실제 경로. Electron 32+ 는 File.path 가 없다
   pickFiles: () => ipcRenderer.invoke('host:pickFiles') as Promise<string[]>,
   pathForFile: (file: File): string | null => webUtils.getPathForFile(file) || null,
-  pickSavePath: (defaultName: string, filters?: FileFilter[]) =>
-    ipcRenderer.invoke('dialog:pickSavePath', defaultName, filters) as Promise<string | null>,
-  pickOpenPath: (filters?: FileFilter[]) =>
-    ipcRenderer.invoke('dialog:pickOpenPath', filters) as Promise<string | null>,
+  pickSavePath: (defaultName: string, filters?: FileFilter[]) => ipcRenderer.invoke('dialog:pickSavePath', defaultName, filters) as Promise<string | null>,
+  pickOpenPath: (filters?: FileFilter[]) => ipcRenderer.invoke('dialog:pickOpenPath', filters) as Promise<string | null>,
 };
 
 contextBridge.exposeInMainWorld('shEngine', shEngine);

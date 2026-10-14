@@ -39,18 +39,12 @@ export function AboutDialog() {
           </p>
           <p className="ve-dialog-text">엔진: {engineVersion || '연결되지 않음'}</p>
           <p className="ve-dialog-text">
-            이 프로그램은 FilmCraft(MIT 또는 Apache-2.0)를 바탕으로 만들었습니다. 포함한 오픈소스와 라이선스 전문은 설치
-            폴더의 NOTICE 파일에 있습니다.
+            이 프로그램은 FilmCraft(MIT 또는 Apache-2.0)를 바탕으로 만들었습니다. 포함한 오픈소스와 라이선스 전문은 설치 폴더의 NOTICE 파일에 있습니다.
           </p>
           <p className="ve-dialog-text">Copyright 2026 이성현</p>
         </div>
         <div className="sh-dialog__buttons">
-          <button
-            ref={primaryRef}
-            type="button"
-            className="sh-btn sh-btn--dialog sh-btn--primary"
-            onClick={() => setOpen(false)}
-          >
+          <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={() => setOpen(false)}>
             확인
           </button>
         </div>

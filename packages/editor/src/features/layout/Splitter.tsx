@@ -29,17 +29,7 @@ interface Drag {
  * 패널 사이 크기 조절 핸들(DESIGN.md 4.16). 포인터 캡처로 끌고, 키보드 화살표로 8px 씩 움직인다.
  * 크기 자체는 부모가 상태로 들고 있으며 여기서는 한계 안으로 자른 값만 올려 보낸다.
  */
-export function Splitter({
-  orientation,
-  value,
-  min,
-  max,
-  reverse = false,
-  label,
-  onChange,
-  onReset,
-  disabled = false,
-}: SplitterProps) {
+export function Splitter({ orientation, value, min, max, reverse = false, label, onChange, onReset, disabled = false }: SplitterProps) {
   const dragRef = useRef<Drag | null>(null);
   const setResizing = useLayoutStore((s) => s.setResizing);
   const axis: ResizeAxis = orientation === 'vertical' ? 'col' : 'row';

@@ -173,11 +173,7 @@ export function MediaPanelView() {
         {isEmpty ? (
           <div className="ve-media-empty">
             <p>영상, 사진, 음악 파일을 여기로 끌어다 놓으세요.</p>
-            {canPick ? (
-              <p>가져오기 버튼으로 파일을 고를 수도 있습니다.</p>
-            ) : (
-              <p>데모 영상 메뉴에서 생성 영상을 넣어 바로 시험할 수 있습니다.</p>
-            )}
+            {canPick ? <p>가져오기 버튼으로 파일을 고를 수도 있습니다.</p> : <p>데모 영상 메뉴에서 생성 영상을 넣어 바로 시험할 수 있습니다.</p>}
           </div>
         ) : (
           root && (

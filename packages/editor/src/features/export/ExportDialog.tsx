@@ -49,13 +49,7 @@ export function ExportDialog() {
 
   return (
     <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ve-export-title"
-        onKeyDown={onKeyDown}
-      >
+      <div className="sh-dialog sh-dialog--inline ve-dialog" role="dialog" aria-modal="true" aria-labelledby="ve-export-title" onKeyDown={onKeyDown}>
         <div className="sh-dialog__title">
           <span id="ve-export-title">내보내기</span>
         </div>
@@ -72,13 +66,7 @@ export function ExportDialog() {
           )}
           <div className="sh-form">
             <label htmlFor="ve-export-preset">프리셋</label>
-            <select
-              id="ve-export-preset"
-              className="sh-select"
-              value={presetId}
-              disabled={busy || loading}
-              onChange={(e) => void setPreset(e.target.value)}
-            >
+            <select id="ve-export-preset" className="sh-select" value={presetId} disabled={busy || loading} onChange={(e) => void setPreset(e.target.value)}>
               {presets.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -86,13 +74,7 @@ export function ExportDialog() {
               ))}
             </select>
             <label htmlFor="ve-export-format">형식</label>
-            <select
-              id="ve-export-format"
-              className="sh-select"
-              value={formatId}
-              disabled={busy || loading}
-              onChange={(e) => setFormat(e.target.value)}
-            >
+            <select id="ve-export-format" className="sh-select" value={formatId} disabled={busy || loading} onChange={(e) => setFormat(e.target.value)}>
               {formats.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.label} ({f.extension})
@@ -140,13 +122,7 @@ export function ExportDialog() {
               <button type="button" className="sh-btn sh-btn--dialog" onClick={hide}>
                 닫기
               </button>
-              <button
-                ref={primaryRef}
-                type="button"
-                className="sh-btn sh-btn--dialog sh-btn--primary"
-                disabled={!canStart}
-                onClick={() => void start()}
-              >
+              <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={!canStart} onClick={() => void start()}>
                 내보내기
               </button>
             </>

@@ -103,10 +103,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
       const bridge = bridgeOrNull();
       if (!bridge) return;
       try {
-        const [seq, playhead] = await Promise.all([
-          bridge.execute('sequence.inspect') as Promise<SequenceInfo>,
-          bridge.playhead(),
-        ]);
+        const [seq, playhead] = await Promise.all([bridge.execute('sequence.inspect') as Promise<SequenceInfo>, bridge.playhead()]);
         set({ sequence: seq, playhead });
       } catch {
         // "no active sequence": 시퀀스가 없으면 빈 상태를 그린다
@@ -159,11 +156,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
     },
 
     async selectClip(clipId, opts) {
-      await exec(
-        'timeline.select',
-        { clips: [clipId], add: opts?.add ?? false, toggle: opts?.toggle ?? false },
-        '클립을 선택했습니다',
-      );
+      await exec('timeline.select', { clips: [clipId], add: opts?.add ?? false, toggle: opts?.toggle ?? false }, '클립을 선택했습니다');
     },
 
     async deselectAll() {
@@ -245,11 +238,7 @@ export const useTimeline = create<TimelineState>((set, get) => {
     },
 
     async newSequence() {
-      await exec(
-        'file.newSequence',
-        { name: '시퀀스 1', width: 1920, height: 1080, fps: 30 },
-        '새 시퀀스를 만들었습니다',
-      );
+      await exec('file.newSequence', { name: '시퀀스 1', width: 1920, height: 1080, fps: 30 }, '새 시퀀스를 만들었습니다');
     },
 
     async undo() {

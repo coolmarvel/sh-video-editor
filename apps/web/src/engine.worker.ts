@@ -9,8 +9,7 @@ import init, { Engine, engine_version, command_catalog } from '@engine/sh_video_
 import * as opfs from './opfs';
 
 type Req = { id: number; method: string; args: unknown[] };
-type Res =
-  { id: number; ok: true; result: unknown; transfer?: Transferable[] } | { id: number; ok: false; error: string };
+type Res = { id: number; ok: true; result: unknown; transfer?: Transferable[] } | { id: number; ok: false; error: string };
 type Event = { event: 'fileWritten'; path: string; bytes: opfs.Bytes };
 
 const port = self as unknown as Worker;

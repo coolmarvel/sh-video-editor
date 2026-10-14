@@ -176,10 +176,7 @@ export const useProject = create<ProjectState>((set, get) => {
           const notes: string[] = [];
           if (r.migrated) notes.push('이전 형식이라 올려서 읽었습니다. 저장하면 원본은 백업으로 남습니다');
           if (r.missingMedia > 0) notes.push(`찾을 수 없는 미디어 ${r.missingMedia}개`);
-          get().notify(
-            notes.length ? 'warning' : 'success',
-            `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`,
-          );
+          get().notify(notes.length ? 'warning' : 'success', `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`);
         } catch (e) {
           get().notify('danger', `파일을 열 수 없습니다: ${message(e)}`);
         }
@@ -243,10 +240,7 @@ export const useProject = create<ProjectState>((set, get) => {
       try {
         const r = (await b.execute('file.recover', { id })) as { name: string; savedAt: string };
         await get().refresh();
-        get().notify(
-          'success',
-          `'${r.name}' 의 저장하지 않은 변경을 되살렸습니다 (${r.savedAt}). 저장하면 원본 파일에 씁니다.`,
-        );
+        get().notify('success', `'${r.name}' 의 저장하지 않은 변경을 되살렸습니다 (${r.savedAt}). 저장하면 원본 파일에 씁니다.`);
       } catch (e) {
         get().notify('danger', `복구하지 못했습니다: ${message(e)}`);
       }

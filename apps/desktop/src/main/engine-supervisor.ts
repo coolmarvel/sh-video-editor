@@ -6,22 +6,9 @@
  * 자식에서 main 으로 오는 메시지는 전부 MessagePortMain 으로 받는다. child.on('message')(parentPort 경로)는 쓰지 않는다
  * (src/engine-host/index.ts 머리말의 Electron 44.7.2 현상).
  */
-import {
-  ipcMain,
-  MessageChannelMain,
-  utilityProcess,
-  type MessagePortMain,
-  type UtilityProcess,
-  type WebContents,
-} from 'electron';
+import { ipcMain, MessageChannelMain, utilityProcess, type MessagePortMain, type UtilityProcess, type WebContents } from 'electron';
 import { join } from 'node:path';
-import {
-  isEngineResponse,
-  type EngineMethod,
-  type EngineRequest,
-  type HostControl,
-  type HostNotice,
-} from '../engine-protocol';
+import { isEngineResponse, type EngineMethod, type EngineRequest, type HostControl, type HostNotice } from '../engine-protocol';
 
 const HOST_MODULE = join(__dirname, 'engine-host.js');
 /** 이 시간 안에 이만큼 넘게 죽으면 더 띄우지 않는다(무한 재시작 방지). */

@@ -62,15 +62,9 @@ export function useLayoutMetrics(rootRef: RefObject<HTMLElement | null>): Layout
       const bodyHeight = Math.round(body.getBoundingClientRect().height);
       const timelineHeight = Math.round(timeline.getBoundingClientRect().height);
       const mediaMin = LAYOUT_LIMITS.mediaMin;
-      const mediaMax = Math.max(
-        mediaMin,
-        Math.min(Math.floor(vw * LAYOUT_LIMITS.mediaMaxRatio), mediaWidth + monitorWidth - LAYOUT_LIMITS.monitorMin),
-      );
+      const mediaMax = Math.max(mediaMin, Math.min(Math.floor(vw * LAYOUT_LIMITS.mediaMaxRatio), mediaWidth + monitorWidth - LAYOUT_LIMITS.monitorMin));
       const timelineMin = LAYOUT_LIMITS.timelineMin;
-      const timelineMax = Math.max(
-        timelineMin,
-        Math.min(Math.floor(vh * LAYOUT_LIMITS.timelineMaxRatio), bodyHeight + timelineHeight - LAYOUT_LIMITS.bodyMin),
-      );
+      const timelineMax = Math.max(timelineMin, Math.min(Math.floor(vh * LAYOUT_LIMITS.timelineMaxRatio), bodyHeight + timelineHeight - LAYOUT_LIMITS.bodyMin));
       const next: LayoutMetrics = {
         ready: true,
         mediaWidth,
@@ -85,9 +79,7 @@ export function useLayoutMetrics(rootRef: RefObject<HTMLElement | null>): Layout
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(root);
-    for (const el of root.querySelectorAll<HTMLElement>(
-      ':scope > .ve-body, :scope > .ve-body > *, :scope > .ve-timeline',
-    )) {
+    for (const el of root.querySelectorAll<HTMLElement>(':scope > .ve-body, :scope > .ve-body > *, :scope > .ve-timeline')) {
       ro.observe(el);
     }
     // 데모 프로젝트를 열면 타임라인 내용이 바뀌어 자식이 교체될 수 있다. 루트 자식 변화도 다시 잰다

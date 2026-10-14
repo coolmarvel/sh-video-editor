@@ -309,12 +309,7 @@ export class MonitorController {
   /** 프레임을 하나 요청한다. 앞 요청이 진행 중이면 이 tick 만 기억해 두었다가 이어서 보낸다. */
   requestRender(tick: number): void {
     if (!this.canvas) return;
-    if (
-      !this.inFlight &&
-      tick === this.lastRenderedTick &&
-      this.currentScale() === this.lastRenderedScale &&
-      this.revision === this.lastRenderedRevision
-    )
+    if (!this.inFlight && tick === this.lastRenderedTick && this.currentScale() === this.lastRenderedScale && this.revision === this.lastRenderedRevision)
       return;
     if (this.inFlight) {
       this.pendingTick = tick;
@@ -364,9 +359,7 @@ export class MonitorController {
     const frameMs = 1000 / seq.fps;
     const last = this.renderTimes[this.renderTimes.length - 1] ?? 0;
     const avg = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length;
-    const tooSlow =
-      last > frameMs * ADAPT_IMMEDIATE_THRESHOLD ||
-      (this.renderTimes.length >= ADAPT_SAMPLE_COUNT && avg > frameMs * ADAPT_THRESHOLD);
+    const tooSlow = last > frameMs * ADAPT_IMMEDIATE_THRESHOLD || (this.renderTimes.length >= ADAPT_SAMPLE_COUNT && avg > frameMs * ADAPT_THRESHOLD);
     const idx = SCALES.indexOf(this.currentScale());
     if (tooSlow && idx > 0) {
       this.playScale = SCALES[idx - 1] ?? 0.25;
@@ -446,8 +439,7 @@ export class MonitorController {
     const fps = this.playing && elapsed > 0 ? (this.framesDrawn * 1000) / elapsed : 0;
     this.statsWall = now;
     this.framesDrawn = 0;
-    const renderMs =
-      this.renderTimes.length > 0 ? this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length : 0;
+    const renderMs = this.renderTimes.length > 0 ? this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length : 0;
     useMonitor.setState({ stats: { renderMs, fps, dropped: this.dropped, scale: this.currentScale() } });
   }
 

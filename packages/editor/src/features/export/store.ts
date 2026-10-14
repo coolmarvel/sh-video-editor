@@ -2,14 +2,7 @@
 import { create } from 'zustand';
 import { useEditor } from '../../store';
 import { findJobReport, runQueueLoop, type QueueItem } from './jobs';
-import {
-  buildUiPresets,
-  formatBytes,
-  usableFormats,
-  type EngineFormat,
-  type EnginePreset,
-  type UiPreset,
-} from './presets';
+import { buildUiPresets, formatBytes, usableFormats, type EngineFormat, type EnginePreset, type UiPreset } from './presets';
 
 export interface Resolved {
   frames: number;
@@ -181,10 +174,8 @@ export const useExport = create<ExportState>((set, get) => {
             if (!item) return;
             set({ job: item });
             if (item.status === 'done') void finish(b, item, startedAt);
-            else if (item.status === 'failed')
-              set({ outcome: { kind: 'danger', text: `내보내기에 실패했습니다: ${item.error ?? item.statusText}` } });
-            else if (item.status === 'cancelled')
-              set({ outcome: { kind: 'warning', text: '내보내기를 취소했습니다.' } });
+            else if (item.status === 'failed') set({ outcome: { kind: 'danger', text: `내보내기에 실패했습니다: ${item.error ?? item.statusText}` } });
+            else if (item.status === 'cancelled') set({ outcome: { kind: 'warning', text: '내보내기를 취소했습니다.' } });
           },
           (m) => set({ job: null, outcome: { kind: 'danger', text: `내보내기 진행을 확인하지 못했습니다: ${m}` } }),
         );

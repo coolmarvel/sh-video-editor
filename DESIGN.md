@@ -56,13 +56,7 @@ components:
       hover: 'border color.hover-edge',
       focus: 'border color.accent (링 없음)',
     }
-  menubar:
-    {
-      height: size.menubar,
-      bg: gradient.chrome,
-      border-bottom: '1px color.chrome.frame',
-      item-hover: 'bg color.canvas + border color.chrome.frame',
-    }
+  menubar: { height: size.menubar, bg: gradient.chrome, border-bottom: '1px color.chrome.frame', item-hover: 'bg color.canvas + border color.chrome.frame' }
   menu:
     {
       bg: color.canvas,
@@ -72,27 +66,9 @@ components:
       item-hover: color.chrome.toolbar-face,
       min-width: size.menu-min-width,
     }
-  toolbar:
-    {
-      height: size.toolbar,
-      bg: gradient.toolbar,
-      border-bottom: '1px color.chrome.toolbar-hairline',
-      separator: '1px color.chrome.separator',
-    }
-  statusbar:
-    {
-      height: size.statusbar,
-      bg: gradient.status,
-      border-top: '1px color.chrome.status-top',
-      pane: '오목 칸 size.status-pane, font.size.caption',
-    }
-  tab:
-    {
-      height: size.tab,
-      active: 'color.canvas + 1px color.chrome.frame, 아래선 없음',
-      inactive: gradient.status,
-      rule: '선택해도 크기·굵기 불변',
-    }
+  toolbar: { height: size.toolbar, bg: gradient.toolbar, border-bottom: '1px color.chrome.toolbar-hairline', separator: '1px color.chrome.separator' }
+  statusbar: { height: size.statusbar, bg: gradient.status, border-top: '1px color.chrome.status-top', pane: '오목 칸 size.status-pane, font.size.caption' }
+  tab: { height: size.tab, active: 'color.canvas + 1px color.chrome.frame, 아래선 없음', inactive: gradient.status, rule: '선택해도 크기·굵기 불변' }
   table:
     {
       row: size.row,
@@ -119,14 +95,7 @@ components:
       scrim: color.scrim,
     }
   checkbox: { size: size.checkbox, bg: color.canvas, border: '1px color.border-strong', check: 'color.text ✓' }
-  tooltip:
-    {
-      bg: color.warning-subtle,
-      border: '1px color.border-strong',
-      font: font.size.caption,
-      shadow: shadow.raised,
-      arrow: none,
-    }
+  tooltip: { bg: color.warning-subtle, border: '1px color.border-strong', font: font.size.caption, shadow: shadow.raised, arrow: none }
 tokens:
   source: tokens/base/*.json (sh-design-system SSOT) - npm run build 가 생성
   colors:

@@ -73,10 +73,7 @@ export function allClips(seq: SequenceInfo): ClipInfo[] {
   return [...seq.video, ...seq.audio].flatMap((t) => t.items);
 }
 
-export function findClip(
-  seq: SequenceInfo,
-  clipId: number,
-): { clip: ClipInfo; track: TrackInfo; kind: TrackKind } | null {
+export function findClip(seq: SequenceInfo, clipId: number): { clip: ClipInfo; track: TrackInfo; kind: TrackKind } | null {
   for (const track of seq.video) {
     const clip = track.items.find((c) => c.clip === clipId);
     if (clip) return { clip, track, kind: 'video' };

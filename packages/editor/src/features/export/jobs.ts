@@ -36,12 +36,7 @@ export function isQueueBusy(q: QueueList): boolean {
 }
 
 /** 큐가 쉴 때까지 pumpJobs 와 export.queue.list 를 반복한다. 반환한 함수로 멈춘다. */
-export function runQueueLoop(
-  bridge: EngineBridge,
-  onTick: (q: QueueList) => void,
-  onError: (message: string) => void,
-  intervalMs = 60,
-): () => void {
+export function runQueueLoop(bridge: EngineBridge, onTick: (q: QueueList) => void, onError: (message: string) => void, intervalMs = 60): () => void {
   let stopped = false;
   let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;

@@ -57,21 +57,16 @@ export function MenuBar({ host }: { host: HostKind }) {
     };
     collect(lists[open] ?? []);
     let cancelled = false;
-    void Promise.all([...ids].map(async (id) => [id, await bridge.isEnabled(id).catch(() => true)] as const)).then(
-      (pairs) => {
-        if (!cancelled) setEnabled(Object.fromEntries(pairs));
-      },
-    );
+    void Promise.all([...ids].map(async (id) => [id, await bridge.isEnabled(id).catch(() => true)] as const)).then((pairs) => {
+      if (!cancelled) setEnabled(Object.fromEntries(pairs));
+    });
     return () => {
       cancelled = true;
     };
     // lists 는 렌더마다 새로 만들어지므로 open 이 바뀔 때만 묻는다
   }, [open, bridge]);
 
-  const isEnabled = useCallback(
-    (e: MenuItemDef) => Boolean(bridge) && (e.enabledBy ? (enabled[e.enabledBy] ?? true) : true),
-    [bridge, enabled],
-  );
+  const isEnabled = useCallback((e: MenuItemDef) => Boolean(bridge) && (e.enabledBy ? (enabled[e.enabledBy] ?? true) : true), [bridge, enabled]);
 
   const activate = useCallback(
     (e: MenuItemDef) => {
@@ -193,11 +188,7 @@ export function MenuBar({ host }: { host: HostKind }) {
             <span className="sh-menu__sub" />
           </button>
           {isOpen && (
-            <div
-              className={`sh-menu sh-menu--float ve-dropdown ve-dropdown--sub ve-dropdown--${subSide}`}
-              role="menu"
-              aria-label={e.label}
-            >
+            <div className={`sh-menu sh-menu--float ve-dropdown ve-dropdown--sub ve-dropdown--${subSide}`} role="menu" aria-label={e.label}>
               {e.items.map((s, j) => renderEntry(s, j, true))}
             </div>
           )}

@@ -1,18 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../../store';
 import { hasMediaItem, readMediaItemId } from './dnd';
-import {
-  DRAG_THRESHOLD_PX,
-  TAIL_SECONDS,
-  clampZoom,
-  fpsOf,
-  frameTicks,
-  pxToTick,
-  snapDelta,
-  snapToFrame,
-  tickToPx,
-  timecodeAt,
-} from './geometry';
+import { DRAG_THRESHOLD_PX, TAIL_SECONDS, clampZoom, fpsOf, frameTicks, pxToTick, snapDelta, snapToFrame, tickToPx, timecodeAt } from './geometry';
 import { Ruler } from './Ruler';
 import { useTimeline } from './store';
 import { Lane, TrackHeader, type ClipPart, type ClipPreview } from './Track';
@@ -253,11 +242,7 @@ export function Timeline() {
       return;
     }
     const dxRaw = e.clientX - g.originX;
-    if (
-      !g.started &&
-      Math.abs(dxRaw) < DRAG_THRESHOLD_PX &&
-      Math.abs(e.clientY - (g.kind === 'move' ? g.originY : 0)) < DRAG_THRESHOLD_PX
-    ) {
+    if (!g.started && Math.abs(dxRaw) < DRAG_THRESHOLD_PX && Math.abs(e.clientY - (g.kind === 'move' ? g.originY : 0)) < DRAG_THRESHOLD_PX) {
       return;
     }
     g.started = true;
@@ -283,9 +268,7 @@ export function Timeline() {
       else dTick = Math.max(dTick, ft - length);
       g.dx = tickToPx(dTick, pxPerSec);
       setPreview(
-        g.edge === 'in'
-          ? { clip: g.clip.clip, dxStart: g.dx, dxEnd: 0, targetTrack: null }
-          : { clip: g.clip.clip, dxStart: 0, dxEnd: g.dx, targetTrack: null },
+        g.edge === 'in' ? { clip: g.clip.clip, dxStart: g.dx, dxEnd: 0, targetTrack: null } : { clip: g.clip.clip, dxStart: 0, dxEnd: g.dx, targetTrack: null },
       );
     }
   };
@@ -339,9 +322,7 @@ export function Timeline() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     const tick = dropTickFor(e, row);
-    setDropHint((h) =>
-      h && h.trackId === row.track.id && h.tick === tick ? h : { trackId: row.track.id, kind: row.kind, tick },
-    );
+    setDropHint((h) => (h && h.trackId === row.track.id && h.tick === tick ? h : { trackId: row.track.id, kind: row.kind, tick }));
   };
   const onDragLeave = (_e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
     setDropHint((h) => (h && h.trackId === row.track.id ? null : h));
@@ -436,48 +417,20 @@ export function Timeline() {
           스냅
         </button>
         <span className="sh-separator" />
-        <button
-          type="button"
-          className="sh-tool"
-          title="축소 (-)"
-          onClick={() => useTimeline.getState().setZoom(pxPerSec / 1.5)}
-        >
+        <button type="button" className="sh-tool" title="축소 (-)" onClick={() => useTimeline.getState().setZoom(pxPerSec / 1.5)}>
           축소
         </button>
-        <button
-          type="button"
-          className="sh-tool"
-          title="확대 (+)"
-          onClick={() => useTimeline.getState().setZoom(pxPerSec * 1.5)}
-        >
+        <button type="button" className="sh-tool" title="확대 (+)" onClick={() => useTimeline.getState().setZoom(pxPerSec * 1.5)}>
           확대
         </button>
-        <button
-          type="button"
-          className="sh-tool"
-          title="시퀀스 전체가 보이게"
-          disabled={!seq || !hasClips}
-          onClick={fitToSequence}
-        >
+        <button type="button" className="sh-tool" title="시퀀스 전체가 보이게" disabled={!seq || !hasClips} onClick={fitToSequence}>
           맞춤
         </button>
         <span className="sh-separator" />
-        <button
-          type="button"
-          className="sh-tool"
-          title="실행 취소 (Ctrl+Z)"
-          disabled={!bridge}
-          onClick={() => void useTimeline.getState().undo()}
-        >
+        <button type="button" className="sh-tool" title="실행 취소 (Ctrl+Z)" disabled={!bridge} onClick={() => void useTimeline.getState().undo()}>
           실행 취소
         </button>
-        <button
-          type="button"
-          className="sh-tool"
-          title="다시 실행 (Ctrl+Shift+Z)"
-          disabled={!bridge}
-          onClick={() => void useTimeline.getState().redo()}
-        >
+        <button type="button" className="sh-tool" title="다시 실행 (Ctrl+Shift+Z)" disabled={!bridge} onClick={() => void useTimeline.getState().redo()}>
           다시 실행
         </button>
         <span className="tl-toolbar__zoom sh-tnum" title="픽셀/초">
@@ -489,14 +442,7 @@ export function Timeline() {
           <div className="tl-canvas" style={{ width: `calc(var(--tl-header-w) + ${Math.ceil(contentPx)}px)` }}>
             <div ref={rulerRowRef} className="tl-row tl-row--ruler">
               <div className="tl-head tl-corner">{fps % 1 === 0 ? `${fps}fps` : `${fps.toFixed(2)}fps`}</div>
-              <Ruler
-                pxPerSec={pxPerSec}
-                frameRate={frameRate}
-                from={visibleFrom}
-                to={visibleTo}
-                playhead={playhead}
-                onPointerDown={onRulerPointerDown}
-              />
+              <Ruler pxPerSec={pxPerSec} frameRate={frameRate} from={visibleFrom} to={visibleTo} playhead={playhead} onPointerDown={onRulerPointerDown} />
             </div>
             {rows.map((row) => (
               <div key={`${row.kind}-${row.track.id}`} className={`tl-row tl-row--${row.kind}`}>
@@ -515,22 +461,14 @@ export function Timeline() {
                 />
               </div>
             ))}
-            <div
-              className="tl-playhead"
-              style={{ left: `calc(var(--tl-header-w) + ${tickToPx(playhead, pxPerSec)}px)` }}
-            />
+            <div className="tl-playhead" style={{ left: `calc(var(--tl-header-w) + ${tickToPx(playhead, pxPerSec)}px)` }} />
           </div>
           {!hasClips && <p className="tl-empty ve-hint">미디어 패널의 항목을 트랙으로 끌어다 놓으세요.</p>}
         </div>
       ) : (
         <div className="tl-none">
           <p className="ve-hint">시퀀스가 없습니다. 새 시퀀스를 만들면 여기에 클립을 놓을 수 있습니다.</p>
-          <button
-            type="button"
-            className="sh-btn"
-            disabled={!bridge}
-            onClick={() => void useTimeline.getState().newSequence()}
-          >
+          <button type="button" className="sh-btn" disabled={!bridge} onClick={() => void useTimeline.getState().newSequence()}>
             새 시퀀스 만들기
           </button>
         </div>

@@ -74,18 +74,7 @@ interface LaneProps {
 }
 
 /** 트랙 한 줄의 클립 영역. 클립은 시작·길이를 px 로 바꿔 절대 위치로 놓는다 */
-export function Lane({
-  row,
-  pxPerSec,
-  selection,
-  preview,
-  dropTick,
-  onClipPointerDown,
-  onLanePointerDown,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-}: LaneProps) {
+export function Lane({ row, pxPerSec, selection, preview, dropTick, onClipPointerDown, onLanePointerDown, onDragOver, onDragLeave, onDrop }: LaneProps) {
   const { track, kind } = row;
   const classes = ['tl-lane', `tl-lane--${kind}`];
   if (track.locked) classes.push('is-locked');
@@ -130,10 +119,7 @@ interface ClipBlockProps {
 
 function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPointerDown }: ClipBlockProps) {
   const left = tickToPx(clip.start, pxPerSec) + (preview?.dxStart ?? 0);
-  const width = Math.max(
-    1,
-    tickToPx(clip.end - clip.start, pxPerSec) + (preview?.dxEnd ?? 0) - (preview?.dxStart ?? 0),
-  );
+  const width = Math.max(1, tickToPx(clip.end - clip.start, pxPerSec) + (preview?.dxEnd ?? 0) - (preview?.dxStart ?? 0));
   const classes = ['tl-clip', audio ? 'tl-clip--audio' : 'tl-clip--video'];
   if (selected) classes.push('is-selected');
   if (disabled) classes.push('is-disabled');

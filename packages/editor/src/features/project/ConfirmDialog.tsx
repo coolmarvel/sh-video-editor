@@ -36,19 +36,10 @@ export function ConfirmDialog() {
           <button type="button" className="sh-btn sh-btn--dialog" onClick={cancel}>
             취소
           </button>
-          <button
-            type="button"
-            className="sh-btn sh-btn--dialog sh-btn--danger"
-            onClick={() => void confirm.onDiscard()}
-          >
+          <button type="button" className="sh-btn sh-btn--dialog sh-btn--danger" onClick={() => void confirm.onDiscard()}>
             저장하지 않음
           </button>
-          <button
-            ref={primaryRef}
-            type="button"
-            className="sh-btn sh-btn--dialog sh-btn--primary"
-            onClick={() => void confirm.onSave()}
-          >
+          <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={() => void confirm.onSave()}>
             저장
           </button>
         </div>

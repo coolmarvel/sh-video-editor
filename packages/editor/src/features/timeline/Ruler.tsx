@@ -24,11 +24,7 @@ export function Ruler({ pxPerSec, frameRate, from, to, playhead, onPointerDown }
   return (
     <div className="tl-ruler" role="presentation" onPointerDown={onPointerDown}>
       {ticks.map(({ tick, major: isMajor }) => (
-        <div
-          key={tick}
-          className={isMajor ? 'tl-tick tl-tick--major' : 'tl-tick'}
-          style={{ left: `${tickToPx(tick, pxPerSec)}px` }}
-        >
+        <div key={tick} className={isMajor ? 'tl-tick tl-tick--major' : 'tl-tick'} style={{ left: `${tickToPx(tick, pxPerSec)}px` }}>
           {isMajor && <span className="tl-tick__label sh-tnum">{timecodeAt(tick, frameRate)}</span>}
         </div>
       ))}

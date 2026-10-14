@@ -10,13 +10,7 @@
  */
 import * as engine from '@sh-video-editor/engine-node';
 import type { MessagePortMain } from 'electron';
-import {
-  isEngineRequest,
-  type EngineRequest,
-  type EngineResponse,
-  type HostControl,
-  type HostNotice,
-} from '../engine-protocol';
+import { isEngineRequest, type EngineRequest, type EngineResponse, type HostControl, type HostNotice } from '../engine-protocol';
 
 let session: engine.Engine | null = null;
 function getSession(): engine.Engine {
@@ -37,8 +31,7 @@ const methods: Record<EngineRequest['m'], (...a: never[]) => unknown> = {
   pumpJobs: (budgetMs: number) => getSession().pumpJobs(budgetMs),
   isDirty: () => getSession().isDirty(),
   // 자동 저장·복구 저널. 데이터 디렉토리(userData/engine)는 main 이 fork 할 때 SH_ENGINE_DATA_DIR 로 준다.
-  startAutosave: () =>
-    getSession().startAutosave(process.env['SH_ENGINE_DATA_DIR'] ?? '', -new Date().getTimezoneOffset() * 60),
+  startAutosave: () => getSession().startAutosave(process.env['SH_ENGINE_DATA_DIR'] ?? '', -new Date().getTimezoneOffset() * 60),
   pollPersistence: () => getSession().pollPersistence(),
   // 정상 종료: 저장하지 않은 변경이 있으면 복구 저널을 남기고, 없으면 세션 디렉토리를 지운다.
   shutdown: () => session?.shutdown(),

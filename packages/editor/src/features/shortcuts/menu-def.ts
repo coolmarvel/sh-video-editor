@@ -58,11 +58,7 @@ export const MENUS: MenuDef[] = [
       {
         kind: 'sub',
         label: '데모 영상 넣기',
-        items: [
-          ...DEMO_SCENES.map((d) => item(d.label, 'file.importDemo', { params: { scene: d.scene } })),
-          sep,
-          item('전부 넣기', 'file.importDemoAll'),
-        ],
+        items: [...DEMO_SCENES.map((d) => item(d.label, 'file.importDemo', { params: { scene: d.scene } })), sep, item('전부 넣기', 'file.importDemoAll')],
       },
       item('새 시퀀스', 'file.newSequence'),
       sep,

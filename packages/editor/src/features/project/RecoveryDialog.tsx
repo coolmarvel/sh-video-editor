@@ -37,18 +37,12 @@ export function RecoveryDialog() {
         </div>
         <div className="sh-dialog__body">
           <p className="ve-dialog-text">
-            이전 세션이 {how} '{current.projectName}' 의 저장하지 않은 변경이 남아 있습니다 ({current.savedAt}).
-            되살릴까요?
+            이전 세션이 {how} '{current.projectName}' 의 저장하지 않은 변경이 남아 있습니다 ({current.savedAt}). 되살릴까요?
           </p>
           {candidates.length > 1 && (
             <div className="sh-form">
               <label htmlFor="ve-recovery-pick">후보</label>
-              <select
-                id="ve-recovery-pick"
-                className="sh-select"
-                value={current.id}
-                onChange={(e) => setSelected(e.target.value)}
-              >
+              <select id="ve-recovery-pick" className="sh-select" value={current.id} onChange={(e) => setSelected(e.target.value)}>
                 {candidates.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.projectName} ({c.savedAt})
@@ -60,22 +54,13 @@ export function RecoveryDialog() {
           {current.projectPath && <p className="ve-hint">원본 파일: {current.projectPath}</p>}
         </div>
         <div className="sh-dialog__buttons">
-          <button
-            type="button"
-            className="sh-btn sh-btn--dialog sh-btn--danger"
-            onClick={() => void discardRecovery(current.id)}
-          >
+          <button type="button" className="sh-btn sh-btn--dialog sh-btn--danger" onClick={() => void discardRecovery(current.id)}>
             버리기
           </button>
           <button type="button" className="sh-btn sh-btn--dialog" onClick={closeRecovery}>
             나중에
           </button>
-          <button
-            ref={primaryRef}
-            type="button"
-            className="sh-btn sh-btn--dialog sh-btn--primary"
-            onClick={() => void recover(current.id)}
-          >
+          <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={() => void recover(current.id)}>
             복구
           </button>
         </div>

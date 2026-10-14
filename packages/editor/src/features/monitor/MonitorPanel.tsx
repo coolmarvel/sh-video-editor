@@ -107,17 +107,9 @@ export function MonitorPanel() {
     <>
       <div ref={stageRef} className="mon-stage" aria-label="프로그램 모니터">
         {sequence ? (
-          <canvas
-            ref={canvasRef}
-            className="mon-canvas"
-            width={640}
-            height={360}
-            style={{ width: box.width || undefined, height: box.height || undefined }}
-          />
+          <canvas ref={canvasRef} className="mon-canvas" width={640} height={360} style={{ width: box.width || undefined, height: box.height || undefined }} />
         ) : (
-          <p className="mon-empty">
-            {error ? `엔진 오류: ${error}` : '열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.'}
-          </p>
+          <p className="mon-empty">{error ? `엔진 오류: ${error}` : '열린 시퀀스가 없습니다. 파일 메뉴에서 시퀀스를 만드세요.'}</p>
         )}
       </div>
       <div className="mon-scrub-row">
@@ -132,14 +124,7 @@ export function MonitorPanel() {
         />
       </div>
       <div className="sh-toolbar mon-transport ve-transport" role="toolbar" aria-label="재생 조작">
-        <button
-          type="button"
-          className="sh-tool"
-          title="처음으로 (Home)"
-          aria-label="처음으로"
-          disabled={disabled}
-          onClick={() => void ctl()?.goToStart()}
-        >
+        <button type="button" className="sh-tool" title="처음으로 (Home)" aria-label="처음으로" disabled={disabled} onClick={() => void ctl()?.goToStart()}>
           <Icon d={ICON.start} />
         </button>
         <button
@@ -173,14 +158,7 @@ export function MonitorPanel() {
         >
           <Icon d={ICON.forward} />
         </button>
-        <button
-          type="button"
-          className="sh-tool"
-          title="끝으로 (End)"
-          aria-label="끝으로"
-          disabled={disabled}
-          onClick={() => void ctl()?.goToEnd()}
-        >
+        <button type="button" className="sh-tool" title="끝으로 (End)" aria-label="끝으로" disabled={disabled} onClick={() => void ctl()?.goToEnd()}>
           <Icon d={ICON.end} />
         </button>
         <span className="sh-separator" />

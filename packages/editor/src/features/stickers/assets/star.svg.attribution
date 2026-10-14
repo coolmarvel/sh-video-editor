@@ -1,0 +1,7 @@
+asset:        star.svg
+title:        별 스티커 (노란 별)
+author:       이성현 (SeongHyun Lee), sh-video-editor 프로젝트를 위해 직접 그림
+source:       original work (this repository, packages/editor/src/features/stickers/assets)
+license:      project license (sh-video-editor, UNLICENSED; LICENSE 파일 참조)
+added:        2026-10-14 by Claude (agent) for SeongHyun Lee (sh-video-editor)
+notes:        손으로 적은 SVG 도형. 글자(text 요소)·글꼴·타사 그림 없음. 화면이 PNG 로 래스터해 엔진 file.import 로 넣는다.

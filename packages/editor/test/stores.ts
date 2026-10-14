@@ -18,6 +18,9 @@ import { useCaptions } from '../src/features/text/captions-store';
 import { useInspectorRegistry } from '../src/features/inspector/registry';
 import { useContextMenu } from '../src/features/context-menu/store';
 import { useOnboarding } from '../src/features/onboarding/store';
+import { useKeyframes } from '../src/features/keyframes/store';
+import { useStickers } from '../src/features/stickers/store';
+import { useTemplates } from '../src/features/templates/store';
 import { focusArea } from '../src/features/shortcuts/keymap';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
@@ -41,6 +44,9 @@ export function resetStores(): void {
   useInspectorRegistry.setState({ active: null });
   useContextMenu.setState(useContextMenu.getInitialState(), true);
   useOnboarding.setState(useOnboarding.getInitialState(), true);
+  useKeyframes.setState(useKeyframes.getInitialState(), true);
+  useStickers.setState(useStickers.getInitialState(), true);
+  useTemplates.setState(useTemplates.getInitialState(), true);
   focusArea.current = 'timeline';
 }
 

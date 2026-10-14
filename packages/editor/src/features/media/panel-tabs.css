@@ -12,3 +12,8 @@
   flex-direction: column;
   overflow: hidden;
 }
+/* 탭이 여섯 개(미디어, 전환, 필터, 음악, 스티커, 템플릿)라 좁은 패널에서는 두 줄로 접는다. 접힌 줄의 탭도 아래 선에 붙는다 */
+.ve-media-tabs {
+  flex-wrap: wrap;
+  row-gap: var(--sh-space-2);
+}

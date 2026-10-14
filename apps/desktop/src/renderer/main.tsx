@@ -20,6 +20,7 @@ const bridge: EngineBridge = {
   pollPersistence: () => api.pollPersistence(),
   pickSavePath: (defaultName, filters) => api.pickSavePath(defaultName, filters),
   pickOpenPath: (filters) => api.pickOpenPath(filters),
+  writeTempFile: (name, bytes) => api.writeTempFile(name, bytes),
   renderFrame: async (tick, scale): Promise<Frame | null> => {
     const f = await api.renderFrame(tick, scale);
     return f

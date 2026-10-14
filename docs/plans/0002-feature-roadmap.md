@@ -165,10 +165,11 @@ domain: development
 
 ### 마일스톤 3 - 효과·템플릿·이식
 
-- [ ] **M3-1 키프레임·모션**
+- [~] **M3-1 키프레임·모션** (2026-10-14 화면 구현, feat/keyframes-templates)
   - (a) `effects.addKeyframe`, `effects.setKeyframe`, `effects.moveKeyframe`, `effects.setInterpolation`. effectcraft `keyframe` 이식은 easing 곡선이 부족하다고 판단될 때
-  - (b) features/keyframes: 클립 인스펙터의 위치·크기·회전·불투명도에 다이아몬드 키프레임, 모니터 위 핸들 드래그, 이징 선택(linear·easeIn·easeOut·bezier)
-  - (c) 두 키프레임 사이 중간 프레임의 위치가 선형 보간값과 1px 이내
+  - (b) [x] features/keyframes: 인스펙터 "모션" 탭(위치 X/Y·크기·회전·불투명도 + 마름모 토글·보간 5종·이전/다음·등장/퇴장 프리셋 6종), 타임라인 클립 마커, 모니터 변형 상자 끌기
+  - (c) [x] `packages/engine/tests/keyframes.test.ts`: 중간 프레임 위치가 선형 보간값과 4px(0.25 배율 1px) 이내, 홀드·이즈아웃, 불투명도 밝기 증가
+  - (e) [ ] 엔진 갭: `sequence.inspect` 가 키프레임 **개수**만 주고 시각·값 목록을 주는 커맨드가 없다. 화면이 보낸 커맨드로 목록을 쌓고 개수로 대조하며(실행 취소·다시 실행은 스냅샷), 프로젝트를 다시 열면 마커가 비는다. `effects.keyframes {clip, effect, param}` 조회 커맨드가 필요하다
   - (d) M
 - [ ] **M3-2 속도 램프**: `time_remap` 효과의 speed 파라미터에 키프레임(M3-1 재사용), 곡선 프리셋(몽타주·히어로·총알). (d) S
 - [ ] **M3-3 크로마키·PIP·오버레이**
@@ -176,20 +177,20 @@ domain: development
   - (b) features/overlay: "배경 색 지우기" 스포이드, PIP 위치 프리셋(모서리 4개), 불투명도·블렌드
   - (c) 그린스크린 샘플 클립에서 배경 알파 0, 피사체 알파 255(픽셀 샘플링)
   - (d) M
-- [ ] **M3-4 스티커·Lottie**
-  - (a) effectcraft `lottie` 이식 -> `graphics.newLottie` 신규. 에셋은 5절(CC0·OFL 아이콘, 자체 제작)
-  - (b) 스티커 패널(카테고리·검색), 모니터 드래그·크기·회전
-  - (c) Lottie 샘플 10개 렌더 골든
+- [~] **M3-4 스티커·Lottie** (2026-10-14 정적 스티커만, feat/keyframes-templates)
+  - (a) [ ] effectcraft `lottie` 이식 -> `graphics.newLottie` 신규. 에셋은 5절(CC0·OFL 아이콘, 자체 제작). Lottie 는 이식 전이라 하지 않았다
+  - (b) [x] 스티커 패널(분류 5개, 자체 제작 SVG 20종, `features/stickers/assets` + `.attribution` + `ATTRIBUTION.md`). 화면이 PNG 로 래스터해 웹은 `registerFiles`, 데스크톱은 `writeTempFile` 로 넘기고 엔진 `graphics.newFromFile {path, time}`(두 번째부터는 `timeline.place {duration}`). 엔진은 SVG 를 읽지 못한다(media: unrecognised format). 위치·크기는 모션 탭·변형 상자. 검색은 없음
+  - (c) [ ] Lottie 샘플 10개 렌더 골든
   - (d) L
 - [ ] **M3-5 HEVC·WebM 내보내기**
   - (a) effectcraft `hevcenc`·`vp9enc`·`opusenc` 이식, `export::VideoEncoder`·`AudioEncoder` 구현, `export.formats` 에 hevc `available:true`, webm 포맷 신규(matroska 먹서는 디먹스만 있어 먹서 신규)
   - (b) 내보내기 프리셋에 "HEVC(용량 절반)"·"WebM(웹용)" 추가
   - (c) 인코드 -> 우리 디코더 -> 디코드 왕복 PSNR 35dB 이상, ffprobe 로 재생 가능, Windows Movies & TV·Chrome 재생
   - (d) L
-- [ ] **M3-6 템플릿**
-  - (a) `file.saveAsTemplate`·`file.newProjectFromTemplate`, `clip.automateToSequence`(슬라이드쇼: 사진 n장 + 전환 + 음악), `graphics.template.apply`(인트로 제목), `clip.remix`(음악 길이 맞춤)
-  - (b) features/templates: 갤러리(인트로·세로 SNS·슬라이드쇼 3종), "내 클립 끼우기" 플레이스홀더 교체 플로우
-  - (c) 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내
+- [~] **M3-6 템플릿** (2026-10-14 레시피 4종, feat/keyframes-templates)
+  - (a) [ ] `file.saveAsTemplate`·`file.newProjectFromTemplate`(사용자 템플릿 저장은 미구현. `file.templates` 는 기본 폴더에 저장한 것만 보인다), `clip.automateToSequence` 는 쓰지 않았다(활성 편집본 끝에 끼우며 기존 클립을 건드려 레시피에 맞지 않음), `graphics.template.apply` 내장 8종은 쓰지 않음(영문 Lower Third 류)
+  - (b) [x] features/templates: 미디어 패널 "템플릿" 탭, 자체 레시피 4종(인트로 제목 5초, 세로 Shorts 틀 9:16, 사진 슬라이드쇼 3초+디졸브, 엔딩 카드). 레시피 = 엔진 커맨드 순서(`recipe.ts`: newSequence, newColorMatte, timeline.place, clip.fillFrame, graphics.newText/set/alignFrame.*, opacity 키프레임, applyVideoTransition). 묶음 실행 취소는 `edit.beginTransaction/endTransaction` 이 카탈로그에 생기면 `runRecipe` 가 자동으로 감싼다(지금은 단계별 항목). 플레이스홀더 교체 플로우는 없음(제목 클립을 선택하고 텍스트 탭을 연다)
+  - (c) [ ] 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내(지금: 가져오기 1, 선택, 템플릿 탭 1, 만들기 1, 내보내기 1)
   - (d) M
 - [ ] **M3-7 텍스트 기반 편집·정리 도구**: `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M
 - [ ] **M3-8 오디오 정리**: `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S

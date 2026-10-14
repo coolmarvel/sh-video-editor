@@ -931,6 +931,35 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 - 타임라인 클립의 연결 표시: 영상·소리가 연결된 클립은 이름 앞 12px 연결 아이콘(currentColor). 트림 핸들 툴팁 "끌어서 길이 조절.
   Alt 를 누르면 소리/영상만". Alt+드래그(이동·트림)는 연결 상대를 두고 그 클립만 움직인다.
 
+### 4.22 모션 탭·키프레임 마커·변형 상자 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/keyframes/` (`MotionTab.tsx`, `ClipKeyframeMarkers.tsx`, `MonitorTransformOverlay.tsx`, `keyframes.css`).
+값은 전부 `--sh-*` 토큰이다. 키프레임 기호는 유니코드 마름모가 아니라 SVG(`icons.tsx`)다.
+
+- 모션 탭(인스펙터, 영상·텍스트·스티커 클립): 툴바(4.2)에 이전·다음 키프레임 도구 버튼(12px 꺾쇠 SVG, 폭 `size.tool-button`) + 11px muted
+  안내 문장. 그룹 박스(4.9) "모션" 안에 4.19 파라미터 줄(위치 X, 위치 Y, 크기, 회전, 불투명도) 오른쪽에 24px 키프레임 토글(도구 버튼,
+  12px 마름모 SVG). 마름모 색: 애니메이션 없음 = text-secondary 외곽선, 애니메이션 중 = accent-pressed 외곽선, 플레이헤드가 키프레임 위 =
+  accent 채움(`aria-pressed`). 애니메이션 중인 줄 아래에는 11px muted "키프레임 N개", 플레이헤드가 키프레임 위면 보간 콤보(4.5, 폭 80:
+  선형·홀드·이즈인·이즈아웃·이즈인아웃)와 작은 버튼 "모두 지우기". 그룹 박스 "등장, 퇴장 애니메이션" 은 줄마다 라벨(32px) + 작은 버튼 세 개.
+- 타임라인 클립 마커: 클립 블록(4.15) 바닥에 높이 8 의 SVG 띠. 키프레임마다 7x7 마름모, `--sh-color-accent` 채움 + 1px canvas 외곽선.
+  선택 클립에서는 on-accent 채움 + accent-pressed 외곽선. 포인터를 받지 않는다. 같은 시각의 여러 파라미터는 마름모 하나.
+- 모니터 변형 상자: 플레이헤드에 걸린 선택 클립(텍스트 제외)마다 1px `--sh-color-accent` 상자 + 네 모서리 8x8 핸들(canvas 면 +
+  accent 테두리, 장식). 끌면 accent-subtle 면, 불투명도 0.8. 상자 크기는 소재 크기 x 크기(%), 중심은 위치 값. 텍스트 오버레이(4.21 의
+  `tx-overlay`, z 2) 아래(z 1)에 둔다. 재생 중 숨김.
+
+### 4.23 스티커 갤러리·템플릿 갤러리 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/stickers/` (`StickerGallery.tsx`, `stickers.css`, 에셋 `assets/*.svg` + `.attribution` + `ATTRIBUTION.md`),
+`packages/editor/src/features/templates/` (`TemplateGallery.tsx`, `templates.css`). 미디어 패널 탭(4.4) "스티커", "템플릿".
+
+- 스티커 갤러리: 분류 제목 12px bold(말풍선, 화살표, 모양, 배지, 강조), 카드 격자(최소 폭 72, 간격 6). 카드 = 4.19 필터 카드와 같은
+  베벨 면 + 1px control-border, 안에 48x48 미리보기(stage-image 면 + 1px border, 안쪽 여백 4, 직접 그린 SVG) + 11px 라벨 말줄임.
+  hover = 흰 면 + hover-edge. 편집본이 없으면 비활성(불투명도 0.6). 클릭 = 플레이헤드에 5초 스티커 클립. 스티커 그림은 콘텐츠 색이라
+  토큰이 아니며, 글자(text 요소)를 쓰지 않는다.
+- 템플릿 갤러리: 세로 목록, 카드 = 베벨 면 + 1px control-border, 패딩 6. 왼쪽 48x48 도식(stage-image 면, 16:9 또는 9:16 틀 안에
+  제목·자막 자리를 text, text-secondary 막대로, 슬라이드쇼는 accent-subtle 칸 세 개), 가운데 이름 bold + 비율 칩(4.13) + 11px secondary 설명
+  - 11px muted 미디어 안내, 오른쪽 작은 버튼 "만들기"(미디어가 필요한데 선택이 없으면 비활성, 툴팁에 이유). 900 이하에서는 버튼이 둘째 줄.
+
 ## 5. Elevation
 
 그림자는 세 가지뿐이고 짧고 옅다. 다른 곳에는 그림자가 없다.

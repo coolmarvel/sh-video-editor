@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import { join } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { runDiagnostics } from './diagnostics';
 import { EngineSupervisor } from './engine-supervisor';
 import { registerPickFilesIpc } from './pickFiles';
@@ -20,6 +21,18 @@ function registerDialogIpc() {
     const options: Electron.OpenDialogOptions = { properties: ['openFile'], filters: filters ?? [] };
     const r = await (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
     return r.canceled ? null : (r.filePaths[0] ?? null);
+  });
+  // 화면이 만든 바이트(스티커 PNG)를 임시 파일로 써 준다. 엔진 프로세스는 이 경로를 file.import 로 읽는다
+  ipcMain.handle('host:writeTempFile', async (_e, name: string, bytes: Uint8Array) => {
+    const dir = join(app.getPath('temp'), 'sh-video-editor');
+    await mkdir(dir, { recursive: true });
+    const safe =
+      String(name)
+        .replace(/[^\w.-]+/g, '_')
+        .slice(-80) || 'file';
+    const path = join(dir, `${Date.now()}-${safe}`);
+    await writeFile(path, Buffer.from(bytes));
+    return path;
   });
 }
 

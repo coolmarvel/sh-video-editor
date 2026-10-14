@@ -15,6 +15,7 @@ import { findClip, type ClipInfo } from '../timeline/types';
 import { FILTER_PRESETS, LUMETRI_EFFECT, effectLabel, filterPreset, isIntrinsic } from './catalog';
 import { makeThumbnails } from './thumbnails';
 import type { ClipEffectInfo, FilterPreset } from './types';
+import { useKeyframes } from '../keyframes/store';
 
 /** `effects.setParam` 의 value: 숫자, 불, "#rrggbb", [x, y] */
 export type ParamInput = number | boolean | string | [number, number];
@@ -162,6 +163,8 @@ export const useEffects = create<EffectsState>((set, get) => {
     if (opts?.merge) params['merge'] = true;
     if (opts?.begin) params['begin'] = true;
     await bridge.execute('effects.setParam', params);
+    // 애니메이션 중인 파라미터면 플레이헤드에 키프레임이 생긴다(엔진 규칙). 키프레임 목록에 알린다
+    useKeyframes.getState().noteParamSet(clip, effect, param, value);
   }
 
   /** 클립의 lumetri 효과를 전부 뗀다(뒤에서부터). 뗀 개수 */

@@ -1,0 +1,153 @@
+/* 모션 탭, 키프레임 마커, 모니터 변형 상자 배치(DESIGN.md 4.22). 값은 전부 --sh-* 토큰. */
+.kf-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+  min-width: 0;
+}
+.kf-toolbar {
+  flex: none;
+  min-width: 0;
+  margin: calc(-1 * var(--sh-space-8)) calc(-1 * var(--sh-space-8)) 0;
+}
+.kf-toolbar__hint {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.kf-nav {
+  width: var(--sh-size-tool-button);
+  padding: 0;
+  justify-content: center;
+}
+.kf-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sh-space-4);
+  min-width: 0;
+}
+/* 줄: 슬라이더 줄(fx-param) + 오른쪽 마름모 토글(24) */
+.kf-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--sh-size-control-md);
+  align-items: center;
+  gap: var(--sh-space-4);
+  min-width: 0;
+}
+.kf-row .fx-param {
+  min-width: 0;
+}
+.kf-toggle {
+  width: var(--sh-size-control-md);
+  height: var(--sh-size-control-md);
+  padding: 0;
+  justify-content: center;
+  color: var(--sh-color-text-secondary);
+}
+.kf-toggle[data-animated='true'] {
+  color: var(--sh-color-accent-pressed);
+}
+.kf-toggle[aria-pressed='true'] {
+  color: var(--sh-color-accent);
+}
+.kf-row__detail {
+  grid-column: 1 / span 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  padding-left: var(--sh-space-48);
+  min-height: var(--sh-size-control-sm);
+  min-width: 0;
+}
+.kf-row__count {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+  min-width: 0;
+  flex: 1;
+}
+.kf-interp {
+  width: calc(var(--sh-space-48) + var(--sh-space-32));
+}
+.kf-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sh-space-4);
+}
+.kf-presets__label {
+  width: var(--sh-space-32);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+}
+.kf-hint {
+  margin: 0;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+  line-height: var(--sh-font-line-height-normal);
+}
+/* 타임라인 클립 아래 마커: 높이 8, 클립 블록 바닥에 붙는다 */
+.kf-markers {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: var(--sh-space-8);
+  overflow: visible;
+  pointer-events: none;
+}
+.kf-marker {
+  fill: var(--sh-color-accent);
+  stroke: var(--sh-color-canvas);
+  stroke-width: var(--sh-border-width);
+}
+.tl-clip.is-selected .kf-marker {
+  fill: var(--sh-color-on-accent);
+  stroke: var(--sh-color-accent-pressed);
+}
+/* 모니터 변형 상자: 텍스트 오버레이(z 2) 아래 */
+.kf-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.kf-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: var(--sh-border-width) solid var(--sh-color-accent);
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+}
+.kf-box--dragging {
+  background: var(--sh-color-accent-subtle);
+  opacity: 0.8;
+}
+.kf-box__corner {
+  position: absolute;
+  width: var(--sh-space-8);
+  height: var(--sh-space-8);
+  background: var(--sh-color-canvas);
+  border: var(--sh-border-width) solid var(--sh-color-accent);
+}
+.kf-box__corner--tl {
+  left: calc(-1 * var(--sh-space-4));
+  top: calc(-1 * var(--sh-space-4));
+}
+.kf-box__corner--tr {
+  right: calc(-1 * var(--sh-space-4));
+  top: calc(-1 * var(--sh-space-4));
+}
+.kf-box__corner--bl {
+  left: calc(-1 * var(--sh-space-4));
+  bottom: calc(-1 * var(--sh-space-4));
+}
+.kf-box__corner--br {
+  right: calc(-1 * var(--sh-space-4));
+  bottom: calc(-1 * var(--sh-space-4));
+}

@@ -113,14 +113,14 @@ test.describe('편집 흐름', () => {
     await expect(ui.clips(app)).toHaveCount(2);
 
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Clear');
+    await expect(ui.status(app)).toHaveText('실행 취소: 삭제');
     await expect(ui.clips(app)).toHaveCount(4);
     await ui.tool(app, '다시 실행').click();
-    await expect(ui.status(app)).toHaveText('다시 실행: Clear');
+    await expect(ui.status(app)).toHaveText('다시 실행: 삭제');
     await expect(ui.clips(app)).toHaveCount(2);
     await ui.tool(app, '실행 취소').click();
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Razor');
+    await expect(ui.status(app)).toHaveText('실행 취소: 자르기');
     await expect(ui.clips(app)).toHaveCount(2);
     await expect(ui.total(app)).toHaveText('00:00:16:00');
   });

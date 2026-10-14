@@ -116,17 +116,17 @@ test.describe('효과 탭', () => {
     await expect(ui.status(app)).toHaveText('효과를 삭제했습니다: 밝기와 대비');
     expect(await engineEffects(app)).toEqual(['black_white', 'motion', 'opacity', 'time_remap']);
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Remove Effect');
+    await expect(ui.status(app)).toHaveText('실행 취소: 효과 제거');
     await expect(item).toBeVisible();
     await expect(item.getByRole('textbox', { name: '대비 값' })).toHaveValue('100');
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Change Effect Parameter');
+    await expect(ui.status(app)).toHaveText('실행 취소: 효과 값 변경');
     await expect(item.getByRole('textbox', { name: '대비 값' })).toHaveValue('0');
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Change Effect Parameter');
+    await expect(ui.status(app)).toHaveText('실행 취소: 효과 값 변경');
     await expect(item.getByRole('textbox', { name: '밝기 값' })).toHaveValue('0');
     await ui.tool(app, '실행 취소').click();
-    await expect(ui.status(app)).toHaveText('실행 취소: Apply Brightness & Contrast');
+    await expect(ui.status(app)).toHaveText('실행 취소: 밝기와 대비 적용');
     await expect(item).toHaveCount(0);
   });
 

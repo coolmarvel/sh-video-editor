@@ -4,7 +4,7 @@
  * 실행 뒤에는 상태 줄을 바꿔 타임라인·미디어 패널이 다시 읽게 하고, 프로젝트·모니터도 직접 다시 읽는다.
  */
 import { useEditor } from '../../store';
-import { duplicateClip, renameClip, selectedClips, synchronizeByAudio, toggleLink } from '../context-menu/clip-actions';
+import { detectScenes, duplicateClip, renameClip, selectedClips, synchronizeByAudio, toggleLink } from '../context-menu/clip-actions';
 import { useExport } from '../export/store';
 import { selectedVideoClipIds, useEffects } from '../effects/store';
 import { useMedia } from '../media/store';
@@ -211,6 +211,7 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'text.add': () => void useText.getState().addText('plain'),
   'clip.link': () => (requireSelection('연결을 바꿀') ? toggleLink(selectedClips()) : undefined),
   'clip.sync': () => (requireSelection('싱크를 맞출') ? synchronizeByAudio(selectedClips()) : undefined),
+  'clip.scenes': () => (requireSelection('장면을 찾을') ? detectScenes(selectedClips()).then(() => undefined) : undefined),
   'clip.duplicate': () => {
     const first = selectedClips()[0];
     return first ? duplicateClip(first) : void useEditor.setState({ status: '복제할 클립을 먼저 선택하세요' });

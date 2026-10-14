@@ -107,6 +107,7 @@ export const MENUS: MenuDef[] = [
       item('복제', 'clip.duplicate', { enabledBy: 'clip.enable' }),
       item('이름 바꾸기...', 'clip.rename', { enabledBy: 'clip.enable' }),
       item('속도, 길이...', 'clip.speed', { enabledBy: 'clip.speedDuration' }),
+      item('장면마다 자르기', 'clip.scenes', { enabledBy: 'clip.sceneEditDetection' }),
       item('텍스트 추가', 'text.add', { enabledBy: 'graphics.newText' }),
       sep,
       item('켜기, 끄기', 'clip.enable', { enabledBy: 'clip.enable' }),

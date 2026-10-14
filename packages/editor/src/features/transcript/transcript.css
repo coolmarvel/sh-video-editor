@@ -1,0 +1,83 @@
+/* 전사 패널(인스펙터 "전사" 탭) 배치. 부품 모양은 sh-classic.css, 값은 --sh-* 토큰만. */
+.tr-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+}
+.tr-search .sh-input {
+  flex: 1;
+  min-width: 0;
+}
+.tr-search__count {
+  flex: none;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+}
+.tr-actions {
+  flex-wrap: wrap;
+}
+.tr-notice {
+  white-space: normal;
+  word-break: keep-all;
+}
+.tr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow: auto;
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  background: var(--sh-color-canvas);
+}
+.tr-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sh-space-6);
+  padding: var(--sh-space-4) var(--sh-space-6);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-grid);
+}
+.tr-row:hover {
+  background: var(--sh-color-hover);
+}
+.tr-row--selected {
+  background: var(--sh-color-accent-subtle);
+}
+.tr-row--hit .tr-row__text {
+  background: var(--sh-color-warning-subtle);
+}
+.tr-row--current {
+  box-shadow: inset var(--sh-space-2) 0 0 var(--sh-color-accent);
+}
+.tr-row__check {
+  flex: none;
+  margin: var(--sh-space-2) 0 0;
+}
+.tr-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.tr-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+}
+.tr-row__speaker {
+  color: var(--sh-color-text-secondary);
+}
+.tr-row__text {
+  white-space: normal;
+  word-break: keep-all;
+  line-height: var(--sh-font-line-height-normal);
+}

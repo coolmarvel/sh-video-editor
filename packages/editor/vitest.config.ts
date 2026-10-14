@@ -53,6 +53,8 @@ export default defineConfig({
         'src/features/audio/sync.ts',
         'src/features/audio/peaks.ts',
         'src/features/audio/ducking.ts',
+        'src/features/audio/cleanup.ts',
+        'src/features/transcript/store.ts',
         'src/features/audio/playback.ts',
         'src/features/audio/store.ts',
         'src/features/context-menu/store.ts',

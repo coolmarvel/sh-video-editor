@@ -9,9 +9,10 @@
 //! the middle of an export reports an error (the export stops); it cannot hand the stream over to
 //! another encoder.
 //!
-//! HEVC (`Format::Hevc`) has no built-in encoder, so choosing the format is the opt-in, the same
-//! configurations are declined, and a declined export fails with "encoder not available" instead of
-//! falling back; [`hevc_available`] tells the format list whether this machine can do it at all.
+//! HEVC (`Format::Hevc`): choosing the format is the opt-in and the same configurations are declined.
+//! Since `filmcraft-hevcenc` was ported the format has a built-in software encoder, so a declined
+//! export falls back to it like H.264 does, and [`hevc_available`] no longer decides whether the
+//! format is listed (a built-in encoder is always available).
 
 use std::sync::OnceLock;
 

@@ -6,6 +6,7 @@ import {
   formatEta,
   formatExtension,
   formatFilterName,
+  formatLabel,
   usableFormats,
   withExtension,
   type EngineFormat,
@@ -37,6 +38,8 @@ const source: EnginePreset = {
 const prores: EnginePreset = { name: 'ProRes', format: 'prores', extension: 'mov', category: 'Mezz', frameSize: null };
 const webmHd: EnginePreset = { name: 'WebM 1080p (Web)', format: 'webm', extension: 'webm', category: 'Web', frameSize: [1920, 1080] };
 const webm720: EnginePreset = { name: 'WebM 720p', format: 'webm', extension: 'webm', category: 'Web', frameSize: [1280, 720] };
+const hevcHd: EnginePreset = { name: 'HEVC 1080p (Half Size)', format: 'hevc', extension: 'mp4', category: 'Web', frameSize: [1920, 1080] };
+const hevc4k: EnginePreset = { name: 'HEVC 2160p 4K', format: 'hevc', extension: 'mp4', category: 'Web', frameSize: [3840, 2160] };
 
 describe('buildUiPresets', () => {
   it('전체가 있으면 다섯 가지를 정해진 순서로', () => {
@@ -84,6 +87,15 @@ describe('buildUiPresets', () => {
     for (const p of out) expect(p.label).not.toMatch(/[–—×]/);
   });
 
+  it('hevc 형식은 HEVC 1080p 프리셋으로 만든다: 720p·세로·정사각은 크기와 HEVC 비트레이트 덮어쓰기, 원본 크기·4K 없음', () => {
+    const out = buildUiPresets([hd, source, vertical, webmHd, hevcHd, hevc4k], 'hevc');
+    expect(out.map((p) => p.id)).toEqual(['1080p', '720p', '9x16', '1x1']);
+    expect(out[0]?.params).toEqual({ preset: 'HEVC 1080p (Half Size)' });
+    expect(out[1]?.params).toEqual({ preset: 'HEVC 1080p (Half Size)', width: 1280, height: 720, bitrateKbps: 6000 });
+    expect(out[2]?.params).toEqual({ preset: 'HEVC 1080p (Half Size)', width: 1080, height: 1920, bitrateKbps: 7000 });
+    expect(out[3]?.params).toEqual({ preset: 'HEVC 1080p (Half Size)', width: 1080, height: 1080, bitrateKbps: 7000 });
+  });
+
   it('webm 720p 프리셋이 없으면 1080p 에 4 Mbps 덮어쓰기, h264 는 영향 없음', () => {
     const out = buildUiPresets([hd, webmHd], 'webm');
     expect(out[1]?.params).toEqual({ preset: 'WebM 1080p (Web)', width: 1280, height: 720, bitrateKbps: 4000 });
@@ -106,7 +118,8 @@ describe('usableFormats', () => {
   it('사용 가능하고 영상+소리인 mp4·webm 만 남긴다', () => {
     const list = [
       fmt({}),
-      fmt({ id: 'hevc', available: false }),
+      fmt({ id: 'hevc', label: 'H.265 (HEVC)' }),
+      fmt({ id: 'hevc-off', available: false }),
       fmt({ id: 'prores', extension: 'mov' }),
       fmt({ id: 'png', audio: false, extension: 'png' }),
       fmt({ id: 'wav', video: false, extension: 'wav' }),
@@ -114,7 +127,9 @@ describe('usableFormats', () => {
       fmt({ id: 'webm', label: 'WebM (VP9 + Opus)', extension: 'webm' }),
       fmt({ id: 'webm-off', extension: 'webm', available: false }),
     ];
-    expect(usableFormats(list).map((f) => f.id)).toEqual(['h264', 'webm']);
+    expect(usableFormats(list).map((f) => f.id)).toEqual(['h264', 'hevc', 'webm']);
+    // 콤보 이름: HEVC 는 짧게, 나머지는 엔진 라벨 그대로
+    expect(usableFormats(list).map(formatLabel)).toEqual(['H.264', 'HEVC', 'WebM (VP9 + Opus)']);
     expect(usableFormats([])).toEqual([]);
   });
 

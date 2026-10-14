@@ -513,7 +513,7 @@ impl ExportSettings {
                     v += &format!(", keyframe every {} frames", r.keyint);
                 }
                 Format::Hevc => {
-                    v += &format!(", HEVC Main (hardware encoder), {}", self.bitrate_mode.label());
+                    v += &format!(", HEVC Main, {}", self.bitrate_mode.label());
                     v += &match self.bitrate_mode {
                         BitrateMode::Cbr => format!(", {}", mbps(r.target_kbps)),
                         _ => format!(", Target {}, Max {}", mbps(r.target_kbps), mbps(r.max_kbps)),

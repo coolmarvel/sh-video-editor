@@ -466,7 +466,7 @@ fn a_time_left_reads_like_a_clock() {
 }
 
 #[test]
-fn h265_is_a_format_that_needs_a_registered_encoder() {
+fn h265_is_a_format_with_a_builtin_encoder() {
     use std::sync::atomic::{AtomicBool, Ordering};
     // names, ids, files and serialized settings
     for name in ["hevc", "H.265", "h265", "HVC1", "x265"] {
@@ -490,31 +490,28 @@ fn h265_is_a_format_that_needs_a_registered_encoder() {
     assert_eq!(summary.format, "H.265 (HEVC) (MP4)");
     assert!(summary.video.contains("HEVC Main") && summary.video.contains("Target 20.00 Mbps"), "{}", summary.video);
 
-    // a hardware encoder has one pass
+    // the software encoder (and a hardware one) has one pass
     let e = ExportSettings { bitrate_mode: BitrateMode::Vbr2Pass, ..h.clone() }.validate().unwrap_err();
     assert!(e.to_string().contains("two-pass"), "{e}");
     assert!(ExportSettings { bitrate_mode: BitrateMode::Cbr, ..h.clone() }.validate().is_ok());
 
-    // formats with a built-in encoder are always available; this one only when a registered probe says so
-    assert!(Format::ALL.iter().filter(|f| f.has_builtin_encoder()).all(|f| available(*f)));
-    assert!(!Format::Hevc.has_builtin_encoder());
+    // every format has a built-in encoder (HEVC: filmcraft-hevcenc), so all are available, and a
+    // registered probe cannot take a built-in format away
+    assert!(Format::ALL.iter().all(|f| f.has_builtin_encoder() && available(*f)));
     static HERE: AtomicBool = AtomicBool::new(false);
     fn probe() -> bool {
         HERE.load(Ordering::SeqCst)
     }
-    assert!(!available(Format::Hevc), "nothing registered an encoder for it");
-    // and an export says so, honestly
-    let (p, seq, m) = matte([0.0, 0.0, 1.0, 1.0], 160, 90, None);
-    let sc = Scratch::new("h265-missing");
-    let err = export(&p, seq, &ExportSettings { path: sc.path("x.mp4"), include_audio: false, ..h.clone() }, &m, &Progress::default()).unwrap_err().to_string();
-    assert!(err.contains("H.265") && err.contains("encoder not available"), "{err}");
     register_format_probe(Format::Hevc, probe);
     register_format_probe(Format::Hevc, probe); // the same probe twice is harmless
-    assert!(!available(Format::Hevc));
+    assert!(available(Format::Hevc));
     HERE.store(true, Ordering::SeqCst);
     assert!(available(Format::Hevc));
-    HERE.store(false, Ordering::SeqCst);
-    assert!(!available(Format::Hevc));
+    // and a small export goes through the built-in encoder
+    let (p, seq, m) = matte([0.0, 0.0, 1.0, 1.0], 160, 90, None);
+    let sc = Scratch::new("h265-builtin");
+    let r = export(&p, seq, &ExportSettings { path: sc.path("x.mp4"), include_audio: false, ..h.clone() }, &m, &Progress::default()).unwrap();
+    assert!(r.frames > 0 && r.bytes > 0, "{} frames, {} bytes", r.frames, r.bytes);
 }
 
 #[test]

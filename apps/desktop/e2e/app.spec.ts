@@ -111,7 +111,7 @@ test('메뉴바를 열고 닫고, 내보내기 대화상자가 열린다', async
     // 기본 프리셋 5개 + SNS 프리셋(features/ratio)이 같은 콤보에 합쳐진다
     // 프리셋 목록은 엔진 응답(export.presets) 뒤에 채워진다. 부하가 높으면 늦으므로 폴링한다
     await expect.poll(() => dialog.getByLabel('프리셋', { exact: true }).locator('option').count()).toBeGreaterThanOrEqual(5);
-    await expect(dialog.getByLabel('형식').locator('option')).toHaveCount(2); // H.264 (mp4) + WebM (webm)
+    await expect(dialog.getByLabel('형식').locator('option')).toHaveCount(3); // H.264 (mp4) + HEVC (mp4) + WebM (webm)
     await expect(dialog).toContainText(/1920 x 1080, [\d.]+ fps, 18\.0초 \(\d+ 프레임\)/);
     await expect(dialog.getByRole('button', { name: '찾아보기' })).toBeEnabled();
     await expect(dialog.getByRole('button', { name: '내보내기' })).toBeDisabled();

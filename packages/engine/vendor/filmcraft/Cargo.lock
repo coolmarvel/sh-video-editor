@@ -944,6 +944,7 @@ dependencies = [
  "filmcraft-frame",
  "filmcraft-geom",
  "filmcraft-h264enc",
+ "filmcraft-hevcenc",
  "filmcraft-isobmff",
  "filmcraft-matroska",
  "filmcraft-media",
@@ -1056,6 +1057,14 @@ dependencies = [
  "filmcraft-testkit",
  "rayon",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "filmcraft-hevcenc"
+version = "0.2.1"
+dependencies = [
+ "filmcraft-hevc",
+ "filmcraft-testkit",
 ]
 
 [[package]]

@@ -5,8 +5,9 @@
 //! are shared atomics so the UI (Export mode, header progress) and MCP can observe/cancel jobs.
 //!
 //! Video encoders implement [`VideoEncoder`]; codec crates register theirs with
-//! [`register_encoder`] (H.264, ProRes …). Built in: Motion-JPEG (MOV), WebM (VP9 + Opus, see
-//! [`webm_out`]), PNG / TIFF / BMP sequences, GIF, WAV and AIFF.
+//! [`register_encoder`] (H.264, ProRes …). Built in: Motion-JPEG (MOV), HEVC (MP4 `hvc1`,
+//! `filmcraft-hevcenc`), WebM (VP9 + Opus, see [`webm_out`]), PNG / TIFF / BMP sequences, GIF, WAV
+//! and AIFF.
 //!
 //! [`ExportSettings`] carries every Export-mode setting (frame size, rate, bitrate encoding, audio
 //! format, multiplexer, captions, effects, metadata) as serde data; [`presets`] defines the
@@ -63,9 +64,9 @@ pub enum Format {
     #[default]
     #[serde(rename = "h264", alias = "H264")]
     H264,
-    /// MPEG-4 (or QuickTime, see [`Multiplexer`]), H.265 / HEVC Main (8-bit) video + AAC audio. There is no
-    /// built-in encoder: a platform hardware encoder registers one ([`register_encoder`]) and says so
-    /// with [`register_format_probe`]; [`available`] is false without it.
+    /// MPEG-4 (or QuickTime, see [`Multiplexer`]), H.265 / HEVC Main (8-bit) video + AAC audio. The
+    /// built-in encoder is `filmcraft-hevcenc` (software, I + P slices); a platform hardware encoder
+    /// registered with [`register_encoder`] is tried first and the built-in one takes what it declines.
     #[serde(rename = "hevc", alias = "Hevc")]
     Hevc,
     /// QuickTime, Apple ProRes 422 (HQ unless the settings pick another flavour) + PCM.
@@ -187,10 +188,11 @@ impl Format {
     pub fn is_mxf(self) -> bool {
         matches!(self, Format::MxfOp1a | Format::MxfOpAtom)
     }
-    /// Whether the crate carries an encoder for the format; the others need one registered at runtime
-    /// ([`register_format_probe`]).
+    /// Whether the crate carries an encoder for the format; a format without one needs an encoder
+    /// registered at runtime ([`register_format_probe`]). Every format has one since `filmcraft-hevcenc`
+    /// was ported (HEVC was the exception).
     pub fn has_builtin_encoder(self) -> bool {
-        self != Format::Hevc
+        true
     }
     /// H.264 or H.265: MPEG-4 (or QuickTime) with AAC audio, set up with the same bitrate controls.
     pub fn is_h26x(self) -> bool {
@@ -637,7 +639,7 @@ pub type AudioEncoderFactory = fn(format: Format, sample_rate: u32, channels: u3
 
 fn video_factories() -> &'static RwLock<Vec<EncoderFactory>> {
     static F: OnceLock<RwLock<Vec<EncoderFactory>>> = OnceLock::new();
-    F.get_or_init(|| RwLock::new(vec![h264_factory, prores_factory, dnx_factory, apv_factory, mjpeg_factory, vp9_factory]))
+    F.get_or_init(|| RwLock::new(vec![h264_factory, hevc_factory, prores_factory, dnx_factory, apv_factory, mjpeg_factory, vp9_factory]))
 }
 fn audio_factories() -> &'static RwLock<Vec<AudioEncoderFactory>> {
     static F: OnceLock<RwLock<Vec<AudioEncoderFactory>>> = OnceLock::new();
@@ -1313,6 +1315,89 @@ fn h264_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSetti
     Some(
         filmcraft_h264enc::Encoder::new(cfg)
             .map(|enc| Box::new(H264Encoder { enc, w, h, rate, y: Vec::new(), u: Vec::new(), v: Vec::new(), signal: s.signal }) as Box<dyn VideoEncoder>)
+            .map_err(|e| ExportError::Encode(e.to_string())),
+    )
+}
+
+/// HEVC Main (our encoder, `filmcraft-hevcenc`): sRGB/709 RGBA8 → 8-bit limited-range BT.709 4:2:0,
+/// IDR + P pictures without reordering (one packet per frame, pts = dts), length-prefixed samples
+/// with the `hvcC` in the `hvc1` sample entry. Always 8-bit SDR (the exporter never asks it for HDR).
+struct HevcEncoder {
+    enc: filmcraft_hevcenc::Encoder,
+    w: u32,
+    h: u32,
+    rate: FrameRate,
+    y8: Vec<u8>,
+    u8: Vec<u8>,
+    v8: Vec<u8>,
+    y: Vec<u16>,
+    u: Vec<u16>,
+    v: Vec<u16>,
+    signal: ColorSignal,
+}
+
+impl VideoEncoder for HevcEncoder {
+    fn sample_entry(&self) -> SampleEntry {
+        let cfg = filmcraft_isobmff::HevcConfig::parse(&self.enc.hvcc()).unwrap_or_default();
+        let mut e = SampleEntry::hevc(cfg, self.w as u16, self.h as u16);
+        self.signal.apply_to(&mut e, false);
+        e
+    }
+    fn timescale(&self) -> u32 {
+        self.rate.num as u32
+    }
+    fn encode(&mut self, f: &EncoderFrame) -> Result<Vec<EncodedPacket>> {
+        rgba_to_yuv420_8(f.rgba, f.width as usize, f.height as usize, &mut self.y8, &mut self.u8, &mut self.v8);
+        widen(&self.y8, &mut self.y);
+        widen(&self.u8, &mut self.u);
+        widen(&self.v8, &mut self.v);
+        let cw = (f.width as usize).div_ceil(2);
+        let frame = filmcraft_hevcenc::Frame { y: &self.y, u: &self.u, v: &self.v, y_stride: f.width as usize, uv_stride: cw };
+        let p = self.enc.encode(&frame);
+        Ok(vec![EncodedPacket { data: p.data, key: p.keyframe, duration: self.rate.den as u32, composition_offset: 0 }])
+    }
+    fn flush(&mut self) -> Result<Vec<EncodedPacket>> {
+        Ok(Vec::new())
+    }
+}
+
+/// 8-bit samples into the encoder's u16 planes (Main profile values 0..255).
+fn widen(src: &[u8], dst: &mut Vec<u16>) {
+    dst.clear();
+    dst.extend(src.iter().map(|&v| u16::from(v)));
+}
+
+fn hevc_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSettings) -> Option<Result<Box<dyn VideoEncoder>>> {
+    if format != Format::Hevc {
+        return None;
+    }
+    let (Ok(num), Ok(den)) = (u32::try_from(rate.num), u32::try_from(rate.den)) else {
+        return Some(Err(ExportError::Encode("HEVC: frame rate out of range".into())));
+    };
+    let mut cfg = filmcraft_hevcenc::EncoderConfig::new(w, h, num, den);
+    cfg.profile = filmcraft_hevcenc::Profile::Main;
+    cfg.keyint = s.keyframe_distance.filter(|k| *k > 0).unwrap_or_else(|| (rate.num as f64 / rate.den.max(1) as f64 * 2.0).round().max(1.0) as u32);
+    // CBR and VBR both drive the encoder's frame-level rate control at the target; it has no
+    // separate maximum
+    cfg.rate = filmcraft_hevcenc::RateControl::Bitrate { kbps: s.bitrate_kbps.max(100) };
+    cfg.full_range = false;
+    Some(
+        filmcraft_hevcenc::Encoder::new(cfg)
+            .map(|enc| {
+                Box::new(HevcEncoder {
+                    enc,
+                    w,
+                    h,
+                    rate,
+                    y8: Vec::new(),
+                    u8: Vec::new(),
+                    v8: Vec::new(),
+                    y: Vec::new(),
+                    u: Vec::new(),
+                    v: Vec::new(),
+                    signal: s.signal,
+                }) as Box<dyn VideoEncoder>
+            })
             .map_err(|e| ExportError::Encode(e.to_string())),
     )
 }

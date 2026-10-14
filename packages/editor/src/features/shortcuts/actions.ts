@@ -9,6 +9,7 @@ import { useMedia } from '../media/store';
 import { DEMO_SCENES, type DemoScene } from '../media/types';
 import { monitorController } from '../monitor/registry';
 import { useProject } from '../project/store';
+import { useText } from '../text/store';
 import { useTimeline } from '../timeline/store';
 import { useShortcutsUi } from './store';
 
@@ -138,6 +139,7 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
     useShortcutsUi.getState().setSpeedOpen(true);
   },
   'clip.enable': () => void execCommand('clip.enable', undefined, TOGGLE_LABEL['clip.enable'] ?? ''),
+  'text.add': () => void useText.getState().addText('plain'),
   'clip.link': () => void execCommand('clip.link', undefined, TOGGLE_LABEL['clip.link'] ?? ''),
   'timeline.zoomIn': () => useTimeline.getState().setZoom(useTimeline.getState().pxPerSec * 1.25),
   'timeline.zoomOut': () => useTimeline.getState().setZoom(useTimeline.getState().pxPerSec / 1.25),

@@ -21,6 +21,15 @@ export interface ClipInfo {
   enabled: boolean;
   /** 영상·음성이 연결된 클립끼리 같은 link id */
   link: number | null;
+  /** 클립의 효과 목록(motion, opacity, graphic_text ...). 텍스트 클립 판별과 속성 읽기에 쓴다(features/text) */
+  effects?: ClipEffectInfo[];
+}
+
+/** 효과 하나. params 값은 엔진 Debug 문자열(features/text/params.ts 가 읽는다) */
+export interface ClipEffectInfo {
+  effect: string;
+  enabled: boolean;
+  params?: Record<string, { keyframes?: number; value?: unknown }>;
 }
 
 export interface TrackInfo {

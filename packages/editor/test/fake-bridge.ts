@@ -6,6 +6,7 @@
  */
 import type { CommandSpec, EngineBridge, FileFilter, Frame } from '../src/engine/bridge';
 import { TICKS_PER_SECOND } from '../src/engine/time';
+import { formatSrt, parseSrt } from '../src/features/text/srt';
 
 export const T = TICKS_PER_SECOND;
 /** 30fps 한 프레임 */
@@ -54,6 +55,48 @@ export interface FakeItem {
   fps?: number;
 }
 
+/** 텍스트 클립(graphic_text 효과)의 값. 실제 엔진의 파라미터 이름을 그대로 쓴다 */
+export interface FakeGraphic {
+  text: string;
+  font: string;
+  font_style: string;
+  size: number;
+  /** 0 left, 1 center, 2 right, 3 justify */
+  align: number;
+  fill_color: string;
+  stroke: boolean;
+  stroke_width: number;
+  stroke_color: string;
+  background: boolean;
+  background_color: string;
+  background_opacity: number;
+  background_size: number;
+  shadow: boolean;
+  shadow_color: string;
+  shadow_opacity: number;
+  shadow_distance: number;
+  shadow_blur: number;
+  position: [number, number];
+  opacity: number;
+  scale: number;
+}
+
+export interface FakeCaption {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface FakeCaptionTrack {
+  id: number;
+  name: string;
+  format: string;
+  enabled: boolean;
+  captions: FakeCaption[];
+  style: Record<string, unknown>;
+}
+
 export interface FakeRecovery {
   id: string;
   projectName: string;
@@ -88,6 +131,10 @@ interface State {
   sequence: FakeSequence | null;
   playhead: number;
   snap: boolean;
+  /** 클립 id -> 텍스트 레이어 값 */
+  graphics: Record<number, FakeGraphic>;
+  captionTracks: FakeCaptionTrack[];
+  captionSelection: number[];
 }
 
 export interface FakeBridgeOptions {
@@ -99,6 +146,8 @@ export interface FakeBridgeOptions {
   exportStep?: number;
   /** file.recoveryList 가 돌려줄 후보 */
   recovery?: FakeRecovery[];
+  /** 웹처럼 registerFiles / takeWrittenFile 을 지원할지 */
+  web?: boolean;
 }
 
 export const FAKE_COMMANDS: CommandSpec[] = [
@@ -186,6 +235,10 @@ export class FakeEngine {
   pickFilesResult: string[] = ['/tmp/fake/a.mp4'];
   autosaveStarted = 0;
   pollCount = 0;
+  /** 가짜 파일 공간(경로 -> 텍스트). captions.import 가 읽고 captions.export 가 쓴다 */
+  readonly files = new Map<string, string>();
+  /** 엔진이 쓴 파일(웹의 takeWrittenFile 흉내) */
+  readonly written = new Map<string, Uint8Array>();
   state: State;
   readonly bridge: EngineBridge;
   private nextId = 100;
@@ -231,6 +284,23 @@ export class FakeEngine {
       bridge.pickFiles = async () => this.pickFilesResult;
       bridge.pathForFile = (file: File) => `/dropped/${file.name}`;
     }
+    if (opts.web) {
+      // 웹처럼 브라우저 File 을 등록하고(내용은 files 에 복사) 쓰인 파일을 꺼내 간다
+      bridge.registerFiles = async (files: File[]) => {
+        const paths: string[] = [];
+        for (const f of files) {
+          const path = `/files/${f.name}`;
+          this.files.set(path, await f.text());
+          paths.push(path);
+        }
+        return paths;
+      };
+      bridge.takeWrittenFile = async (path: string) => {
+        const b = this.written.get(path) ?? null;
+        this.written.delete(path);
+        return b;
+      };
+    }
     this.bridge = bridge;
   }
 
@@ -245,7 +315,94 @@ export class FakeEngine {
       sequence: null,
       playhead: 0,
       snap: true,
+      graphics: {},
+      captionTracks: [],
+      captionSelection: [],
     };
+  }
+
+  /** 글자 크기·줄 수로 어림한 텍스트 상자(실제 엔진의 quad 와 같은 모양: 네 꼭짓점). 정렬점은 첫 베이스라인 */
+  static textQuad(g: FakeGraphic): Array<[number, number]> {
+    const lines = g.text.split('\n');
+    const width = Math.max(...lines.map((l) => l.length), 1) * g.size * 0.55;
+    const height = lines.length * g.size * 1.2;
+    const [px, py] = g.position;
+    const left = g.align === 1 ? px - width / 2 : g.align === 2 ? px - width : px;
+    const top = py - g.size;
+    return [
+      [left, top],
+      [left + width, top],
+      [left + width, top + height],
+      [left, top + height],
+    ];
+  }
+
+  /** sequence.inspect 의 효과 파라미터 모양(filmcraft Debug 문자열)으로 */
+  static debugParams(g: FakeGraphic): Record<string, { keyframes: number; value: string }> {
+    const color = (hex: string) => {
+      const n = parseInt(hex.slice(1, 7), 16);
+      const f = (v: number) => (v / 255).toString();
+      return `Color([${f((n >> 16) & 255)}, ${f((n >> 8) & 255)}, ${f(n & 255)}, 1.0])`;
+    };
+    const float = (v: number) => `Float(${Number.isInteger(v) ? `${v}.0` : String(v)})`;
+    const text = (v: string) => `Text(${JSON.stringify(v)})`;
+    const v = (value: string) => ({ keyframes: 0, value });
+    return {
+      text: v(text(g.text)),
+      font: v(text(g.font)),
+      font_style: v(text(g.font_style)),
+      size: v(float(g.size)),
+      align: v(`Choice(${g.align})`),
+      fill_color: v(color(g.fill_color)),
+      stroke: v(`Bool(${g.stroke})`),
+      stroke_width: v(float(g.stroke_width)),
+      stroke_color: v(color(g.stroke_color)),
+      background: v(`Bool(${g.background})`),
+      background_color: v(color(g.background_color)),
+      background_opacity: v(float(g.background_opacity)),
+      background_size: v(float(g.background_size)),
+      shadow: v(`Bool(${g.shadow})`),
+      shadow_color: v(color(g.shadow_color)),
+      shadow_opacity: v(float(g.shadow_opacity)),
+      shadow_distance: v(float(g.shadow_distance)),
+      shadow_blur: v(float(g.shadow_blur)),
+      position: v(`Vec2(Vec2 { x: ${float(g.position[0]).slice(6, -1)}, y: ${float(g.position[1]).slice(6, -1)} })`),
+      opacity: v(float(g.opacity)),
+      scale: v(float(g.scale)),
+    };
+  }
+
+  private graphicOf(clip: number | undefined): { clip: number; g: FakeGraphic } {
+    const seq = this.sequence;
+    const id =
+      clip ??
+      seq.selection.find((c) => c in this.state.graphics) ??
+      this.allClips().find((c) => c.clip in this.state.graphics && c.start <= this.state.playhead && this.state.playhead < c.end)?.clip;
+    const g = id === undefined ? undefined : this.state.graphics[id];
+    if (id === undefined || !g) throw new FakeEngineError('graphics: no graphic clip selected or under the playhead');
+    return { clip: id, g };
+  }
+
+  private captionTrackOf(ref: unknown): FakeCaptionTrack {
+    const tracks = this.state.captionTracks;
+    if (typeof ref === 'string') {
+      const m = /^C(\d+)$/.exec(ref);
+      const t = m ? tracks[Number(m[1]) - 1] : undefined;
+      if (t) return t;
+    }
+    const byId = tracks.find((t) => t.id === ref);
+    if (byId) return byId;
+    if (ref === undefined && tracks[0]) return tracks[0];
+    throw new FakeEngineError(`no such caption track ${String(ref)}`);
+  }
+
+  private captionOf(id: unknown): { track: FakeCaptionTrack; cap: FakeCaption } {
+    const want = id ?? this.state.captionSelection[0];
+    for (const track of this.state.captionTracks) {
+      const cap = track.captions.find((c) => c.id === want);
+      if (cap) return { track, cap };
+    }
+    throw new FakeEngineError(`edit failed: no such track item ClipId(${String(want ?? 0)})`);
   }
 
   failNext(id: string, message = `${id} failed`, always = false): void {
@@ -471,6 +628,9 @@ export class FakeEngine {
       speed: 1,
       enabled: c.enabled,
       link: c.link,
+      ...(this.state.graphics[c.clip]
+        ? { effects: [{ effect: 'graphic_text', enabled: true, params: FakeEngine.debugParams(this.state.graphics[c.clip] as FakeGraphic) }] }
+        : {}),
     });
     const toTrack = (t: FakeTrack) => ({
       id: t.id,
@@ -935,6 +1095,290 @@ export class FakeEngine {
       case 'file.discardRecovery':
         this.recovery = this.recovery.filter((x) => x.id !== p['id']);
         return null;
+      // ----- 텍스트(그래픽) -----
+      case 'fonts.list':
+        return [
+          { family: 'Inter', styles: ['Regular', 'Medium', 'SemiBold', 'Bold', 'Italic'] },
+          { family: 'JetBrains Mono', styles: ['Regular'] },
+          { family: 'Noto Serif', styles: ['Regular'] },
+          { family: 'Pretendard', styles: ['Regular', 'Bold'] },
+          ...(p['system'] === false ? [] : [{ family: 'DejaVu Sans', styles: ['Book', 'Bold'] }]),
+        ];
+      case 'graphics.newText': {
+        const seq = this.sequence;
+        const seconds = (p['seconds'] as number | undefined) ?? 5;
+        const time = (p['time'] as number | undefined) ?? this.state.playhead;
+        this.snapshot('New Text');
+        const item = this.addItem({ name: 'Graphic', type: 'Graphic', duration: 3600 * T, hasAudio: false, label: 'Rose' });
+        // 플레이헤드 위에서 비어 있는 첫 영상 트랙(없으면 추가)
+        let track = seq.video.find((t) => !t.items.some((c) => c.start < time + seconds * T && time < c.end));
+        if (!track) {
+          track = {
+            id: this.nextId++,
+            name: `Video ${seq.video.length + 1}`,
+            items: [],
+            enabled: true,
+            locked: false,
+            muted: false,
+            solo: false,
+            syncLock: true,
+          };
+          seq.video.push(track);
+        }
+        const clip: FakeClip = {
+          clip: this.nextId++,
+          item: item.item,
+          name: (p['text'] as string | undefined) ?? 'New Text',
+          start: time,
+          end: time + seconds * T,
+          sourceIn: 0,
+          link: null,
+          enabled: true,
+        };
+        track.items.push(clip);
+        track.items.sort((a, b) => a.start - b.start);
+        this.state.graphics[clip.clip] = {
+          text: clip.name,
+          font: (p['font'] as string | undefined) ?? 'Inter',
+          font_style: (p['fontStyle'] as string | undefined) ?? 'Regular',
+          size: (p['size'] as number | undefined) ?? 100,
+          align: 0,
+          fill_color: '#ffffff',
+          stroke: false,
+          stroke_width: 4,
+          stroke_color: '#000000',
+          background: false,
+          background_color: '#000000',
+          background_opacity: 75,
+          background_size: 12,
+          shadow: false,
+          shadow_color: '#000000',
+          shadow_opacity: 75,
+          shadow_distance: 7,
+          shadow_blur: 40,
+          position: (p['position'] as [number, number] | undefined) ?? [seq.width / 2, seq.height / 2],
+          opacity: 100,
+          scale: 100,
+        };
+        seq.selection = [clip.clip];
+        this.touch();
+        return { clip: clip.clip, layer: 0 };
+      }
+      case 'graphics.setText': {
+        const { g } = this.graphicOf(p['clip'] as number | undefined);
+        this.snapshot('Edit Text');
+        g.text = p['text'] as string;
+        this.touch();
+        return null;
+      }
+      case 'clip.rename': {
+        const c = this.findClip(this.sequence, p['clip'] as number).clip;
+        this.snapshot('Rename');
+        c.name = p['name'] as string;
+        this.touch();
+        return null;
+      }
+      case 'graphics.set': {
+        const { g } = this.graphicOf(p['clip'] as number | undefined);
+        const props = (p['props'] ?? {}) as Record<string, unknown>;
+        this.snapshot('Set Graphic Properties');
+        const aligns = ['left', 'center', 'right', 'justify'];
+        for (const [k, val] of Object.entries(props)) {
+          if (k === 'align') g.align = typeof val === 'number' ? val : Math.max(0, aligns.indexOf(String(val)));
+          else if (k === 'position') g.position = val as [number, number];
+          else if (k in g) (g as unknown as Record<string, unknown>)[k] = val;
+          else throw new FakeEngineError(`graphics.set: unknown property ${k}`);
+        }
+        this.touch();
+        return null;
+      }
+      case 'graphics.list': {
+        const { clip, g } = this.graphicOf(p['clip'] as number | undefined);
+        const seq = this.sequence;
+        const c = this.findClip(seq, clip).clip;
+        return {
+          clip,
+          canvas: [seq.width, seq.height],
+          start: c.start,
+          duration: c.end - c.start,
+          name: g.text,
+          layers: [
+            {
+              layer: 0,
+              kind: 'text',
+              name: g.text,
+              text: g.text,
+              textType: 'point',
+              position: [...g.position],
+              anchor: [0, 0],
+              scale: g.scale,
+              enabled: true,
+              quad: FakeEngine.textQuad(g),
+              uid: 0,
+            },
+          ],
+        };
+      }
+      // ----- 자막 -----
+      case 'captions.newTrack': {
+        this.sequence;
+        this.snapshot('Add Caption Track');
+        const track: FakeCaptionTrack = {
+          id: this.nextId++,
+          name: (p['name'] as string | undefined) ?? 'Captions',
+          format: (p['format'] as string | undefined) ?? 'Subtitle',
+          enabled: true,
+          captions: [],
+          style: {
+            font: 'Inter',
+            size: 54,
+            color: '#ffffffff',
+            background: true,
+            backgroundColor: '#000000bf',
+            align: 'center',
+            anchor: 'bottom',
+            margin: 0.08,
+            lineSpacing: 1.25,
+            outline: 0,
+            outlineColor: '#000000ff',
+          },
+        };
+        this.state.captionTracks.unshift(track);
+        this.touch();
+        return { track: track.id };
+      }
+      case 'captions.deleteTrack': {
+        const t = this.captionTrackOf(p['track']);
+        this.snapshot('Delete Caption Track');
+        this.state.captionTracks = this.state.captionTracks.filter((x) => x !== t);
+        this.touch();
+        return null;
+      }
+      case 'captions.add': {
+        const t = this.captionTrackOf(p['track']);
+        const start = typeof p['time'] === 'number' ? p['time'] : typeof p['seconds'] === 'number' ? p['seconds'] * T : this.state.playhead;
+        const dur = ((p['durationSeconds'] as number | undefined) ?? 3) * T;
+        this.snapshot('Add Caption');
+        const cap: FakeCaption = { id: this.nextId++, start, end: start + dur, text: (p['text'] as string | undefined) ?? '' };
+        t.captions.push(cap);
+        t.captions.sort((a, b) => a.start - b.start);
+        this.state.captionSelection = [cap.id];
+        this.touch();
+        return { caption: cap.id };
+      }
+      case 'captions.setText': {
+        const { cap } = this.captionOf(p['caption']);
+        this.snapshot('Edit Caption Text');
+        cap.text = p['text'] as string;
+        this.touch();
+        return null;
+      }
+      case 'captions.setTimes': {
+        const { cap } = this.captionOf(p['caption']);
+        const start = typeof p['startTime'] === 'number' ? p['startTime'] : typeof p['startSeconds'] === 'number' ? p['startSeconds'] * T : cap.start;
+        const end = typeof p['endTime'] === 'number' ? p['endTime'] : typeof p['endSeconds'] === 'number' ? p['endSeconds'] * T : cap.end;
+        if (end <= start) throw new FakeEngineError('edit failed: caption end before start');
+        this.snapshot('Set Caption In/Out');
+        cap.start = start;
+        cap.end = end;
+        this.touch();
+        return null;
+      }
+      case 'captions.delete': {
+        const ids = (p['captions'] as number[] | undefined) ?? this.state.captionSelection;
+        this.snapshot('Delete Captions');
+        for (const t of this.state.captionTracks) t.captions = t.captions.filter((c) => !ids.includes(c.id));
+        this.state.captionSelection = [];
+        this.touch();
+        return null;
+      }
+      case 'captions.setStyle': {
+        const t = this.captionTrackOf(p['track']);
+        this.snapshot('Caption Track Style');
+        const { track: _track, reset: _reset, ...rest } = p;
+        Object.assign(t.style, rest);
+        this.touch();
+        return null;
+      }
+      case 'captions.list': {
+        this.sequence;
+        const ft = frameTicksOf(this.sequence);
+        const tc = (t: number) => {
+          const frames = Math.round(t / ft);
+          const pad = (n: number) => String(n).padStart(2, '0');
+          return `${pad(Math.floor(frames / 108000))}:${pad(Math.floor(frames / 1800) % 60)}:${pad(Math.floor(frames / 30) % 60)}:${pad(frames % 30)}`;
+        };
+        return {
+          selection: [...this.state.captionSelection],
+          tracks: this.state.captionTracks.map((t, i) => ({
+            id: t.id,
+            label: `C${i + 1}`,
+            name: t.name,
+            format: t.format,
+            language: 'en',
+            enabled: t.enabled,
+            locked: false,
+            syncLock: true,
+            style: { ...t.style },
+            captions: t.captions.map((c) => ({
+              id: c.id,
+              start: c.start,
+              end: c.end,
+              in: tc(c.start),
+              out: tc(c.end),
+              duration: tc(c.end - c.start),
+              text: c.text,
+              speaker: null,
+              settings: '',
+            })),
+          })),
+        };
+      }
+      case 'captions.import': {
+        const path = p['path'] as string;
+        const text = this.files.get(path);
+        if (text === undefined) throw new FakeEngineError(`${path}: no such file`);
+        const parsed = parseSrt(text);
+        if (parsed.cues.length === 0) throw new FakeEngineError(`${path}: no captions found`);
+        this.snapshot('Import Captions');
+        const track: FakeCaptionTrack = {
+          id: this.nextId++,
+          name:
+            (p['name'] as string | undefined) ??
+            path
+              .split(/[\\/]/)
+              .pop()
+              ?.replace(/\.[^.]+$/, '') ??
+            'Captions',
+          format: 'Subtitle',
+          enabled: true,
+          captions: parsed.cues.map((c) => ({ id: this.nextId++, start: c.start, end: c.end, text: c.text })),
+          style: {
+            font: 'Inter',
+            size: 54,
+            color: '#ffffffff',
+            background: true,
+            backgroundColor: '#000000bf',
+            align: 'center',
+            anchor: 'bottom',
+            margin: 0.08,
+            lineSpacing: 1.25,
+            outline: 0,
+            outlineColor: '#000000ff',
+          },
+        };
+        this.state.captionTracks.unshift(track);
+        this.touch();
+        return { captions: track.captions.length, format: 'SubRip (SRT)', sequence: this.sequence.id, track: track.id, warnings: parsed.warnings };
+      }
+      case 'captions.export': {
+        const t = this.captionTrackOf(p['track']);
+        const path = p['path'] as string;
+        const body = formatSrt(t.captions);
+        this.files.set(path, body);
+        this.written.set(path, new TextEncoder().encode(body));
+        return { bytes: body.length, captions: t.captions.length, format: 'SubRip (SRT)', path };
+      }
       default:
         throw new FakeEngineError(`unknown command \`${id}\``);
     }

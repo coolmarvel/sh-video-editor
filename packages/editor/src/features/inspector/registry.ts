@@ -27,17 +27,33 @@ export interface InspectorTab {
   component: ComponentType<InspectorContext>;
 }
 
+/** 인스펙터 위 도구 줄의 버튼(텍스트 추가 같은 "만들기" 동작). 선택과 무관하게 시퀀스가 있으면 보인다 */
+export interface InspectorTool {
+  id: string;
+  label: string;
+  title?: string;
+  order?: number;
+  onClick: () => void;
+}
+
 interface RegistryState {
   tabs: InspectorTab[];
   active: string | null;
   setActive(id: string): void;
+  tools: InspectorTool[];
 }
 
 export const useInspectorRegistry = create<RegistryState>((set) => ({
   tabs: [],
   active: null,
   setActive: (id) => set({ active: id }),
+  tools: [],
 }));
+
+export function registerInspectorTool(tool: InspectorTool): () => void {
+  useInspectorRegistry.setState((s) => ({ tools: [...s.tools.filter((t) => t.id !== tool.id), tool].sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) }));
+  return () => useInspectorRegistry.setState((s) => ({ tools: s.tools.filter((t) => t.id !== tool.id) }));
+}
 
 export function registerInspectorTab(tab: InspectorTab): () => void {
   useInspectorRegistry.setState((s) => ({ tabs: [...s.tabs.filter((t) => t.id !== tab.id), tab].sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) }));

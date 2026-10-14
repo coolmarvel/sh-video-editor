@@ -1,0 +1,185 @@
+/* 텍스트·자막 인스펙터 탭과 모니터 오버레이 배치. 색·크기는 --sh-* 토큰만 쓴다. */
+.tx-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+}
+.tx-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4);
+}
+.tx-group__title {
+  margin: 0;
+  font-size: var(--sh-font-size-body);
+  font-weight: var(--sh-font-weight-semibold);
+  color: var(--sh-color-text-secondary);
+  border-bottom: var(--sh-border-width) solid var(--sh-color-border);
+  padding-bottom: var(--sh-space-2);
+}
+.tx-count {
+  font-weight: var(--sh-font-weight-regular);
+  color: var(--sh-color-text-muted);
+}
+.tx-field {
+  display: grid;
+  grid-template-columns: var(--sh-space-48) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sh-space-6);
+  min-height: var(--sh-size-control-md);
+}
+.tx-field > span:first-child {
+  color: var(--sh-color-text-secondary);
+}
+.tx-field__input {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-4);
+  min-width: 0;
+}
+.tx-field__input .sh-input {
+  flex: 1;
+  min-width: 0;
+}
+.tx-field__unit {
+  color: var(--sh-color-text-muted);
+  font-size: var(--sh-font-size-caption);
+  white-space: nowrap;
+}
+.tx-field .sh-select {
+  width: 100%;
+}
+.tx-textarea {
+  height: auto;
+  padding: var(--sh-space-4);
+  resize: vertical;
+  font-family: var(--sh-font-family-ui);
+  line-height: var(--sh-font-line-height-normal);
+}
+.tx-color {
+  width: var(--sh-space-32);
+  padding: 0 var(--sh-space-2);
+  flex: none;
+}
+.tx-hint {
+  margin: 0;
+  color: var(--sh-color-text-muted);
+  font-size: var(--sh-font-size-caption);
+}
+.tx-toggle {
+  min-height: var(--sh-size-control-sm);
+}
+.tx-grid9 {
+  display: grid;
+  grid-template-columns: repeat(3, var(--sh-size-tool-button));
+  gap: var(--sh-space-2);
+  padding: var(--sh-space-2);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-color-sunken);
+  width: max-content;
+}
+.tx-grid9__dot {
+  width: var(--sh-space-6);
+  height: var(--sh-space-6);
+  background: var(--sh-color-text-secondary);
+}
+.tx-grid9__cell[aria-pressed='true'] .tx-grid9__dot {
+  background: var(--sh-color-accent);
+}
+/* 모니터 오버레이: 스테이지(.mon-stage, position relative) 전체를 덮는 투명 층. 상자만 포인터를 받는다 */
+.tx-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.tx-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: var(--sh-border-width) dashed var(--sh-color-hover-edge);
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+}
+.tx-box:hover {
+  border-style: solid;
+}
+.tx-box--selected {
+  border-color: var(--sh-color-accent);
+  border-style: solid;
+}
+.tx-box--dragging {
+  background: var(--sh-color-accent-subtle);
+  opacity: 0.8;
+}
+/* 자막 탭 */
+.cap-tools {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: var(--sh-size-toolbar);
+  padding: var(--sh-space-2);
+  gap: var(--sh-space-2);
+}
+.cap-file {
+  display: none;
+}
+.cap-notice {
+  margin: 0;
+}
+.cap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4);
+  max-height: 40vh;
+  overflow: auto;
+}
+.cap-cue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-2);
+  padding: var(--sh-space-4);
+  border: var(--sh-border-width) solid var(--sh-color-border);
+  background: var(--sh-color-canvas);
+}
+.cap-cue--selected {
+  border-color: var(--sh-color-accent);
+}
+.cap-cue__times {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-4);
+}
+.cap-cue__time {
+  width: var(--sh-space-48);
+  flex: 1;
+  min-width: 0;
+}
+.cap-cue__sep {
+  color: var(--sh-color-text-muted);
+}
+.cap-cue__delete {
+  flex: none;
+  margin-left: auto;
+}
+.cap-cue__text {
+  height: auto;
+  padding: var(--sh-space-4);
+  resize: vertical;
+  font-family: var(--sh-font-family-ui);
+}
+.cap-track-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+/* 인스펙터 도구 줄(텍스트 추가·제목 프리셋). 공용 부품 sh-toolbar 위에 줄바꿈만 허용 */
+.ve-inspector__tools {
+  flex: none;
+  flex-wrap: wrap;
+  height: auto;
+  min-height: var(--sh-size-toolbar);
+  gap: var(--sh-space-2);
+  padding: var(--sh-space-2);
+}

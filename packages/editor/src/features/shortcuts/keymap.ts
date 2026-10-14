@@ -41,6 +41,7 @@ export const KEYMAP: ShortcutDef[] = [
   { id: 'clip.razor', keys: ['Ctrl+K'], label: '플레이헤드에서 자르기', scope: 'timeline' },
   { id: 'clip.razorAll', keys: ['Ctrl+Shift+K'], label: '모든 트랙 자르기', scope: 'timeline' },
   { id: 'clip.speed', keys: ['Ctrl+R'], label: '속도, 길이', scope: 'timeline' },
+  { id: 'text.add', keys: ['T'], label: '텍스트 추가', scope: 'timeline' },
   { id: 'clip.enable', keys: ['Shift+E'], label: '클립 켜기, 끄기', scope: 'timeline' },
   { id: 'clip.link', keys: ['Ctrl+L'], label: '영상, 소리 연결, 연결 해제', scope: 'timeline' },
   { id: 'clip.delete', keys: ['Delete', 'Backspace'], label: '선택한 클립 삭제', scope: 'timeline' },

@@ -11,6 +11,7 @@ export function InspectorPanel() {
   const tabs = useInspectorRegistry((s) => s.tabs);
   const active = useInspectorRegistry((s) => s.active);
   const setActive = useInspectorRegistry((s) => s.setActive);
+  const tools = useInspectorRegistry((s) => s.tools);
 
   const ctx = useMemo<InspectorContext | null>(() => {
     if (!sequence) return null;
@@ -24,6 +25,15 @@ export function InspectorPanel() {
   return (
     <section className="sh-panel ve-inspector" aria-label="속성">
       <div className="sh-panel__title">속성</div>
+      {ctx && tools.length > 0 ? (
+        <div className="sh-toolbar ve-inspector__tools" role="toolbar" aria-label="속성 도구">
+          {tools.map((t) => (
+            <button key={t.id} type="button" className="sh-tool" title={t.title ?? t.label} onClick={t.onClick}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {!ctx ? (
         <p className="ve-inspector__hint">열린 시퀀스가 없습니다.</p>
       ) : shown.length === 0 ? (

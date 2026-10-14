@@ -509,6 +509,10 @@ pub struct TrackItem {
     pub speed: f64,
     #[serde(default)]
     pub reverse: bool,
+    /// Speed/Duration: Maintain Audio Pitch. The clip's sound is time-stretched (WSOLA) instead of
+    /// resampled when its speed is not 1, so the pitch stays put. Ignored when reversed.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub maintain_pitch: bool,
     pub enabled: bool,
     /// Linked partner items (video ↔ audio of the same source).
     #[serde(default)]
@@ -1520,6 +1524,7 @@ impl Project {
             gain_db: 0.0,
             frame_hold: None,
             scale_to_frame: false,
+            maintain_pitch: false,
             essential: None,
             multicam,
             time_interpolation: TimeInterpolation::default(),

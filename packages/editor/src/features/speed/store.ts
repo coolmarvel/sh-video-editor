@@ -1,6 +1,6 @@
 /**
- * 속도·리버스·프리즈 상태. 폼 값(속도 퍼센트, 역방향, 리플, 보간)을 갖고, 적용은 엔진 커맨드로만 한다:
- * `clip.speedDuration`(속도·역방향·리플·보간), `clip.insertFrameHoldSegment`(플레이헤드 자리에 정지 구간 삽입).
+ * 속도·리버스·프리즈 상태. 폼 값(속도 퍼센트, 역방향, 리플, 보간, 음정 유지)을 갖고, 적용은 엔진 커맨드로만 한다:
+ * `clip.speedDuration`(속도·역방향·리플·보간·음정 유지), `clip.insertFrameHoldSegment`(플레이헤드 자리에 정지 구간 삽입).
  * 인스펙터 "속도" 탭과 클립 메뉴의 "속도, 길이" 대화상자가 같은 store 를 쓴다.
  */
 import { create } from 'zustand';
@@ -20,10 +20,13 @@ interface SpeedState {
   /** 길이가 바뀌면 뒤 클립을 밀거나 당긴다 */
   ripple: boolean;
   interpolation: Interpolation;
+  /** 속도를 바꿔도 소리 음정을 유지(엔진 WSOLA). 역방향에는 적용되지 않는다 */
+  maintainPitch: boolean;
   setSpeed(percent: number): void;
   setReverse(on: boolean): void;
   setRipple(on: boolean): void;
   setInterpolation(mode: Interpolation): void;
+  setMaintainPitch(on: boolean): void;
   /** 선택한 클립의 현재 값으로 폼을 맞춘다. 클립이 없으면 기본값. 리플은 타임라인 토글을 따른다 */
   syncFrom(clip: ClipInfo | null): void;
   /** 폼 값을 클립들에 적용한다. 성공하면 true */
@@ -37,15 +40,18 @@ export const useSpeed = create<SpeedState>((set, get) => ({
   reverse: false,
   ripple: false,
   interpolation: 'frameSampling',
+  maintainPitch: false,
   setSpeed: (percent) => set({ speed: clampSpeed(percent) }),
   setReverse: (reverse) => set({ reverse }),
   setRipple: (ripple) => set({ ripple }),
   setInterpolation: (interpolation) => set({ interpolation }),
+  setMaintainPitch: (maintainPitch) => set({ maintainPitch }),
 
   syncFrom(clip) {
     set({
       speed: clip ? clampSpeed(clip.speed * 100) : 100,
       reverse: clip?.reverse ?? false,
+      maintainPitch: clip?.maintainPitch ?? false,
       ripple: useTimeline.getState().ripple,
     });
   },
@@ -55,11 +61,11 @@ export const useSpeed = create<SpeedState>((set, get) => ({
       useEditor.setState({ status: '속도를 바꿀 클립을 먼저 선택하세요' });
       return false;
     }
-    const { speed, reverse, ripple, interpolation } = get();
+    const { speed, reverse, ripple, interpolation, maintainPitch } = get();
     const r = await execCommand(
       'clip.speedDuration',
-      { clips, speed, reverse, ripple, interpolation },
-      `속도 ${formatSpeed(speed)}${reverse ? ', 역방향' : ''}: 클립 ${clips.length}개`,
+      { clips, speed, reverse, ripple, interpolation, maintainPitch },
+      `속도 ${formatSpeed(speed)}${reverse ? ', 역방향' : ''}${maintainPitch && !reverse ? ', 음정 유지' : ''}: 클립 ${clips.length}개`,
     );
     return r !== undefined;
   },

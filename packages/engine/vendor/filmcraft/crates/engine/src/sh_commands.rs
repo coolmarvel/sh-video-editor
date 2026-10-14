@@ -1,6 +1,7 @@
 //! Commands added by sh-video-editor on top of the upstream registry (see `VENDOR.md` and
 //! `docs/guides/engine-commands.md` in the host repository): transition removal and resizing in
-//! place, effect reordering and bypass, and grouped undo (transactions).
+//! place, effect reordering and bypass, Maintain Audio Pitch on speed-changed clips, and grouped
+//! undo (transactions).
 //!
 //! Transactions: `edit.beginTransaction {label}` marks the undo depth; every edit until
 //! `edit.endTransaction` pushes its own snapshot as usual, and the end collapses them into one
@@ -43,6 +44,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         spec("effects.move", "Move Effect", &[], r#"{"clip":id,"from":n,"to":n}"#, has_seq, move_effect),
         spec("effects.bypass", "Bypass Effects", &[], r#"{"clips":[id]?,"enabled":bool}"#, has_seq, bypass_effects),
         query("effects.keyframes", "List Keyframes", r#"{"clip":id,"effect":str|index="motion","param":str?}"#, list_keyframes),
+        spec("clip.setMaintainPitch", "Maintain Audio Pitch", &[], r#"{"clips":[id]?,"enabled":bool,"linked":bool=true}"#, has_seq, set_maintain_pitch),
         spec("edit.beginTransaction", "Begin Transaction", &[], r#"{"label":str}"#, always, begin_transaction),
         spec("edit.endTransaction", "End Transaction", &[], "{}", always, end_transaction),
         spec("edit.cancelTransaction", "Cancel Transaction", &[], "{}", always, cancel_transaction),
@@ -143,6 +145,33 @@ fn bypass_effects(s: &mut Session, p: &Value) -> Result<Value> {
         Ok(n)
     })?;
     Ok(json!({"clips": clips.iter().map(|c| c.0).collect::<Vec<_>>(), "enabled": enabled, "effects": n}))
+}
+
+/// `clip.setMaintainPitch`: Speed/Duration's Maintain Audio Pitch on the clips (and, by default,
+/// their linked partners: the flag lives on every member so the sound follows whichever clip is
+/// selected). A clip with it on plays its sound time-stretched (WSOLA) instead of resampled when
+/// its speed is not 1; reversed clips keep resampling. `clip.speedDuration {maintainPitch}` sets
+/// the same flag together with the speed.
+fn set_maintain_pitch(s: &mut Session, p: &Value) -> Result<Value> {
+    const CMD: &str = "clip.setMaintainPitch";
+    let enabled = bool_p(p, "enabled").ok_or_else(|| bad(CMD, "need `enabled` (bool)"))?;
+    let linked = match p.get("linked") {
+        None | Some(Value::Null) => true,
+        Some(v) => v.as_bool().ok_or_else(|| bad(CMD, "`linked` must be a bool"))?,
+    };
+    let given = clips_p(s, p);
+    if given.is_empty() {
+        return Err(bad(CMD, "select clips first"));
+    }
+    let clips: Vec<ClipId> = if linked { crate::commands::with_partners(s, &given) } else { given };
+    s.edit_sequence(if enabled { "Maintain Audio Pitch" } else { "Resample Audio" }, |q, _, _| {
+        for c in &clips {
+            let (_, it) = q.find_item_mut(*c).ok_or(edit::EditError::NoItem(*c))?;
+            it.maintain_pitch = enabled;
+        }
+        Ok(())
+    })?;
+    Ok(json!({"clips": clips.iter().map(|c| c.0).collect::<Vec<_>>(), "enabled": enabled}))
 }
 
 /// Name of an interpolation as `effects.setInterpolation` takes it.

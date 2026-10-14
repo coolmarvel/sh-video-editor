@@ -14,6 +14,10 @@ export const SLIDER_STEPS = 1000;
 /** 빠른 선택 배속(퍼센트) */
 export const SPEED_PRESETS = [50, 100, 200, 400];
 
+/** 음정 유지(WSOLA)가 깨끗하게 들리는 배속 범위(퍼센트). 밖이면 품질 경고 */
+export const MAINTAIN_PITCH_MIN = 50;
+export const MAINTAIN_PITCH_MAX = 200;
+
 export type Interpolation = 'frameSampling' | 'frameBlending' | 'opticalFlow';
 export const INTERPOLATIONS: Array<{ id: Interpolation; label: string }> = [
   { id: 'frameSampling', label: '프레임 샘플링(빠름)' },
@@ -69,4 +73,16 @@ export function badgeLabel(clip: Pick<ClipInfo, 'speed' | 'reverse'>): string | 
   if (clip.speed !== 1) parts.push(formatSpeed(clip.speed * 100));
   if (clip.reverse) parts.push('역');
   return parts.length === 0 ? null : parts.join(' ');
+}
+
+/**
+ * 음정 유지 체크박스 아래 안내 문구. 끄면 null. 역방향이면 적용되지 않는다는 안내, 0.5x~2x 밖이면 품질 경고.
+ * 엔진은 역방향 클립에 음정 유지를 적용하지 않는다(리샘플 그대로).
+ */
+export function pitchNote(percent: number, maintainPitch: boolean, reverse: boolean): string | null {
+  if (!maintainPitch) return null;
+  if (reverse) return '역방향 재생에는 음정 유지가 적용되지 않습니다.';
+  const p = clampSpeed(percent);
+  if (p < MAINTAIN_PITCH_MIN || p > MAINTAIN_PITCH_MAX) return '0.5x~2x 를 벗어나면 음정 유지 소리가 거칠어질 수 있습니다.';
+  return null;
 }

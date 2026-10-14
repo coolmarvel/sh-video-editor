@@ -577,3 +577,75 @@ fn timeline_time_of_inverts_the_source_mapping_forward_and_reversed() {
         s.undo();
     }
 }
+
+/// A 30 fps sequence with the Aurora demo footage (video + linked audio) on V1/A1 at 0.
+fn demo_footage() -> (Session, u64, u64) {
+    let mut s = Session::default();
+    s.execute("file.newProject", json!({"name": "t"})).unwrap();
+    s.execute("file.newSequence", json!({"name": "seq", "width": 320, "height": 180, "fps": 30})).unwrap();
+    let item = s.execute("file.importDemoFootage", json!({"scene": "Aurora"})).unwrap()["items"][0].as_u64().unwrap();
+    s.execute("timeline.place", json!({"item": item, "track": "V1", "time": 0, "insert": true})).unwrap();
+    let q = s.execute("sequence.inspect", json!({})).unwrap();
+    (s, q["video"][0]["items"][0]["clip"].as_u64().unwrap(), q["audio"][0]["items"][0]["clip"].as_u64().unwrap())
+}
+
+fn maintain_pitch_of(s: &Session, clip: u64) -> bool {
+    s.active_sequence().unwrap().find_item(ClipId(clip)).unwrap().1.maintain_pitch
+}
+
+#[test]
+fn set_maintain_pitch_flags_the_clip_and_its_partner_and_inspect_shows_it() {
+    let (mut s, video, audio) = demo_footage();
+    assert!(!maintain_pitch_of(&s, video) && !maintain_pitch_of(&s, audio));
+    let q = s.execute("sequence.inspect", json!({})).unwrap();
+    assert_eq!(q["audio"][0]["items"][0]["maintainPitch"], json!(false));
+    let r = s.execute("clip.setMaintainPitch", json!({"clips": [video], "enabled": true})).unwrap();
+    assert_eq!(r["enabled"], json!(true));
+    let mut got: Vec<u64> = r["clips"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
+    got.sort_unstable();
+    let mut want = vec![video, audio];
+    want.sort_unstable();
+    assert_eq!(got, want, "the linked sound takes the flag too");
+    assert!(maintain_pitch_of(&s, video) && maintain_pitch_of(&s, audio));
+    let q = s.execute("sequence.inspect", json!({})).unwrap();
+    assert_eq!(q["audio"][0]["items"][0]["maintainPitch"], json!(true));
+    assert_eq!(q["video"][0]["items"][0]["maintainPitch"], json!(true));
+    assert_eq!(s.undo().as_deref(), Some("Maintain Audio Pitch"));
+    assert!(!maintain_pitch_of(&s, audio));
+    // linked: false touches only the given clip
+    s.execute("clip.setMaintainPitch", json!({"clips": [audio], "enabled": true, "linked": false})).unwrap();
+    assert!(maintain_pitch_of(&s, audio) && !maintain_pitch_of(&s, video));
+    assert_eq!(s.undo().as_deref(), Some("Maintain Audio Pitch"));
+    // input checks
+    assert!(s.execute("clip.setMaintainPitch", json!({"clips": [audio]})).is_err(), "needs `enabled`");
+    assert!(s.execute("clip.setMaintainPitch", json!({"clips": [audio], "enabled": "yes"})).is_err(), "`enabled` must be a bool");
+    assert!(s.execute("clip.setMaintainPitch", json!({"clips": [audio], "enabled": true, "linked": 1})).is_err(), "`linked` must be a bool");
+    assert!(s.execute("clip.setMaintainPitch", json!({"clips": [], "enabled": true})).is_err(), "needs clips");
+    assert!(s.execute("clip.setMaintainPitch", json!({"clips": [999], "enabled": true})).is_err(), "unknown clip");
+    assert!(!maintain_pitch_of(&s, audio) && !maintain_pitch_of(&s, video), "nothing changed on errors");
+    // the flag survives a save/load round trip and is absent when off (old files load as off)
+    s.execute("clip.setMaintainPitch", json!({"clips": [video], "enabled": true})).unwrap();
+    let text = s.project.to_json();
+    assert!(text.contains("\"maintain_pitch\": true"));
+    let back = filmcraft_project::Project::from_json(&text).unwrap();
+    assert!(back.sequence(s.state.active_sequence.unwrap()).unwrap().find_item(ClipId(audio)).unwrap().1.maintain_pitch);
+    s.execute("clip.setMaintainPitch", json!({"clips": [video], "enabled": false})).unwrap();
+    assert!(!s.project.to_json().contains("maintain_pitch"));
+}
+
+#[test]
+fn speed_duration_takes_maintain_pitch_and_keeps_it_when_absent() {
+    let (mut s, video, audio) = demo_footage();
+    s.execute("clip.speedDuration", json!({"clips": [video], "speed": 200, "maintainPitch": true})).unwrap();
+    assert!(maintain_pitch_of(&s, video) && maintain_pitch_of(&s, audio));
+    let q = s.execute("sequence.inspect", json!({})).unwrap();
+    assert_eq!(q["audio"][0]["items"][0]["speed"], json!(2.0));
+    assert_eq!(q["audio"][0]["items"][0]["maintainPitch"], json!(true));
+    s.execute("clip.speedDuration", json!({"clips": [video], "speed": 50})).unwrap();
+    assert!(maintain_pitch_of(&s, audio), "absent keeps the setting");
+    s.execute("clip.speedDuration", json!({"clips": [video], "speed": 50, "maintainPitch": false})).unwrap();
+    assert!(!maintain_pitch_of(&s, audio));
+    assert!(s.execute("clip.speedDuration", json!({"clips": [video], "speed": 50, "maintainPitch": "on"})).is_err());
+    assert_eq!(s.undo().as_deref(), Some("Speed/Duration"));
+    assert!(maintain_pitch_of(&s, audio), "undo restores the flag");
+}

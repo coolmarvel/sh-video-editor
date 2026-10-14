@@ -24,6 +24,8 @@ export interface FakeClip {
   /** 속도 배수(없으면 1), 역방향, 맞춤 배율(clip.fillFrame/fitToFrame 결과). 속도·비율 기능 테스트용 */
   speed?: number;
   reverse?: boolean;
+  /** 음정 유지(clip.setMaintainPitch, clip.speedDuration maintainPitch) */
+  maintainPitch?: boolean;
   scale?: number;
   /** 적용된 효과. 영상 클립은 고정 효과(motion, opacity, time_remap)로 시작한다 */
   effects?: FakeEffect[];
@@ -362,9 +364,11 @@ function frameTicksOf(seq: FakeSequence): number {
   return (T * seq.fr.den) / seq.fr.num;
 }
 
-/** 속도를 바꾼 클립만 inspect 의 speed(배수)·reverse 를 덮어쓴다(기본은 toClip 의 speed: 1) */
-function speedFields(c: FakeClip): { speed?: number; reverse?: boolean } {
-  return c.speed === undefined && c.reverse === undefined ? {} : { speed: c.speed ?? 1, reverse: c.reverse ?? false };
+/** 속도를 바꾼 클립만 inspect 의 speed(배수)·reverse·maintainPitch 를 덮어쓴다(기본은 toClip 의 speed: 1) */
+function speedFields(c: FakeClip): { speed?: number; reverse?: boolean; maintainPitch?: boolean } {
+  return c.speed === undefined && c.reverse === undefined && c.maintainPitch === undefined
+    ? {}
+    : { speed: c.speed ?? 1, reverse: c.reverse ?? false, maintainPitch: c.maintainPitch ?? false };
 }
 
 /** 메모리 엔진 + EngineBridge 구현. 테스트는 `bridge` 를 store 에 주고 `engine` 으로 내부를 들여다본다. */
@@ -1766,6 +1770,10 @@ export class FakeEngine {
         if (ids.length === 0) throw new FakeEngineError('clip.speedDuration is disabled: nothing selected');
         const percent = (p['speed'] as number | undefined) ?? 100;
         if (!(percent > 0)) throw new FakeEngineError('invalid parameters for `clip.speedDuration`: speed must be positive');
+        const pitch = p['maintainPitch'];
+        if (pitch !== undefined && pitch !== null && typeof pitch !== 'boolean') {
+          throw new FakeEngineError('invalid parameters for `clip.speedDuration`: `maintainPitch` must be a bool');
+        }
         this.snapshot('Speed/Duration');
         const ft = frameTicksOf(seq);
         const done = new Set<number>();
@@ -1781,6 +1789,7 @@ export class FakeEngine {
             c.end = c.start + len;
             c.speed = percent / 100;
             c.reverse = p['reverse'] === true;
+            if (typeof pitch === 'boolean') c.maintainPitch = pitch;
             if (p['ripple'] === true && delta !== 0) {
               for (const o of track.items) {
                 if (o.clip !== c.clip && o.start >= oldEnd) {
@@ -1793,6 +1802,24 @@ export class FakeEngine {
         }
         this.touch();
         return null;
+      }
+      case 'clip.setMaintainPitch': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        if (typeof p['enabled'] !== 'boolean') throw new FakeEngineError('invalid parameters for `clip.setMaintainPitch`: need `enabled` (bool)');
+        if (ids.length === 0) throw new FakeEngineError('invalid parameters for `clip.setMaintainPitch`: select clips first');
+        const enabled = p['enabled'];
+        this.snapshot(enabled ? 'Maintain Audio Pitch' : 'Resample Audio');
+        const done: number[] = [];
+        for (const id of ids) {
+          for (const c of this.linkedOf(seq, this.findClip(seq, id).clip, p['linked'] !== false)) {
+            if (done.includes(c.clip)) continue;
+            done.push(c.clip);
+            c.maintainPitch = enabled;
+          }
+        }
+        this.touch();
+        return { clips: done, enabled };
       }
       case 'clip.insertFrameHoldSegment': {
         const seq = this.sequence;

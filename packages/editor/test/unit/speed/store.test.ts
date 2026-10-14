@@ -24,10 +24,14 @@ describe('syncFrom', () => {
   it('클립의 속도·역방향으로 폼을 맞추고 리플은 타임라인 토글을 따른다', async () => {
     await ready();
     useTimeline.getState().toggleRipple();
-    sp().syncFrom({ speed: 2, reverse: true } as ClipInfo);
-    expect(sp()).toMatchObject({ speed: 200, reverse: true, ripple: true });
+    sp().syncFrom({ speed: 2, reverse: true, maintainPitch: true } as ClipInfo);
+    expect(sp()).toMatchObject({ speed: 200, reverse: true, ripple: true, maintainPitch: true });
     sp().syncFrom(null);
-    expect(sp()).toMatchObject({ speed: 100, reverse: false, ripple: true });
+    expect(sp()).toMatchObject({ speed: 100, reverse: false, ripple: true, maintainPitch: false });
+    // 엔진이 maintainPitch 를 주지 않는 클립(옛 inspect)은 꺼진 것으로
+    sp().setMaintainPitch(true);
+    sp().syncFrom({ speed: 1 } as ClipInfo);
+    expect(sp().maintainPitch).toBe(false);
   });
 
   it('setSpeed 는 범위를 지킨다', () => {
@@ -50,7 +54,9 @@ describe('apply', () => {
     const { engine, a } = await ready();
     sp().setSpeed(200);
     expect(await sp().apply([a.clip])).toBe(true);
-    expect(engine.callsOf('clip.speedDuration')).toEqual([{ clips: [a.clip], speed: 200, reverse: false, ripple: false, interpolation: 'frameSampling' }]);
+    expect(engine.callsOf('clip.speedDuration')).toEqual([
+      { clips: [a.clip], speed: 200, reverse: false, ripple: false, interpolation: 'frameSampling', maintainPitch: false },
+    ]);
     expect(useEditor.getState().status).toBe('속도 2x: 클립 1개');
     const v = info(a.clip);
     expect(v.duration).toBe(2 * T);
@@ -78,6 +84,27 @@ describe('apply', () => {
     await sp().apply([a.clip]);
     expect(info(a.clip).duration).toBe(8 * T);
     expect(info(b.clip).start).toBe(8 * T);
+  });
+
+  it('음정 유지를 켜면 maintainPitch 가 함께 가고 연결된 소리 클립에도 남으며 상태 줄에 표시된다', async () => {
+    const { engine, a } = await ready();
+    sp().setSpeed(200);
+    sp().setMaintainPitch(true);
+    expect(await sp().apply([a.clip])).toBe(true);
+    expect(engine.callsOf('clip.speedDuration')[0]).toMatchObject({ maintainPitch: true });
+    expect(useEditor.getState().status).toBe('속도 2x, 음정 유지: 클립 1개');
+    expect(info(a.clip).maintainPitch).toBe(true);
+    expect(seq().audio[0]!.items[0]!.maintainPitch).toBe(true);
+    // 역방향이면 엔진이 적용하지 않으므로 상태 줄에도 쓰지 않는다(값은 그대로 보낸다)
+    sp().setReverse(true);
+    await sp().apply([a.clip]);
+    expect(engine.callsOf('clip.speedDuration')[1]).toMatchObject({ reverse: true, maintainPitch: true });
+    expect(useEditor.getState().status).toBe('속도 2x, 역방향: 클립 1개');
+    // 끄고 적용하면 꺼진다
+    sp().setReverse(false);
+    sp().setMaintainPitch(false);
+    await sp().apply([a.clip]);
+    expect(info(a.clip).maintainPitch).toBe(false);
   });
 
   it('엔진이 거부하면 오류를 올리고 false', async () => {

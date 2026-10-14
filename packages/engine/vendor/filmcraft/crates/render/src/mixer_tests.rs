@@ -757,3 +757,56 @@ fn a_nest_trimmed_in_starts_later_in_its_sequence() {
     let mix = mix_graph(&p, p.sequence(outer).unwrap(), start, 4800, &map, None);
     assert!(worst(&mix, start, 8, |t| tone.at(t + 3.0)) < 0.01);
 }
+
+/// Dominant frequency of `x` (Hann window, FFT, parabolic peak interpolation).
+fn dominant_hz(x: &[f32]) -> f32 {
+    let n = 16_384usize.min(x.len().next_power_of_two());
+    let start = x.len().saturating_sub(n) / 2;
+    let mut re: Vec<f32> =
+        (0..n).map(|i| x.get(start + i).copied().unwrap_or(0.0) * (0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos())).collect();
+    let mut im = vec![0.0f32; n];
+    filmcraft_audio_dsp::fft::Fft::new(n).forward(&mut re, &mut im);
+    let mag: Vec<f32> = (0..n / 2).map(|i| (re[i] * re[i] + im[i] * im[i]).sqrt().max(1e-12).ln()).collect();
+    let k = (1..n / 2 - 1).max_by(|a, b| mag[*a].total_cmp(&mag[*b])).unwrap();
+    let d = 0.5 * (mag[k - 1] - mag[k + 1]) / (mag[k - 1] - 2.0 * mag[k] + mag[k + 1]);
+    (k as f32 + d) * SR as f32 / n as f32
+}
+
+#[test]
+fn maintain_pitch_stretches_the_sound_instead_of_resampling_it() {
+    // (sh) a 440 Hz tone at double speed: resampled it is an octave up, with Maintain Audio Pitch
+    // it stays at 440 Hz and lasts half as long; blocks of any size join without a seam
+    let mut r = Rig::new(&[|i, _| (std::f64::consts::TAU * 440.0 * i as f64 / 48_000.0).sin() as f32 * 0.5]);
+    let item = &mut r.track(0).items[0];
+    item.speed = 2.0;
+    item.duration = Tick(5 * TICKS_PER_SECOND);
+    let plain = r.mix(SR, 48_000);
+    let f = dominant_hz(&plain[0]);
+    assert!((f - 880.0).abs() < 4.0, "resampled: {f} Hz");
+    r.track(0).items[0].maintain_pitch = true;
+    let kept = r.mix(SR, 48_000);
+    let f = dominant_hz(&kept[0]);
+    assert!((f - 440.0).abs() < 3.0, "maintain pitch: {f} Hz");
+    let peak = kept[0].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!((0.4..=0.6).contains(&peak), "level kept: {peak}");
+    assert_eq!(kept[0], kept[1], "both channels take the same segments");
+    let cut = r.mix_cut(SR, 48_000, &[4096, 1000, 64, 7777, 1], None);
+    assert_eq!(cut[0], kept[0], "block size does not change the stretched sound");
+    // the clip ends at 5 s: silence after it
+    let after = r.mix(5 * SR + 100, 4800);
+    assert!(after[0].iter().all(|v| v.abs() < 1e-6));
+    // reversed clips keep resampling (an octave up, read backwards)
+    let item = &mut r.track(0).items[0];
+    item.reverse = true;
+    let rev = r.mix(SR, 48_000);
+    let f = dominant_hz(&rev[0]);
+    assert!((f - 880.0).abs() < 4.0, "reversed: {f} Hz");
+    // half speed with the pitch kept: 440 Hz, 20 s long (the source is 10 s)
+    let item = &mut r.track(0).items[0];
+    item.reverse = false;
+    item.speed = 0.5;
+    item.duration = Tick(20 * TICKS_PER_SECOND);
+    let slow = r.mix(15 * SR, 48_000);
+    let f = dominant_hz(&slow[0]);
+    assert!((f - 440.0).abs() < 3.0, "half speed: {f} Hz");
+}

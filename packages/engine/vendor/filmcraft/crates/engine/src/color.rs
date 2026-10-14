@@ -46,7 +46,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         ),
         query("color.spaces", "List Colour Spaces", "{}", spaces),
         query("lumetri.presets", "List Lumetri Presets", r#"{"folder":str?}"#, list_presets),
-        spec("lumetri.applyPreset", "Apply Lumetri Preset", &[], r#"{"name":str,"clips":[id]?}"#, has_seq, apply_preset),
+        spec("lumetri.applyPreset", "Apply Lumetri Preset", &[], r#"{"name":str,"clips":[id]?,"replace":bool=true}"#, has_seq, apply_preset),
         query(
             "lumetri.presetThumbnails",
             "Lumetri Preset Thumbnails",
@@ -367,12 +367,19 @@ fn apply_preset(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(cmd, "select clips first"));
     }
     let inst = preset.instance();
+    // `replace` (default): the preset takes the place of the clip's Lumetri Color instead of
+    // stacking another one on it (a second preset is a different look, not a stronger one)
+    let replace = bool_p(p, "replace").unwrap_or(true);
     let n = s.edit_sequence(&format!("Apply {}", preset.name), |q, _, _| {
         let mut n = 0;
         for t in q.video_tracks.iter_mut() {
             for it in t.items.iter_mut().filter(|i| clips.contains(&i.id)) {
-                let pos = it.effects.iter().position(|e| e.def().is_some_and(|d| d.intrinsic)).unwrap_or(it.effects.len());
-                it.effects.insert(pos, inst.clone());
+                let existing = it.effects.iter().position(|e| e.effect == inst.effect).filter(|_| replace);
+                if replace {
+                    it.effects.retain(|e| e.effect != inst.effect);
+                }
+                let pos = existing.unwrap_or_else(|| it.effects.iter().position(|e| e.def().is_some_and(|d| d.intrinsic)).unwrap_or(it.effects.len()));
+                it.effects.insert(pos.min(it.effects.len()), inst.clone());
                 n += 1;
             }
         }

@@ -43,6 +43,7 @@ pub mod scopes;
 pub mod sequence_extras;
 pub mod sequence_tools;
 pub mod settings;
+pub mod sh_commands;
 pub mod shortcut_presets;
 pub mod shortcuts;
 pub mod sync;
@@ -197,6 +198,17 @@ pub struct History {
     /// Key of the last [`Session::edit_merged`] step: a continuous gesture (a fader drag) with the
     /// same key folds into that one undo step.
     pub merge_key: Option<String>,
+    /// An open `edit.beginTransaction` (sh-video-editor): the edits since it collapse into one
+    /// undo step at `edit.endTransaction`; see `sh_commands`.
+    pub transaction: Option<Transaction>,
+}
+
+/// An open transaction: the undo depth when it began and how many begins are nested inside it.
+#[derive(Clone, Debug)]
+pub struct Transaction {
+    pub label: String,
+    pub mark: usize,
+    pub depth: u32,
 }
 
 impl History {
@@ -615,6 +627,8 @@ impl Session {
     /// Run a command by id.
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value> {
         let spec = commands::find(id).ok_or_else(|| EngineError::UnknownCommand(id.to_string()))?;
+        // sh-video-editor: parameters of the wrong shape are refused up front (not read as absent)
+        let params = commands::validate_params(spec, params)?;
         if self.exec_depth == 0 && spec.journal && self.trim_play.active() {
             self.settle_trim_playback(id);
         }
@@ -622,6 +636,12 @@ impl Session {
             let e = EngineError::Disabled(id.to_string(), why);
             if self.exec_depth == 0 {
                 self.log.push(panels::Level::Warning, id, e.to_string());
+            }
+            return Err(e);
+        }
+        if let Err(e) = commands::validate_clips(self, spec, &params) {
+            if self.exec_depth == 0 {
+                self.log.push(panels::Level::Error, id, e.to_string());
             }
             return Err(e);
         }
@@ -752,6 +772,11 @@ impl Session {
         self.history.undo.push((label.to_string(), old));
         if self.history.undo.len() > self.history.limit {
             self.history.undo.remove(0);
+            // the open transaction's snapshot moved down one (or fell off: it then collapses
+            // what is left)
+            if let Some(t) = self.history.transaction.as_mut() {
+                t.mark = t.mark.saturating_sub(1);
+            }
         }
         self.history.redo.clear();
         self.history.merge_key = None;
@@ -819,6 +844,10 @@ impl Session {
     }
 
     pub fn undo(&mut self) -> Option<String> {
+        // an open transaction owns the steps since it began: end or cancel it first
+        if self.history.transaction.is_some() {
+            return None;
+        }
         let (label, prev) = self.history.undo.pop()?;
         self.history.merge_key = None;
         let cur = std::mem::replace(&mut self.project, prev);
@@ -829,6 +858,9 @@ impl Session {
     }
 
     pub fn redo(&mut self) -> Option<String> {
+        if self.history.transaction.is_some() {
+            return None;
+        }
         let (label, next) = self.history.redo.pop()?;
         self.history.merge_key = None;
         let cur = std::mem::replace(&mut self.project, next);
@@ -1115,6 +1147,8 @@ mod sequence_tabs_tests;
 mod sequence_tools_tests;
 #[cfg(test)]
 mod settings_tests;
+#[cfg(test)]
+mod sh_commands_tests;
 #[cfg(test)]
 mod shortcuts_tests;
 #[cfg(test)]

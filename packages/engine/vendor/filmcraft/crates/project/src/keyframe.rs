@@ -115,10 +115,12 @@ pub enum Interpolation {
     ContinuousBezier,
     EaseIn,
     EaseOut,
+    /// Both handles flat: eases into this keyframe and out of it (sh-video-editor).
+    EaseInOut,
 }
 
 impl Interpolation {
-    pub const ALL: [Interpolation; 7] = [
+    pub const ALL: [Interpolation; 8] = [
         Interpolation::Linear,
         Interpolation::Bezier,
         Interpolation::AutoBezier,
@@ -126,6 +128,7 @@ impl Interpolation {
         Interpolation::Hold,
         Interpolation::EaseIn,
         Interpolation::EaseOut,
+        Interpolation::EaseInOut,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -136,6 +139,7 @@ impl Interpolation {
             Interpolation::ContinuousBezier => "Continuous Bezier",
             Interpolation::EaseIn => "Ease In",
             Interpolation::EaseOut => "Ease Out",
+            Interpolation::EaseInOut => "Ease In and Out",
         }
     }
 }
@@ -328,9 +332,14 @@ impl Param {
 
 /// Temporal easing for u∈[0,1] between two keyframes (1D cubic Bezier in time/value space).
 fn ease(a: &Keyframe, b: &Keyframe, u: f64) -> f64 {
-    let out_ease = matches!(a.interp, Interpolation::Bezier | Interpolation::AutoBezier | Interpolation::ContinuousBezier | Interpolation::EaseOut);
-    let in_ease = matches!(b.interp, Interpolation::Bezier | Interpolation::AutoBezier | Interpolation::ContinuousBezier | Interpolation::EaseIn)
-        || matches!(a.interp, Interpolation::Bezier | Interpolation::ContinuousBezier);
+    let out_ease = matches!(
+        a.interp,
+        Interpolation::Bezier | Interpolation::AutoBezier | Interpolation::ContinuousBezier | Interpolation::EaseOut | Interpolation::EaseInOut
+    );
+    let in_ease = matches!(
+        b.interp,
+        Interpolation::Bezier | Interpolation::AutoBezier | Interpolation::ContinuousBezier | Interpolation::EaseIn | Interpolation::EaseInOut
+    ) || matches!(a.interp, Interpolation::Bezier | Interpolation::ContinuousBezier);
     if !out_ease && !in_ease {
         return u;
     }

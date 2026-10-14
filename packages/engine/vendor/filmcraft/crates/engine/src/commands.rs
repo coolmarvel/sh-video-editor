@@ -89,9 +89,15 @@ fn has_source(s: &Session) -> std::result::Result<(), String> {
     s.state.source_item.map(|_| ()).ok_or_else(|| "no clip in the Source monitor".into())
 }
 fn can_undo(s: &Session) -> std::result::Result<(), String> {
+    if s.history.transaction.is_some() {
+        return Err("a transaction is open: end or cancel it first".into());
+    }
     if s.history.can_undo() { Ok(()) } else { Err("nothing to undo".into()) }
 }
 fn can_redo(s: &Session) -> std::result::Result<(), String> {
+    if s.history.transaction.is_some() {
+        return Err("a transaction is open: end or cancel it first".into());
+    }
     if s.history.can_redo() { Ok(()) } else { Err("nothing to redo".into()) }
 }
 fn has_in_out(s: &Session) -> std::result::Result<(), String> {
@@ -138,6 +144,80 @@ pub(crate) fn named_items(s: &Session, spec: &CommandSpec, p: &Value) -> Option<
 }
 
 // ---------- param helpers ----------
+
+/// Parameters a caller got wrong are refused before the command runs, instead of being read as
+/// absent (a `time` of `"abc"` would otherwise cut at 0): `params` must be an object (`null` is
+/// none) and the time keys are typed (`time`, `frame`, `deltaFrames`, `mediaTime`, and `delta`
+/// where the command documents it as ticks: integer ticks or frames; `seconds`: a finite number;
+/// `timecode`: text). Clip ids are checked by [`validate_clips`] once the command is enabled.
+pub(crate) fn validate_params(spec: &CommandSpec, params: Value) -> Result<Value> {
+    let obj = match params {
+        Value::Null => return Ok(Value::Object(Default::default())),
+        Value::Object(o) => o,
+        other => return Err(bad(spec.id, format!("params must be a JSON object, got {}", kind_name(&other)))),
+    };
+    let ticks = spec.params.contains("\"delta\":ticks");
+    for k in ["time", "frame", "deltaFrames", "mediaTime", "delta"] {
+        if k == "delta" && !ticks {
+            continue;
+        }
+        if let Some(v) = obj.get(k).filter(|v| !v.is_null())
+            && !v.is_i64()
+        {
+            return Err(bad(spec.id, format!("`{k}` must be an integer, got {}", kind_name(v))));
+        }
+    }
+    if let Some(v) = obj.get("seconds").filter(|v| !v.is_null())
+        && !v.as_f64().is_some_and(f64::is_finite)
+    {
+        return Err(bad(spec.id, format!("`seconds` must be a finite number, got {}", kind_name(v))));
+    }
+    if let Some(v) = obj.get("timecode").filter(|v| !v.is_null())
+        && !v.is_string()
+    {
+        return Err(bad(spec.id, format!("`timecode` must be a string, got {}", kind_name(v))));
+    }
+    Ok(Value::Object(obj))
+}
+/// A `clip` / `clips` of a command that documents them as ids must name clips of the active
+/// sequence: an id of nothing is refused rather than quietly selecting or skipping nothing.
+/// (Runs after enablement, so a command whose targets are all missing is "disabled", as upstream
+/// says, and only an enabled one with a bad id among its targets is "bad parameters".)
+pub(crate) fn validate_clips(s: &Session, spec: &CommandSpec, params: &Value) -> Result<()> {
+    let one = spec.params.contains("\"clip\":id");
+    let many = spec.params.contains("\"clips\":[id]");
+    if (one || many)
+        && let Some(seq) = s.active_sequence()
+    {
+        let mut named: Vec<Value> = Vec::new();
+        if one && let Some(v) = params.get("clip").filter(|v| !v.is_null()) {
+            named.push(v.clone());
+        }
+        if many && let Some(v) = params.get("clips").filter(|v| !v.is_null()) {
+            match v.as_array() {
+                Some(a) => named.extend(a.iter().cloned()),
+                None => return Err(bad(spec.id, format!("`clips` must be a list of clip ids, got {}", kind_name(v)))),
+            }
+        }
+        for v in named {
+            let Some(id) = v.as_u64() else { return Err(bad(spec.id, format!("a clip id must be an unsigned integer, got {}", kind_name(&v)))) };
+            if seq.find_item(ClipId(id)).is_none() {
+                return Err(bad(spec.id, format!("no clip {id} in the active sequence")));
+            }
+        }
+    }
+    Ok(())
+}
+fn kind_name(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "a boolean",
+        Value::Number(_) => "a number",
+        Value::String(_) => "a string",
+        Value::Array(_) => "an array",
+        Value::Object(_) => "an object",
+    }
+}
 
 pub(crate) fn bad(cmd: &str, msg: impl Into<String>) -> EngineError {
     EngineError::BadParams { cmd: cmd.into(), msg: msg.into() }
@@ -335,19 +415,26 @@ fn move_clips(s: &mut Session, p: &Value) -> Result<Value> {
 
 /// Expand a clip selection with linked partners (when linked selection is on).
 pub fn with_links(s: &Session, clips: &[ClipId]) -> Vec<ClipId> {
+    if s.state.linked_selection { with_partners(s, clips) } else { clips.to_vec() }
+}
+/// The clips plus their linked partners, whether or not Linked Selection is on.
+pub fn with_partners(s: &Session, clips: &[ClipId]) -> Vec<ClipId> {
     let Some(seq) = s.active_sequence() else { return clips.to_vec() };
     let mut out = clips.to_vec();
-    if s.state.linked_selection {
-        let links: Vec<u64> = clips.iter().filter_map(|c| seq.find_item(*c).and_then(|(_, i)| i.link)).collect();
-        for t in seq.all_tracks() {
-            for i in &t.items {
-                if i.link.is_some_and(|l| links.contains(&l)) && !out.contains(&i.id) {
-                    out.push(i.id);
-                }
+    let links: Vec<u64> = clips.iter().filter_map(|c| seq.find_item(*c).and_then(|(_, i)| i.link)).collect();
+    for t in seq.all_tracks() {
+        for i in &t.items {
+            if i.link.is_some_and(|l| links.contains(&l)) && !out.contains(&i.id) {
+                out.push(i.id);
             }
         }
     }
     out
+}
+/// `linked` parameter: `true` (the default) takes the linked partners along whatever the Linked
+/// Selection toggle says, `false` leaves them alone.
+fn with_partners_p(s: &Session, p: &Value, clips: &[ClipId]) -> Vec<ClipId> {
+    if bool_p(p, "linked").unwrap_or(true) { with_partners(s, clips) } else { clips.to_vec() }
 }
 
 pub(crate) fn default_seq_settings_for(info: &filmcraft_media::MediaInfo) -> SequenceSettings {
@@ -794,6 +881,9 @@ fn build() -> Vec<CommandSpec> {
                     Some(n) => filmcraft_media::DemoScene::ALL.iter().copied().filter(|d| format!("{d:?}").eq_ignore_ascii_case(n)).collect(),
                     None => filmcraft_media::DemoScene::ALL.to_vec(),
                 };
+                if scenes.is_empty() {
+                    return Err(bad("file.importDemoFootage", format!("unknown demo scene `{}`", str_p(p, "scene").unwrap_or_default())));
+                }
                 let pool = s.media.clone();
                 let ids = s.edit("Import Demo Footage", |pr, _| {
                     Ok(scenes
@@ -815,6 +905,7 @@ fn build() -> Vec<CommandSpec> {
             }
             let mut ids = Vec::new();
             let mut errors = Vec::new();
+            let mut warnings = Vec::new();
             let mut sequences = Vec::new();
             let mut reports = Vec::new();
             let mut image_sequences = Vec::new();
@@ -841,6 +932,8 @@ fn build() -> Vec<CommandSpec> {
                         Ok(id) => ids.push(id.0),
                         Err(e) => errors.push(format!("{path}: {e}")),
                     },
+                    // (a file the container could open but that is missing sample data is
+                    // imported with a warning: see `MediaSource::warnings`)
                     Ok(b) => {
                         if let Some(fmt) = crate::captions::detect(&path, &b) {
                             match crate::captions::import(s, &path, &b, fmt, None) {
@@ -868,6 +961,15 @@ fn build() -> Vec<CommandSpec> {
             if ids.is_empty() && sequences.is_empty() && reports.is_empty() && !errors.is_empty() {
                 return Err(EngineError::Other(errors.join("; ")));
             }
+            // damaged media that still opened (a truncated MP4 whose index survived): warn now,
+            // not with black frames later
+            for id in &ids {
+                for w in s.media.cached(ItemId(*id)).map(|src| src.warnings()).unwrap_or_default() {
+                    let name = s.project.item(ItemId(*id)).map(|i| i.name.clone()).unwrap_or_default();
+                    s.events.push(crate::Event::Toast { message: format!("{name}: {w}"), error: false });
+                    warnings.push(format!("{name}: {w}"));
+                }
+            }
             // Project Settings ▸ Ingest: copy / transcode / create proxies
             // (image sequences are many files: ingest copies and transcodes single files only)
             let item_ids: Vec<ItemId> = ids.iter().filter(|i| !image_sequences.iter().any(|q| q["item"].as_u64() == Some(**i))).map(|i| ItemId(*i)).collect();
@@ -894,9 +996,9 @@ fn build() -> Vec<CommandSpec> {
                 }
             };
             let mut out = if !ingest.is_null() {
-                json!({"items": ids, "sequences": sequences, "documents": reports, "errors": errors, "ingest": ingest})
+                json!({"items": ids, "sequences": sequences, "documents": reports, "errors": errors, "warnings": warnings, "ingest": ingest})
             } else if reports.is_empty() {
-                json!({"items": ids, "errors": errors})
+                json!({"items": ids, "errors": errors, "warnings": warnings})
             } else {
                 json!({"items": ids, "sequences": sequences, "documents": reports, "errors": errors})
             };
@@ -1242,8 +1344,8 @@ fn build() -> Vec<CommandSpec> {
                 Ok(Value::Null)
             }
         ),
-        cmd!("clip.enable", "Enable", ["Clip"], Some("Shift+E"), r#"{"clips":[id]?}"#, has_selection, |s, p| {
-            let sel = with_links(s, &clips_p(s, p));
+        cmd!("clip.enable", "Enable", ["Clip"], Some("Shift+E"), r#"{"clips":[id]?,"linked":bool=true}"#, has_selection, |s, p| {
+            let sel = with_partners_p(s, p, &clips_p(s, p));
             s.edit_sequence("Enable", |q, _, _| {
                 let target = !sel.iter().all(|c| q.find_item(*c).is_some_and(|(_, i)| i.enabled));
                 for c in &sel {
@@ -1255,8 +1357,8 @@ fn build() -> Vec<CommandSpec> {
             })?;
             Ok(Value::Null)
         }),
-        cmd!("clip.link", "Link", ["Clip"], Some("Cmd+L"), r#"{"clips":[id]?}"#, has_selection, |s, p| {
-            let sel = clips_p(s, p);
+        cmd!("clip.link", "Link", ["Clip"], Some("Cmd+L"), r#"{"clips":[id]?,"linked":bool=true}"#, has_selection, |s, p| {
+            let sel = with_partners_p(s, p, &clips_p(s, p));
             let linked = sel.iter().all(|c| s.active_sequence().and_then(|q| q.find_item(*c)).is_some_and(|(_, i)| i.link.is_some()));
             s.edit_sequence(if linked { "Unlink" } else { "Link" }, |q, ctx, _| {
                 let l = if linked { None } else { Some(ctx.alloc()) };
@@ -1893,19 +1995,32 @@ fn build() -> Vec<CommandSpec> {
             "Trim Edit",
             [],
             None,
-            r#"{"clip":id,"edge":"in|out","mode":"regular|ripple","delta":ticks|"deltaFrames":i64}"#,
+            r#"{"clip":id,"edge":"in|out","mode":"regular|ripple","delta":ticks|"deltaFrames":i64,"linked":bool?}"#,
             has_seq,
             |s, p| {
                 let c = clip_p(p, "clip").ok_or_else(|| bad("timeline.trim", "need `clip`"))?;
-                let edge = if str_p(p, "edge") == Some("in") { Edge::In } else { Edge::Out };
-                let mode = if str_p(p, "mode") == Some("ripple") { TrimMode::Ripple } else { TrimMode::Regular };
+                let edge = match str_p(p, "edge") {
+                    Some("in") => Edge::In,
+                    None | Some("out") => Edge::Out,
+                    Some(other) => return Err(bad("timeline.trim", format!("`edge` must be in or out, got `{other}`"))),
+                };
+                let mode = match str_p(p, "mode") {
+                    Some("ripple") => TrimMode::Ripple,
+                    None | Some("regular") => TrimMode::Regular,
+                    Some(other) => return Err(bad("timeline.trim", format!("`mode` must be regular or ripple, got `{other}`"))),
+                };
                 let d = p
                     .get("delta")
                     .and_then(Value::as_i64)
                     .map(Tick)
                     .or_else(|| p.get("deltaFrames").and_then(Value::as_i64).map(|f| s.sequence_rate().tick_of(f)))
                     .unwrap_or_default();
-                let clips = with_links(s, &[c]);
+                // `linked` names whether the partners trim too; absent, Linked Selection decides
+                let clips = match bool_p(p, "linked") {
+                    Some(true) => with_partners(s, &[c]),
+                    Some(false) => vec![c],
+                    None => with_links(s, &[c]),
+                };
                 let applied = s.edit_sequence(if mode == TrimMode::Ripple { "Ripple Trim" } else { "Trim" }, |q, ctx, st| {
                     let before = q.find_item(c).map(|(_, i)| i.range());
                     // clamp across all linked partners, then apply the common delta
@@ -2339,7 +2454,7 @@ fn build() -> Vec<CommandSpec> {
             "Keyframe Interpolation",
             [],
             None,
-            r#"{"clip":id,"effect":str|index,"param":str,"mediaTime":ticks,"interpolation":"linear|bezier|autoBezier|continuousBezier|hold|easeIn|easeOut"}"#,
+            r#"{"clip":id,"effect":str|index,"param":str,"mediaTime":ticks,"interpolation":"linear|bezier|autoBezier|continuousBezier|hold|easeIn|easeOut|easeInOut"}"#,
             has_seq,
             |s, p| keyframe_op(s, p, "interp")
         ),
@@ -2514,6 +2629,7 @@ fn build() -> Vec<CommandSpec> {
     v.extend(crate::keyboard::commands());
     v.extend(crate::project_panel::commands());
     v.extend(crate::media_browser::commands());
+    v.extend(crate::sh_commands::commands());
     // Edit ▸ Label ▸ <colour>, Paste Attributes, subclips, Video / Audio Options, Replace With Clip…
     // and their menu order
     crate::clip_ops::apply_layout(&mut v);
@@ -2591,6 +2707,7 @@ fn keyframe_op(s: &mut Session, p: &Value, op: &str) -> Result<Value> {
                     "hold" => filmcraft_project::Interpolation::Hold,
                     "easein" => filmcraft_project::Interpolation::EaseIn,
                     "easeout" => filmcraft_project::Interpolation::EaseOut,
+                    "easeinout" => filmcraft_project::Interpolation::EaseInOut,
                     _ => filmcraft_project::Interpolation::Linear,
                 };
                 let k = prm.keyframes.iter_mut().find(|k| k.time == at).ok_or_else(|| bad("keyframe", "no keyframe at that time"))?;
@@ -2641,6 +2758,23 @@ fn mark(s: &mut Session, p: &Value, is_in: bool) -> Result<Value> {
         Ok(())
     })?;
     Ok(Value::Null)
+}
+
+/// A parameter value as plain JSON plus its kind, the shape `effects.setParam` accepts back:
+/// float -> number, point -> `[x, y]` (an "auto" coordinate is `null`), color -> `[r, g, b, a]`,
+/// bool, choice -> index, text, curve -> `[[x, y], ...]`, path -> the mask path object.
+pub(crate) fn param_to_json(v: &ParamValue) -> (&'static str, Value) {
+    let num = |f: f64| if f.is_finite() { json!(f) } else { Value::Null };
+    match v {
+        ParamValue::Float(f) => ("float", num(*f)),
+        ParamValue::Vec2(p) => ("point", json!([num(p.x), num(p.y)])),
+        ParamValue::Color(c) => ("color", json!(c)),
+        ParamValue::Bool(b) => ("bool", json!(b)),
+        ParamValue::Choice(i) => ("choice", json!(i)),
+        ParamValue::Text(t) => ("text", json!(t)),
+        ParamValue::Curve(c) => ("curve", json!(c)),
+        ParamValue::Path(p) => ("path", serde_json::to_value(p).unwrap_or_default()),
+    }
 }
 
 pub(crate) fn json_to_param(template: &ParamValue, v: &Value) -> Option<ParamValue> {
@@ -3122,6 +3256,17 @@ pub fn inspect_project(s: &Session) -> Value {
 
 pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence) -> Value {
     let rate = q.settings.frame_rate;
+    let playhead = s.state.playheads.get(&id).copied().unwrap_or_default();
+    // an animated parameter reports its value at the playhead (clamped into the clip), a
+    // static one its value
+    let param_json = |i: &filmcraft_project::TrackItem, p: &filmcraft_project::Param| {
+        let (kind, value) = if p.is_animated() {
+            param_to_json(&p.value_at(i.effect_time_at(playhead.clamp(i.start, (i.end() - Tick(1)).max(i.start)))))
+        } else {
+            param_to_json(&p.value)
+        };
+        json!({"kind": kind, "value": value, "keyframes": p.keyframes.len(), "animated": p.is_animated()})
+    };
     let tr = |t: &filmcraft_project::Track| {
         json!({
             "id": t.id.0, "name": t.name, "locked": t.locked, "syncLock": t.sync_lock, "enabled": t.enabled, "muted": t.muted, "solo": t.solo,
@@ -3130,7 +3275,7 @@ pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence
                 "startFrame": rate.frame_at(i.start), "durationFrames": rate.frame_at(i.duration), "sourceIn": i.source_in.0, "speed": i.speed, "reverse": i.reverse,
                 "end": i.end().0, "endFrame": rate.frame_at(i.end()), "sourceOut": i.source_out().0, "gainDb": i.gain_db,
                 "enabled": i.enabled, "link": i.link, "label": i.label.name(),
-                "effects": i.effects.iter().map(|e| json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": e.params.iter().map(|(k, p)| (k.clone(), json!({"value": format!("{:?}", p.value), "keyframes": p.keyframes.len()}))).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
+                "effects": i.effects.iter().map(|e| json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": e.params.iter().map(|(k, p)| (k.clone(), param_json(i, p))).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
             "transitions": t.transitions.iter().map(|x| json!({"id": x.id.0, "effect": x.effect.effect, "start": x.start.0, "duration": x.duration.0, "from": x.from.map(|c| c.0), "to": x.to.map(|c| c.0), "reverse": x.reverse, "params": x.effect.params.iter().map(|(k, v)| (k.clone(), serde_json::to_value(&v.value).unwrap_or_default())).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
         })

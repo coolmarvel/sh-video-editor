@@ -42,3 +42,6 @@ packages/engine/bindings/napi/index.d.ts
 # 미처리 피드백(스크린샷)은 커밋하지 않는다. 반영 후 docs/feedback-archive/ 로
 feedback/*
 !feedback/.gitkeep
+
+# Windows 크로스 빌드 target (cargo-xwin)
+packages/engine/target-win/

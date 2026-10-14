@@ -8,6 +8,7 @@ import {
   clampSpeed,
   formatSpeed,
   parseSpeedInput,
+  pitchNote,
   predictDuration,
   sliderToSpeed,
   speedToSlider,
@@ -106,5 +107,19 @@ describe('badgeLabel', () => {
     expect(badgeLabel({ speed: 2, reverse: false })).toBe('2x');
     expect(badgeLabel({ speed: 1, reverse: true })).toBe('역');
     expect(badgeLabel({ speed: 0.5, reverse: true })).toBe('0.5x 역');
+  });
+});
+
+describe('pitchNote', () => {
+  it('끄면 null, 역방향이면 적용 안 됨 안내, 0.5x~2x 밖이면 품질 경고', () => {
+    expect(pitchNote(100, false, false)).toBeNull();
+    expect(pitchNote(1000, false, true)).toBeNull();
+    expect(pitchNote(100, true, false)).toBeNull();
+    expect(pitchNote(50, true, false)).toBeNull();
+    expect(pitchNote(200, true, false)).toBeNull();
+    expect(pitchNote(49, true, false)).toContain('0.5x~2x');
+    expect(pitchNote(400, true, false)).toContain('0.5x~2x');
+    expect(pitchNote(100, true, true)).toContain('역방향');
+    expect(pitchNote(400, true, true)).toContain('역방향');
   });
 });

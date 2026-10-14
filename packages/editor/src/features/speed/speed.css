@@ -36,6 +36,13 @@
   color: var(--sh-color-text-secondary);
   word-break: keep-all;
 }
+.ve-speed__note {
+  margin: 0;
+  padding-left: calc(var(--sh-size-checkbox) + var(--sh-space-6));
+  color: var(--sh-color-warning);
+  font-size: var(--sh-font-size-caption);
+  word-break: keep-all;
+}
 .ve-speed__actions {
   display: flex;
   flex-wrap: wrap;

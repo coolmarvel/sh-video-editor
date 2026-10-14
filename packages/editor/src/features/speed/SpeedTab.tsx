@@ -1,4 +1,4 @@
-/** 인스펙터 "속도" 탭. 선택 클립의 속도·역방향·리플·보간을 폼으로 바꾸고 적용, 플레이헤드에서 프레임 고정. */
+/** 인스펙터 "속도" 탭. 선택 클립의 속도·역방향·음정 유지·리플·보간을 폼으로 바꾸고 적용, 플레이헤드에서 프레임 고정. */
 import { useEffect } from 'react';
 import type { InspectorContext } from '../inspector/registry';
 import { SpeedForm } from './SpeedForm';
@@ -11,12 +11,13 @@ export function SpeedTab({ sequence, clips, clip, playhead }: InspectorContext) 
   const clipId = clip?.clip ?? null;
   const clipSpeed = clip?.speed ?? 1;
   const clipReverse = clip?.reverse ?? false;
+  const clipPitch = clip?.maintainPitch ?? false;
   // 선택이 바뀌거나 엔진이 값을 바꾸면 폼을 그 클립 값으로 맞춘다
   useEffect(() => {
     syncFrom(clip);
     // clip 객체는 inspect 마다 새로 오므로 값으로 비교한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipId, clipSpeed, clipReverse, syncFrom]);
+  }, [clipId, clipSpeed, clipReverse, clipPitch, syncFrom]);
 
   const ids = clips.map((c) => c.clip);
   const onApply = () => void apply(ids);

@@ -41,6 +41,8 @@ export interface ClipInfo {
   speed: number;
   /** 역방향 재생(clip.speedDuration reverse) */
   reverse?: boolean;
+  /** 속도를 바꿔도 소리 음정을 유지(clip.speedDuration maintainPitch, clip.setMaintainPitch). 엔진이 주지 않으면 없다 */
+  maintainPitch?: boolean;
   enabled: boolean;
   /** 영상·음성이 연결된 클립끼리 같은 link id */
   link: number | null;

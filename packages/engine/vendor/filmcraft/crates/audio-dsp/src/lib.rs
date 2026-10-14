@@ -8,6 +8,7 @@
 //! * [`biquad`] — RBJ-cookbook biquads (TDF-II) with analytic magnitude response.
 //! * [`sync`] — offset between two recordings of one event (GCC-PHAT, sample-accurate).
 //! * [`resample`] — streaming, block-invariant rate conversion for playback on a device at another rate.
+//! * [`timestretch`] — WSOLA time stretch that keeps the pitch (clip speed with Maintain Pitch), block-invariant.
 //! * [`channels`] — channel layouts, ITU-R BS.775 up/downmix, 5.1 mixdown types, the 5.1 panner.
 //!
 //! Conventions: audio is **planar f32** (`&mut [&mut [f32]]`, one slice per channel, all the same
@@ -31,6 +32,7 @@ pub mod remix;
 pub mod resample;
 mod smooth;
 pub mod sync;
+pub mod timestretch;
 
 pub use effects::{Category, EffectInfo, create_effect, effect_info, effects};
 pub use loudness::{LoudnessMeter, normalize_gain_db};

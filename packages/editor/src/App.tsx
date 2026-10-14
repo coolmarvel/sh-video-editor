@@ -14,6 +14,8 @@ import { InspectorPanel } from './features/inspector';
 import { useShortcuts } from './features/shortcuts';
 import './features/speed';
 import { RatioDialog } from './features/ratio';
+import './features/effects';
+import './features/transitions/register';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';

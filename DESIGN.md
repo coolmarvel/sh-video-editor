@@ -877,6 +877,23 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
   11px secondary tabular "1920 x 1080, 30 fps, 16 Mbps"(엔진 export.resolve 값), 11px secondary 용도. 선택 = accent-subtle 면 +
   1px accent-pressed(4.7 선택과 같음). hover = 흰 면 + hover-edge. 반경 0, 그림자 없음. 고르면 프리셋 콤보도 같은 값이 된다.
 
+### 4.19 슬라이더·효과 패널 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/effects/` (`effects.css`, 미디어 패널 탭은 `features/media/panel-tabs.css`). 값은 전부 `--sh-*` 토큰.
+
+- 파라미터 줄(`.fx-param`): 높이 24 한 줄. 왼쪽 라벨 열 48 (11px secondary, 말줄임), 가운데 슬라이더, 오른쪽 숫자 입력(4.5 입력, 폭 56,
+  오른쪽 정렬, tabular-nums) + 단위 20. 불은 4.6 체크박스, 선택은 4.5 콤보, 색은 색 입력 + hex 글자, 위치는 X, Y 두 입력.
+- 슬라이더(`.fx-range`): 트랙 높이 4, 면 sunken + 1px border-strong. 엄지 10x16, `--sh-gradient-bevel` + 1px control-border, 반경 0.
+  hover, 포커스 = 흰 면 + hover-edge 테두리. 눌림 = control-pressed 면. 비활성 = sunken 면 + border 테두리. 바깥 포커스 링 없음.
+  끄는 동안 50ms 로 모아 엔진에 보내고(실행 취소 한 단계로 묶음), 놓으면 확정. 숫자 입력은 Enter 또는 포커스 이탈에 한 번.
+- 효과 목록(`.fx-list`): 1px frame 테두리, 항목 사이 1px grid 선, 줄무늬 없음. 항목 머리는 베벨 면 24: 체크박스(켜기) + 이름 bold +
+  작은 버튼 "초기화" 와 빨강 외곽선 "삭제". 꺼진 효과는 이름이 text-disabled. 파라미터는 머리 아래 4px 들여쓰기.
+- 기본 묶음은 4.9 의 그룹 박스("기본": 불투명도, 크기, 회전, 위치. "기본 보정": 노출, 대비, 채도, 온도, 틴트).
+- 툴바(4.2): "효과 추가" 는 드롭다운(4.3 메뉴 판), "비교(원본 보기)" 는 `aria-pressed` 토글. 모든 항목은 클립 메뉴에도 있다.
+- 필터 갤러리(미디어 패널 "필터" 탭, 4.4 탭): 폴더 제목 12px bold, 카드 격자(최소 폭 104, 간격 6). 카드 = 베벨 면 + 1px control-border,
+  16:9 썸네일(1px border) + 11px 라벨 말줄임. hover = 흰 면 + hover-edge, 선택 = accent-subtle 면 + accent-pressed 테두리(4.7 선택과 같음).
+  클릭 = 적용(앞 필터 교체), 더블클릭 = 해제. 썸네일은 선택 클립 첫 프레임에 근사 필터를 입힌 색 견본이며 클립별 캐시.
+
 ## 5. Elevation
 
 그림자는 세 가지뿐이고 짧고 옅다. 다른 곳에는 그림자가 없다.

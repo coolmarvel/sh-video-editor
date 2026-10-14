@@ -1,0 +1,14 @@
+/* 미디어 패널 탭. "미디어" 가 아닌 탭이 켜지면 뒤에 오는 형제(MediaPanelView 의 툴바·본문·상세)를 숨긴다 */
+.ve-media-tabs {
+  flex: none;
+}
+.ve-media-tabs:not([data-tab='media']) ~ :not(.ve-media-tabpane) {
+  display: none;
+}
+.ve-media-tabpane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

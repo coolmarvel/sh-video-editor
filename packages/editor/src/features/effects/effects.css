@@ -1,0 +1,242 @@
+/* 효과·색·필터 화면 배치. 값은 전부 --sh-* 토큰. 슬라이더 계약은 DESIGN.md 4.17 */
+.fx-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+  min-width: 0;
+}
+.fx-toolbar {
+  flex: none;
+  min-width: 0;
+  margin: calc(-1 * var(--sh-space-3, 8px)) calc(-1 * var(--sh-space-3, 8px)) 0;
+}
+.fx-menu-slot {
+  position: relative;
+  display: inline-flex;
+}
+.fx-menu {
+  top: 100%;
+  left: 0;
+  z-index: 10;
+}
+.fx-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sh-space-4);
+  min-width: 0;
+}
+/* 4.17: 라벨 열(고정 폭) + 슬라이더 + 숫자 입력 + 단위, 높이 24 한 줄 */
+.fx-param {
+  display: grid;
+  grid-template-columns: var(--sh-space-48) minmax(0, 1fr) calc(var(--sh-space-48) + var(--sh-space-8)) var(--sh-space-20);
+  align-items: center;
+  gap: var(--sh-space-4);
+  min-height: var(--sh-size-control-md);
+  min-width: 0;
+}
+.fx-param__label {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-param__unit {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.fx-param__num {
+  width: 100%;
+  text-align: right;
+}
+.fx-param__wide {
+  grid-column: 2 / span 3;
+  min-width: 0;
+}
+.fx-param__pair {
+  grid-column: 2 / span 3;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sh-space-4);
+}
+.fx-param__axis {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+}
+.fx-color {
+  padding: 0 var(--sh-space-2);
+  width: var(--sh-space-48);
+}
+/* 슬라이더(4.17): 트랙 4px 오목, 엄지 10x16 베벨, 반경 0 */
+.fx-range {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: var(--sh-size-control-md);
+  margin: 0;
+  background: transparent;
+  min-width: 0;
+}
+.fx-range:focus {
+  outline: none;
+}
+.fx-range::-webkit-slider-runnable-track {
+  height: var(--sh-space-4);
+  background: var(--sh-color-sunken);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+}
+.fx-range::-moz-range-track {
+  height: var(--sh-space-4);
+  background: var(--sh-color-sunken);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+}
+.fx-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: calc(var(--sh-space-8) + var(--sh-space-2));
+  height: var(--sh-space-16);
+  margin-top: calc(-1 * (var(--sh-space-6) + var(--sh-border-width)));
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-gradient-bevel);
+}
+.fx-range::-moz-range-thumb {
+  width: calc(var(--sh-space-8) + var(--sh-space-2));
+  height: var(--sh-space-16);
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-gradient-bevel);
+}
+.fx-range:hover::-webkit-slider-thumb,
+.fx-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--sh-color-hover-edge);
+  background: var(--sh-color-canvas);
+}
+.fx-range:hover::-moz-range-thumb,
+.fx-range:focus-visible::-moz-range-thumb {
+  border-color: var(--sh-color-hover-edge);
+  background: var(--sh-color-canvas);
+}
+.fx-range:active::-webkit-slider-thumb {
+  background: var(--sh-color-control-pressed);
+}
+.fx-range:active::-moz-range-thumb {
+  background: var(--sh-color-control-pressed);
+}
+.fx-range:disabled::-webkit-slider-thumb {
+  background: var(--sh-color-sunken);
+  border-color: var(--sh-color-border);
+}
+.fx-range:disabled::-moz-range-thumb {
+  background: var(--sh-color-sunken);
+  border-color: var(--sh-color-border);
+}
+/* 적용된 효과 목록(4.7 표처럼 1px 격자, 줄무늬 없음) */
+.fx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: var(--sh-border-width) solid var(--sh-color-chrome-frame);
+  min-width: 0;
+}
+.fx-list:empty {
+  display: none;
+}
+.fx-item {
+  border-bottom: var(--sh-border-width) solid var(--sh-color-grid);
+}
+.fx-item:last-child {
+  border-bottom: 0;
+}
+.fx-item__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-4);
+  min-height: var(--sh-size-control-md);
+  padding: 0 var(--sh-space-4);
+  background: var(--sh-gradient-bevel);
+}
+.fx-item__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--sh-font-weight-bold);
+}
+.fx-item[data-enabled='false'] .fx-item__name span {
+  color: var(--sh-color-text-disabled);
+}
+.fx-item__params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-2);
+  padding: var(--sh-space-4);
+}
+/* 필터 갤러리(미디어 패널 탭) */
+.fx-gallery {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.fx-gallery__hint {
+  padding-top: var(--sh-space-4);
+  padding-bottom: var(--sh-space-4);
+}
+.fx-gallery__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--sh-space-6) var(--sh-space-6);
+}
+.fx-folder__title {
+  margin: var(--sh-space-8) 0 var(--sh-space-4);
+  font-size: var(--sh-font-size-body);
+  font-weight: var(--sh-font-weight-bold);
+}
+.fx-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--sh-space-48) * 2 + var(--sh-space-8)), 1fr));
+  gap: var(--sh-space-6);
+}
+.fx-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-2);
+  padding: var(--sh-space-2);
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-gradient-bevel);
+  color: var(--sh-color-text);
+  font: inherit;
+  text-align: left;
+  min-width: 0;
+  cursor: default;
+}
+.fx-card:hover:not(:disabled) {
+  border-color: var(--sh-color-hover-edge);
+  background: var(--sh-color-canvas);
+}
+.fx-card[aria-selected='true'] {
+  background: var(--sh-color-accent-subtle);
+  border-color: var(--sh-color-accent-pressed);
+}
+.fx-card:disabled {
+  color: var(--sh-color-text-disabled);
+}
+.fx-card__thumb {
+  display: block;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  background: var(--sh-color-stage-image) center / cover no-repeat;
+  border: var(--sh-border-width) solid var(--sh-color-border);
+}
+.fx-card__label {
+  font-size: var(--sh-font-size-caption);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

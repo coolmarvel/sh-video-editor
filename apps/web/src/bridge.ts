@@ -1,4 +1,4 @@
-import type { EngineBridge, Frame } from '@editor';
+import type { EngineBridge, EngineEvent, Frame } from '@editor';
 import type { OpfsStore } from '@editor/engine/bridge';
 
 type Res = { id: number; ok: boolean; result?: unknown; error?: string };
@@ -66,6 +66,8 @@ export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
     pollPersistence: () => call('pollPersistence'),
     // startAutosave·pickSavePath·pickOpenPath 는 웹 파일(OPFS·다운로드) 담당이 붙인다. 없으면 화면이 안내 문구를 보인다.
     renderFrame: (tick, scale) => call<Frame | null>('renderFrame', tick, scale),
+    drainEvents: () => call<EngineEvent[]>('drainEvents'),
+    renderItemThumbnail: (item, tick, width) => call<Frame>('renderItemThumbnail', item, tick, width),
 
     // File 은 structured clone 으로 Worker 에 넘어간다(바이트 복사 없음, 핸들만)
     registerFiles: (files) => call<string[]>('registerFiles', files),

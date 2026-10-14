@@ -1,11 +1,12 @@
 /**
  * 웹 e2e(Playwright). `vite build` 뒤 `vite preview` 를 webServer 로 띄워 실제 Chromium 에서 화면과 wasm 엔진을
  * 함께 검증한다. 데스크톱(1440)과 모바일(390) 두 뷰포트. 네트워크는 localhost 만 쓴다.
- * 실행: 루트에서 `npm run test:e2e:web` (크로미움: `npx playwright install chromium`).
+ * 실행: 루트에서 `npm run test:e2e:web` (크로미움: `npx playwright install chromium`). 포트는 `SH_E2E_PORT`(기본 4175).
  */
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4175;
+// 같은 기계에서 여러 워크트리가 동시에 e2e 를 돌릴 수 있게 포트를 바꿀 수 있다(기본 4175)
+const PORT = Number(process.env['SH_E2E_PORT'] ?? 4175);
 
 export default defineConfig({
   testDir: './e2e',

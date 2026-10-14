@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { useEditor } from '../../store';
+import { useEngineEvents } from '../events/store';
 import { formatTimecode } from '../../engine/time';
 import { MediaTree } from './MediaTree';
 import { useMedia } from './store';
@@ -10,6 +11,7 @@ import './media.css';
 export function MediaPanelView() {
   const bridge = useEditor((s) => s.bridge);
   const root = useMedia((s) => s.root);
+  const revision = useMedia((s) => s.revision);
   const selectedId = useMedia((s) => s.selectedId);
   const busy = useMedia((s) => s.busy);
   const notice = useMedia((s) => s.notice);
@@ -30,14 +32,15 @@ export function MediaPanelView() {
   const selected = findItem(root, selectedId);
   const canMakeSequence = Boolean(selected && isClipLike(selected)) && !busy;
 
-  // 엔진이 연결되면 목록을 읽고, 메뉴바 등 다른 곳에서 커맨드가 실행되어 상태 줄이 바뀔 때마다 다시 읽는다
+  // 엔진이 연결되면 목록을 읽고, 엔진 이벤트(프로젝트 변경, Reveal in Project)를 구독해 다시 읽는다(features/events)
   useEffect(() => {
     if (!bridge) return;
     void refresh();
-    return useEditor.subscribe((s, prev) => {
-      if (s.status !== prev.status) void refresh();
+    return useEngineEvents.subscribe((s, prev) => {
+      if (s.projectChanged !== prev.projectChanged) void refresh();
+      if (s.revealChanged !== prev.revealChanged && s.revealed !== null) void select(s.revealed);
     });
-  }, [bridge, refresh]);
+  }, [bridge, refresh, select]);
 
   // 창 어디에 떨어뜨려도 페이지가 그 파일로 이동하지 않게 막는다
   useEffect(() => {
@@ -179,6 +182,7 @@ export function MediaPanelView() {
           root && (
             <MediaTree
               root={root}
+              revision={revision}
               selectedId={selectedId}
               onSelect={(id) => void select(id)}
               onOpen={(item) => {

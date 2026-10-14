@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useEditor } from '../../store';
 import { formatTimecode } from '../../engine/time';
 import { TypeIcon } from './icons';
+import { POSTER_TICK, hasPicture, useThumbnail } from './thumbs';
 import { typeLabelKo, type MediaBin, type MediaItem, type MediaNode } from './types';
 
 interface Props {
@@ -8,10 +10,26 @@ interface Props {
   selectedId: number | null;
   onSelect(id: number): void;
   onOpen(item: MediaItem): void;
+  /** 시퀀스 썸네일을 다시 만들 기준(프로젝트 revision). 편집하면 바뀐다 */
+  revision?: number;
+}
+
+/** 썸네일(48x27, 엔진이 만든 포스터 프레임). 아직 없거나 그림이 없는 항목은 유형 아이콘 */
+function ItemThumb({ item, revision }: { item: MediaItem; revision: number }) {
+  const bridge = useEditor((s) => s.bridge);
+  const picture = hasPicture(item.type);
+  const salt = /Sequence/.test(item.type) ? revision : 0;
+  const url = useThumbnail(bridge, item.id, POSTER_TICK, salt, picture);
+  if (url) return <img className="ve-media-thumb" src={url} alt="" draggable={false} />;
+  return (
+    <span className={picture ? 've-media-icon ve-media-icon--thumb' : 've-media-icon'}>
+      <TypeIcon type={item.type} />
+    </span>
+  );
 }
 
 /** 빈·항목 트리. 구조는 sh-classic 4.8 (ul.sh-tree > li[aria-expanded] > .sh-tree__row + ul). 빈에는 아이콘을 두지 않는다. */
-export function MediaTree({ root, selectedId, onSelect, onOpen }: Props) {
+export function MediaTree({ root, selectedId, onSelect, onOpen, revision = 0 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
   const toggle = (id: number) =>
     setCollapsed((prev) => {
@@ -25,7 +43,7 @@ export function MediaTree({ root, selectedId, onSelect, onOpen }: Props) {
     const selected = item.id === selectedId;
     return (
       <li key={`i${item.id}`} role="none">
-        <div className="sh-tree__row">
+        <div className="sh-tree__row ve-media-row--item">
           <span
             role="treeitem"
             tabIndex={0}
@@ -45,9 +63,7 @@ export function MediaTree({ root, selectedId, onSelect, onOpen }: Props) {
               }
             }}
           >
-            <span className="ve-media-icon">
-              <TypeIcon type={item.type} />
-            </span>
+            <ItemThumb item={item} revision={revision} />
             <span className="ve-media-name">{item.name}</span>
             <span className="ve-media-time sh-tnum">{formatTimecode(item.duration, item.fps ?? 30)}</span>
           </span>

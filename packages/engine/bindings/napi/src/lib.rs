@@ -6,7 +6,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 use filmcraft_engine::autosave::AutosaveConfig;
-use filmcraft_engine::{FsServices, Session, command_specs};
+use filmcraft_engine::{Event, FsServices, Session, command_specs};
+use filmcraft_project::ItemId;
 use filmcraft_time::Tick;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
@@ -42,6 +43,18 @@ pub fn command_catalog() -> String {
         })
         .collect();
     serde_json::Value::Array(specs).to_string()
+}
+
+/// 엔진 이벤트를 화면이 분류하기 쉬운 `{type, ...}` 객체로. wasm 바인딩과 같은 모양이다.
+/// - projectChanged {revision} · toast {message, error} · openSequence|openSource|revealInProject {item}
+pub fn event_json(e: Event) -> serde_json::Value {
+    match e {
+        Event::ProjectChanged { revision } => serde_json::json!({"type": "projectChanged", "revision": revision}),
+        Event::Toast { message, error } => serde_json::json!({"type": "toast", "message": message, "error": error}),
+        Event::OpenSequence(item) => serde_json::json!({"type": "openSequence", "item": item.0}),
+        Event::OpenSource(item) => serde_json::json!({"type": "openSource", "item": item.0}),
+        Event::RevealInProject(item) => serde_json::json!({"type": "revealInProject", "item": item.0}),
+    }
 }
 
 #[napi(object)]
@@ -142,11 +155,21 @@ impl Engine {
         Some(Frame { width: w, height: h, rgba: Buffer::from(img.over_black_rgba8()) })
     }
 
-    /// 엔진 이벤트(토스트·오류·진행률)를 비워 JSON 배열로.
+    /// 쌓인 엔진 이벤트(프로젝트 변경·토스트·시퀀스 열기)를 비워 JSON 배열 문자열 `[{type, ...}]` 로. 모양은 `event_json`.
     #[napi]
     pub fn drain_events(&mut self) -> String {
-        let events: Vec<String> = self.session.drain_events().into_iter().map(|e| format!("{e:?}")).collect();
-        serde_json::Value::Array(events.into_iter().map(serde_json::Value::String).collect()).to_string()
+        serde_json::Value::Array(self.session.drain_events().into_iter().map(event_json).collect()).to_string()
+    }
+
+    /// 미디어 항목(영상·사진·시퀀스)의 썸네일. `tick` 은 미디어 시간이고 음수면 포스터 프레임(없으면 0).
+    /// `width` 픽셀 폭으로 축소한다(확대는 하지 않음, 상한 1024). 소리만 있는 항목·없는 항목은 오류.
+    #[napi]
+    pub fn render_item_thumbnail(&self, item: i64, tick: i64, width: u32) -> Result<Frame> {
+        let id = u64::try_from(item).map_err(|_| Error::from_reason("item id must be non-negative"))?;
+        let t = (tick >= 0).then_some(Tick(tick));
+        let img = self.session.render_item_thumbnail(ItemId(id), t, width).map_err(|e| Error::from_reason(e.to_string()))?;
+        let (w, h) = u32::try_from(img.w).ok().zip(u32::try_from(img.h).ok()).ok_or_else(|| Error::from_reason("thumbnail too large"))?;
+        Ok(Frame { width: w, height: h, rgba: Buffer::from(img.over_black_rgba8()) })
     }
 }
 

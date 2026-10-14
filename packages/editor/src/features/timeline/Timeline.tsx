@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../../store';
+import { useEngineEvents } from '../events/store';
 import { hasMediaItem, readMediaItemId } from './dnd';
 import { DRAG_THRESHOLD_PX, TAIL_SECONDS, clampZoom, fpsOf, frameTicks, pxToTick, snapDelta, snapToFrame, tickToPx, timecodeAt } from './geometry';
 import { Ruler } from './Ruler';
@@ -92,14 +93,18 @@ export function Timeline() {
   const hasClips = useMemo(() => (seq ? allClips(seq).length > 0 : false), [seq]);
   const selection = seq?.selection ?? [];
 
-  // 엔진이 연결되면 읽고, 메뉴 등 다른 곳의 커맨드 실행(상태 줄 변화)이나 엔진 revision 변화 뒤에도 다시 읽는다
+  // 엔진이 연결되면 읽고, 엔진 이벤트(프로젝트 변경·시퀀스 열림)가 오면 다시 읽는다(features/events 의 폴링 하나가 올린다).
+  // 플레이헤드는 모니터 재생 등 다른 곳에서도 움직이므로 같은 신호(playheadChanged)로 따라간다. 드래그 중에는 화면 값을 지킨다
   useEffect(() => {
     if (!bridge) return;
     const { refresh } = useTimeline.getState();
     void refresh();
     let timer = 0;
-    const unsubscribe = useEditor.subscribe((s, prev) => {
-      if (s.status === prev.status && s.engineRevision === prev.engineRevision) return;
+    const unsubscribe = useEngineEvents.subscribe((s, prev) => {
+      if (s.playheadChanged !== prev.playheadChanged && !gestureRef.current && useTimeline.getState().playhead !== s.playhead) {
+        useTimeline.setState({ playhead: s.playhead });
+      }
+      if (s.projectChanged === prev.projectChanged && s.sequenceChanged === prev.sequenceChanged) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => void useTimeline.getState().refresh(), 60);
     });
@@ -107,16 +112,6 @@ export function Timeline() {
       window.clearTimeout(timer);
       unsubscribe();
     };
-  }, [bridge]);
-
-  // 플레이헤드는 모니터 재생 등 다른 곳에서도 움직이므로 가볍게 폴링한다
-  useEffect(() => {
-    if (!bridge) return;
-    const id = window.setInterval(() => {
-      if (gestureRef.current || document.hidden) return;
-      void useTimeline.getState().syncPlayhead();
-    }, 200);
-    return () => window.clearInterval(id);
   }, [bridge]);
 
   // 보이는 구간 추적(눈금은 보이는 만큼만 그린다)

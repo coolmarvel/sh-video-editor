@@ -21,6 +21,17 @@ export interface Frame {
   rgba: Uint8ClampedArray<ArrayBuffer>;
 }
 
+/**
+ * 엔진이 쌓아 두는 이벤트(바인딩 `drainEvents` 의 한 항목). 엔진 `Event` enum 과 1:1 이며 바인딩이 `{type, ...}` 로 편다.
+ * 화면은 features/events 가 한 곳에서 비워 분류한다.
+ */
+export type EngineEvent =
+  | { type: 'projectChanged'; revision: number }
+  | { type: 'toast'; message: string; error: boolean }
+  | { type: 'openSequence'; item: number }
+  | { type: 'openSource'; item: number }
+  | { type: 'revealInProject'; item: number };
+
 /** 파일 대화상자 필터(Electron 의 FileFilter 와 같은 모양). */
 export interface FileFilter {
   name: string;
@@ -57,6 +68,16 @@ export interface EngineBridge {
   setPlayhead(tick: number): Promise<void>;
   pumpJobs(budgetMs: number): Promise<boolean>;
   renderFrame(tick: number, scale: number): Promise<Frame | null>;
+  /**
+   * 쌓인 엔진 이벤트를 비워 돌려준다(한 번 읽으면 엔진 쪽에서 사라진다). features/events 의 폴링 하나만 부른다.
+   * 없는 호스트에서는 화면이 project.inspect 의 revision 비교로 대신한다.
+   */
+  drainEvents?(): Promise<EngineEvent[]>;
+  /**
+   * 미디어 항목(영상·사진·시퀀스)의 썸네일. `tick` 은 미디어 시간(음수면 포스터 프레임 또는 0), `width` 는 결과 폭(px,
+   * 확대하지 않음). 소리만 있는 항목·없는 항목은 거부(throw). 캐시는 features/media/thumbs.ts.
+   */
+  renderItemThumbnail?(item: number, tick: number, width: number): Promise<Frame>;
   /** 호스트 파일 대화상자. 데스크톱만 구현한다(없으면 가져오기 버튼을 숨긴다). 취소하면 빈 배열 */
   pickFiles?(): Promise<string[]>;
   /** 끌어다 놓은 File 의 실제 경로. 데스크톱만 구현한다(Electron 의 webUtils.getPathForFile) */

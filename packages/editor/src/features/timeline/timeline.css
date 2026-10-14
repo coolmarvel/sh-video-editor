@@ -207,6 +207,15 @@
   border-style: dashed;
   border-color: var(--sh-color-accent);
 }
+.tl-clip__thumb {
+  flex: none;
+  /* 미디어 패널 썸네일과 같은 비율. 높이는 영상 트랙 안쪽에 맞춘다 */
+  height: calc(var(--tl-video-h) - var(--sh-space-8) - var(--sh-space-4));
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-left: var(--sh-space-2);
+  pointer-events: none;
+}
 .tl-clip__name {
   flex: 1;
   min-width: 0;

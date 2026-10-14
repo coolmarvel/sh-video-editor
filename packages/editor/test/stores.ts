@@ -5,6 +5,8 @@ import { useExport } from '../src/features/export/store';
 import { useMedia } from '../src/features/media/store';
 import { useMonitor } from '../src/features/monitor/store';
 import { useProject } from '../src/features/project/store';
+import { useEngineEvents } from '../src/features/events/store';
+import { resetThumbnailLoader } from '../src/features/media/thumbs';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -14,6 +16,8 @@ export function resetStores(): void {
   useMedia.setState(useMedia.getInitialState(), true);
   useMonitor.setState(useMonitor.getInitialState(), true);
   useProject.setState(useProject.getInitialState(), true);
+  useEngineEvents.setState(useEngineEvents.getInitialState(), true);
+  resetThumbnailLoader();
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

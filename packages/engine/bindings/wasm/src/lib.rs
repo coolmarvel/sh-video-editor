@@ -22,8 +22,9 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
 
-use filmcraft_engine::{Services, Session, command_specs};
+use filmcraft_engine::{Event, Services, Session, command_specs};
 use filmcraft_media::reader::{ByteReader, MemReader, SharedReader};
+use filmcraft_project::ItemId;
 use filmcraft_time::Tick;
 use wasm_bindgen::prelude::*;
 
@@ -318,6 +319,28 @@ impl Services for WebServices {
     }
 }
 
+/// 엔진 이벤트를 화면이 분류하기 쉬운 `{type, ...}` 객체로. napi 바인딩과 같은 모양이다.
+/// - projectChanged {revision} · toast {message, error} · openSequence|openSource|revealInProject {item}
+pub fn event_json(e: Event) -> serde_json::Value {
+    match e {
+        Event::ProjectChanged { revision } => serde_json::json!({"type": "projectChanged", "revision": revision}),
+        Event::Toast { message, error } => serde_json::json!({"type": "toast", "message": message, "error": error}),
+        Event::OpenSequence(item) => serde_json::json!({"type": "openSequence", "item": item.0}),
+        Event::OpenSource(item) => serde_json::json!({"type": "openSource", "item": item.0}),
+        Event::RevealInProject(item) => serde_json::json!({"type": "revealInProject", "item": item.0}),
+    }
+}
+
+/// `[w, h]` LE u32 머리 + RGBA8 바이트. Worker 가 풀어 `Frame` 으로 만든다.
+fn pack_frame(img: &filmcraft_render::Image) -> Option<Vec<u8>> {
+    let (w, h) = u32::try_from(img.w).ok().zip(u32::try_from(img.h).ok())?;
+    let mut out = Vec::with_capacity(8 + img.w * img.h * 4);
+    out.extend_from_slice(&w.to_le_bytes());
+    out.extend_from_slice(&h.to_le_bytes());
+    out.extend_from_slice(&img.over_black_rgba8());
+    Some(out)
+}
+
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
@@ -531,13 +554,22 @@ impl Engine {
     /// 프레임을 `[w, h]` 와 RGBA8 바이트로. 시퀀스가 없으면 빈 배열.
     #[wasm_bindgen(js_name = renderFrame)]
     pub fn render_frame(&self, tick: i64, scale: f32) -> Vec<u8> {
-        let Some(img) = self.session.render_program_at(scale, Tick(tick)) else { return Vec::new() };
-        let (Ok(w), Ok(h)) = (u32::try_from(img.w), u32::try_from(img.h)) else { return Vec::new() };
-        let mut out = Vec::with_capacity(8 + img.w * img.h * 4);
-        out.extend_from_slice(&w.to_le_bytes());
-        out.extend_from_slice(&h.to_le_bytes());
-        out.extend_from_slice(&img.over_black_rgba8());
-        out
+        self.session.render_program_at(scale, Tick(tick)).and_then(|img| pack_frame(&img)).unwrap_or_default()
+    }
+
+    /// 쌓인 엔진 이벤트(프로젝트 변경·토스트·시퀀스 열기)를 비워 JSON 배열 문자열 `[{type, ...}]` 로. 모양은 `event_json`.
+    #[wasm_bindgen(js_name = drainEvents)]
+    pub fn drain_events(&mut self) -> String {
+        serde_json::Value::Array(self.session.drain_events().into_iter().map(event_json).collect()).to_string()
+    }
+
+    /// 미디어 항목(영상·사진·시퀀스)의 썸네일을 `renderFrame` 과 같은 포장으로. `tick` 은 미디어 시간이고 음수면
+    /// 포스터 프레임(없으면 0). `width` 픽셀 폭으로 축소한다(확대는 하지 않음, 상한 1024). 소리만 있는 항목·없는 항목은 오류.
+    #[wasm_bindgen(js_name = renderItemThumbnail)]
+    pub fn render_item_thumbnail(&self, item: u64, tick: i64, width: u32) -> Result<Vec<u8>, JsError> {
+        let t = (tick >= 0).then_some(Tick(tick));
+        let img = self.session.render_item_thumbnail(ItemId(item), t, width).map_err(|e| JsError::new(&e.to_string()))?;
+        pack_frame(&img).ok_or_else(|| JsError::new("thumbnail too large"))
     }
 }
 

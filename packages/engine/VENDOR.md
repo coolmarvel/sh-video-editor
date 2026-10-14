@@ -20,6 +20,9 @@
   `linked`, inspect 파라미터 `{kind, value}`, 입력 검증, 모르는 데모 장면 거부, `file.import` 의 `warnings`), `crates/engine/src/color.rs`
   (`lumetri.applyPreset {replace}`), `crates/render/src/{lib,plan}.rs`(`frame_time`: 역방향 디코드 시각), `crates/media/src/lib.rs`
   (`MediaSource::warnings` 기본 구현), `crates/codecs/src/mp4.rs`(잘린 파일 경고). 상류를 다시 가져올 때 이 목록으로 diff 를 맞춘다.
+- wasm 크기(2026-10-14, `docs/guides/wasm-performance.md`): `crates/text/src/fonts.rs` 의 번들 글꼴 `include_bytes!` 를 wasm32 에서는
+  Inter Regular 만 남기고 `#[cfg(not(target_arch = "wasm32"))]` 로 뺐다(`HOST_SUPPLIED_FONTS` 목록 추가). 웹 호스트가 같은 파일을
+  시작 시 `add_font_data` 로 넣는다. 네이티브는 그대로다.
 
 ## 이식 시 한 일 (soundcraft)
 

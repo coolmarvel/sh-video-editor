@@ -5,8 +5,10 @@
 // 범위만 FileReaderSync 로 읽는다). 엔진이 쓴 파일(내보내기 결과)은 쓰기 훅으로 받아, 메인이 구독 중이면
 // 'fileWritten' 이벤트로 transfer 하고, 아니면 엔진에 남겨 takeWrittenFile 로 꺼내 가게 한다.
 // 'opfs:/' 경로의 쓰기는 OPFS 큐로, 읽기는 커맨드 실행 전에 OPFS 에서 미리 올려 둔다(opfs.ts).
-import init, { Engine, engine_version, command_catalog } from '@engine/sh_video_engine_wasm.js';
+import init, { Engine, engine_version, command_catalog, addFontData, hostFontFiles, setWebCodecsHooks } from '@engine/sh_video_engine_wasm.js';
 import * as opfs from './opfs';
+import { hostFontUrls } from './fonts';
+import { createWebCodecsHooks } from './webcodecs';
 
 type Req = { id: number; method: string; args: unknown[] };
 type Res = { id: number; ok: true; result: unknown; transfer?: Transferable[] } | { id: number; ok: false; error: string };
@@ -19,7 +21,32 @@ let engine: Engine | null = null;
 /** 메인 스레드에 onFileWritten 구독자가 있으면 쓰인 바이트를 바로 넘긴다 */
 let forwardWrites = false;
 
-const ready = init().then(() => {
+/** 번들 글꼴(wasm 안에는 Inter Regular 만 있다)을 wasm 과 나란히 받는다. 실패한 파일은 건너뛴다(Inter 로 대체). */
+const fonts = Promise.all(
+  hostFontUrls.map(async (url) => {
+    try {
+      const r = await fetch(url);
+      return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
+    } catch {
+      return null;
+    }
+  }),
+);
+
+const ready = Promise.all([init(), fonts]).then(([, bytes]) => {
+  const expected = JSON.parse(hostFontFiles()) as string[];
+  let faces = 0;
+  let missing = 0;
+  for (const b of bytes) {
+    if (b) faces += addFontData(b);
+    else missing += 1;
+  }
+  if (missing > 0 || hostFontUrls.length !== expected.length) {
+    console.warn(`글꼴 ${missing}개를 받지 못했습니다 (기대 ${expected.length}개, 등록 ${faces} face). 그 글꼴은 Inter 로 대체됩니다`);
+  }
+  // 브라우저 디코더(WebCodecs): 쓸 수 있는 환경이면 엔진의 디코더 레지스트리 앞에 둔다. 아니면 소프트웨어 디코더 그대로
+  const hooks = createWebCodecsHooks();
+  if (hooks) setWebCodecsHooks(hooks);
   engine = new Engine();
   engine.setWriteHook((path: string, bytes: opfs.Bytes): boolean => {
     if (!forwardWrites) return false;

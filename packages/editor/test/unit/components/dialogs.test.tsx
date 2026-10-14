@@ -131,15 +131,27 @@ describe('ExportDialog', () => {
     expect(useExport.getState().open).toBe(false);
   });
 
-  it('웹: 안내 문구와 비활성 찾아보기', async () => {
+  it('대화상자도 쓰기 알림도 없는 호스트: 안내 문구와 비활성 찾아보기', async () => {
     const { engine } = engineWithClips();
     await connect({}, engine);
     render(<ExportDialog />);
     await act(() => useExport.getState().show());
-    expect(screen.getByText('웹 내보내기는 준비 중입니다. 데스크톱 앱에서 내보내 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('이 환경에서는 내보내기를 지원하지 않습니다.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '찾아보기' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '내보내기' })).toBeDisabled();
-    expect(screen.getByLabelText('저장 위치')).toHaveAttribute('placeholder', '데스크톱 앱에서만 고를 수 있습니다');
+    expect(screen.getByLabelText('저장 위치')).toHaveAttribute('placeholder', '이 환경에서는 고를 수 없습니다');
+  });
+
+  it('웹(쓰기 알림 있음): 파일 이름만 보이고 찾아보기 없이 내보낼 수 있다', async () => {
+    const { engine } = engineWithClips({ web: true });
+    engine.state.name = '내 프로젝트';
+    await connect({}, engine);
+    render(<ExportDialog />);
+    await act(() => useExport.getState().show());
+    expect(screen.queryByRole('button', { name: '찾아보기' })).toBeNull();
+    expect(screen.getByLabelText('파일 이름')).toHaveValue('내 프로젝트.mp4');
+    expect(screen.getByText(/브라우저 다운로드 폴더에 저장됩니다/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '내보내기' })).toBeEnabled();
   });
 
   it('편집본이 없으면 문제를 알리고, Escape 로 닫는다', async () => {

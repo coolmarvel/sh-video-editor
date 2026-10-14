@@ -2,12 +2,13 @@
  * 파형 피크 캐시. 엔진 `audioPeaks(item, perSecond)` 가 돌려주는 미디어 항목 전체의 min/max 배열(초당 PEAK_RATE 칸)을
  * 항목마다 한 번만 받아 둔다. 클립은 소스 구간(sourceIn..sourceOut)을 잘라 쓰므로 트림·이동·속도 변경에 다시 계산하지
  * 않고, 줌은 그릴 때 픽셀 열에 맞춰 줄인다(`columns`). 영상에 붙은 소리(연결 클립)도 같은 항목 id 를 가리키므로
- * 같은 배열을 쓴다.
+ * 같은 배열을 쓴다. 호스트 캐시(bridge.cache)가 있으면 세션을 넘어 남긴다(ADR-0004).
  */
 import { useEffect, useState } from 'react';
 import type { EngineBridge } from '../../engine/bridge';
 import { TICKS_PER_SECOND } from '../../engine/time';
 import { useEditor } from '../../store';
+import { hostCache, mediaPathOf } from '../cache/keys';
 
 /** 초당 피크 칸 수. 100 px/s 줌에서 픽셀당 한 칸 */
 export const PEAK_RATE = 100;
@@ -32,8 +33,7 @@ export function peaksFor(bridge: EngineBridge | null, item: number): Float32Arra
   if (hit?.peaks) return hit.peaks;
   if (hit?.promise || !bridge?.audioPeaks) return null;
   const entry: Entry = { peaks: null, promise: null };
-  entry.promise = bridge
-    .audioPeaks(item, PEAK_RATE)
+  entry.promise = loadPeaks(bridge, item)
     .then((p) => {
       entry.peaks = p;
       entry.promise = null;
@@ -47,6 +47,29 @@ export function peaksFor(bridge: EngineBridge | null, item: number): Float32Arra
     });
   cache.set(item, entry);
   return null;
+}
+
+/** 진단: 호스트 캐시에서 받은 횟수 */
+export const peakStats = { storeHits: 0, engineCalls: 0 };
+
+/** 호스트 캐시(bridge.cache, ADR-0004)에 있으면 그것을, 없으면 엔진에 묻고 캐시에 넣는다. 경로가 없는 항목은 엔진만 */
+async function loadPeaks(bridge: EngineBridge, item: number): Promise<Float32Array> {
+  const audioPeaks = bridge.audioPeaks;
+  if (!audioPeaks) return new Float32Array(0);
+  const store = hostCache(bridge);
+  const path = store ? mediaPathOf(item) : null;
+  const key = path ? { path, perSecond: PEAK_RATE } : null;
+  if (store && key) {
+    const hit = await store.getPeaks(key).catch(() => null);
+    if (hit) {
+      peakStats.storeHits += 1;
+      return hit;
+    }
+  }
+  peakStats.engineCalls += 1;
+  const p = await audioPeaks.call(bridge, item, PEAK_RATE);
+  if (store && key && p.length > 0) void store.putPeaks(key, p).catch(() => undefined);
+  return p;
 }
 
 /** 항목 피크를 구독하는 훅. 받아지면 다시 그린다 */

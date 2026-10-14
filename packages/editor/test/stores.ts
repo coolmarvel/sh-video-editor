@@ -22,6 +22,10 @@ import { useKeyframes } from '../src/features/keyframes/store';
 import { useStickers } from '../src/features/stickers/store';
 import { useTemplates } from '../src/features/templates/store';
 import { focusArea } from '../src/features/shortcuts/keymap';
+import { useWebFiles } from '../src/features/project/web-store';
+import { resetRecentMemory, useRecent } from '../src/features/project/recent';
+import { stopWebSession } from '../src/features/project/web-session';
+import { clearPeakCache } from '../src/features/audio/peaks';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -48,6 +52,11 @@ export function resetStores(): void {
   useStickers.setState(useStickers.getInitialState(), true);
   useTemplates.setState(useTemplates.getInitialState(), true);
   focusArea.current = 'timeline';
+  useWebFiles.setState(useWebFiles.getInitialState(), true);
+  useRecent.setState(useRecent.getInitialState(), true);
+  resetRecentMemory();
+  stopWebSession();
+  clearPeakCache();
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

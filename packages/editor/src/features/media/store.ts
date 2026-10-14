@@ -73,9 +73,15 @@ function toast(kind: Notice['kind'], text: string): void {
   useProject.getState().notify(kind, text);
 }
 
-function toNode(entry: InspectItem | InspectBin, rows: Map<number, ItemsRow>): MediaNode {
+/** media.status 의 한 항목(경로만 쓴다) */
+interface StatusRow {
+  item: number;
+  path: string | null;
+}
+
+function toNode(entry: InspectItem | InspectBin, rows: Map<number, ItemsRow>, paths: Map<number, string> = new Map()): MediaNode {
   if ('children' in entry) {
-    return { kind: 'bin', id: entry.id, name: entry.name, children: entry.children.map((c) => toNode(c, rows)) };
+    return { kind: 'bin', id: entry.id, name: entry.name, children: entry.children.map((c) => toNode(c, rows, paths)) };
   }
   const cells = rows.get(entry.item)?.cells;
   const fpsText = cells?.['Frame Rate'];
@@ -91,6 +97,8 @@ function toNode(entry: InspectItem | InspectBin, rows: Map<number, ItemsRow>): M
   if (Number.isFinite(fps) && fps > 0) item.fps = fps;
   if (cells?.['Video Info']) item.videoInfo = cells['Video Info'];
   if (cells?.['Audio Info']) item.audioInfo = cells['Audio Info'];
+  const path = paths.get(entry.item);
+  if (path) item.path = path;
   return item;
 }
 
@@ -150,7 +158,15 @@ export const useMedia = create<MediaState>((set, get) => {
         } catch {
           // 열 정보는 보조 정보라 실패해도 목록은 보여 준다
         }
-        const root = toNode(inspect.root, rows) as MediaBin;
+        // 미디어 파일 경로(호스트 캐시 키, features/cache). 실패해도 목록은 보여 준다
+        const paths = new Map<number, string>();
+        try {
+          const status = (await bridge.execute('media.status')) as StatusRow[];
+          for (const r of status) if (typeof r.item === 'number' && r.path) paths.set(r.item, r.path);
+        } catch {
+          // 경로 없이도 목록은 보여 준다
+        }
+        const root = toNode(inspect.root, rows, paths) as MediaBin;
         const selectedIds = get().selectedIds.filter((id) => findItem(root, id));
         const selectedId = findItem(root, get().selectedId) ? get().selectedId : (selectedIds[selectedIds.length - 1] ?? null);
         set({ root, activeSequence: inspect.activeSequence, revision: inspect.revision, selectedId, selectedIds });

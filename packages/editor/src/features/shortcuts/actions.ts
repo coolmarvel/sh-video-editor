@@ -13,6 +13,7 @@ import { monitorController } from '../monitor/registry';
 import { createDemoEdition } from '../onboarding/edition';
 import { useOnboarding } from '../onboarding/store';
 import { useProject } from '../project/store';
+import { useRecent } from '../project/recent';
 import { useRatio } from '../ratio/store';
 import { useText } from '../text/store';
 import { useTimeline } from '../timeline/store';
@@ -173,6 +174,8 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'file.open': () => useProject.getState().openProject(),
   'file.save': () => void useProject.getState().save(),
   'file.saveAs': () => void useProject.getState().saveAs(),
+  'file.openRecent': (p) => useRecent.getState().open(String(p?.['path'] ?? '')),
+  'file.recentNone': () => undefined,
   'file.export': () => useExport.getState().show(),
   'file.importMedia': importMedia,
   'file.importDemo': (p) => useMedia.getState().importDemo((p?.['scene'] as DemoScene | undefined) ?? 'OceanSunset'),

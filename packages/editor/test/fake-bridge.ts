@@ -4,7 +4,7 @@
  * 편집 의미는 단순화한다(클립 배치·razor·이동·트림·삭제·undo). 호출 기록(`calls`)과 실패 주입(`failNext`)으로
  * store 의 경로를 검증한다. 실제 엔진의 불변식은 packages/engine/tests 가 본다.
  */
-import type { CommandSpec, EngineBridge, EngineEvent, FileFilter, Frame } from '../src/engine/bridge';
+import type { CacheStore, CommandSpec, EngineBridge, EngineEvent, FileFilter, Frame, OpfsStore } from '../src/engine/bridge';
 import { TICKS_PER_SECOND } from '../src/engine/time';
 import { formatSrt, parseSrt } from '../src/features/text/srt';
 
@@ -138,6 +138,10 @@ export interface FakeItem {
   fps?: number;
   /** 들어 있는 폴더(bin) id. 없으면 루트 */
   bin?: number | null;
+  /** 미디어 파일 경로(media.status). 없으면 생성 미디어처럼 null */
+  path?: string;
+  /** 찾을 수 없는 파일(media.findMissing) */
+  missing?: boolean;
 }
 
 export interface FakeBin {
@@ -246,8 +250,10 @@ export interface FakeBridgeOptions {
   events?: boolean;
   /** renderItemThumbnail 을 노출할지(기본 true) */
   thumbnails?: boolean;
-  /** 웹처럼 registerFiles / takeWrittenFile 을 지원할지 */
+  /** 웹처럼 registerFiles / takeWrittenFile / onFileWritten / opfs 를 지원할지 */
   web?: boolean;
+  /** 호스트 캐시(bridge.cache) */
+  cache?: CacheStore;
 }
 
 export const FAKE_COMMANDS: CommandSpec[] = [
@@ -355,8 +361,13 @@ export class FakeEngine {
   thumbnailCalls: Array<{ item: number; tick: number; width: number }> = [];
   /** 가짜 파일 공간(경로 -> 텍스트). captions.import 가 읽고 captions.export 가 쓴다 */
   readonly files = new Map<string, string>();
-  /** 엔진이 쓴 파일(웹의 takeWrittenFile 흉내) */
+  /** 엔진이 쓴 파일(웹의 takeWrittenFile 흉내). onFileWritten 구독자가 있으면 거기로 가고 여기 남지 않는다 */
   readonly written = new Map<string, Uint8Array>();
+  readonly writeListeners = new Set<(path: string, bytes: Uint8Array) => void>();
+  /** 가짜 OPFS(상대 경로 -> 바이트). 엔진의 `opfs:/` 쓰기는 여기로 간다 */
+  readonly opfsFiles = new Map<string, Uint8Array>();
+  /** 저장한 프로젝트 상태(경로 -> 상태). file.open 이 되살린다 */
+  readonly savedStates = new Map<string, State>();
   state: State;
   readonly bridge: EngineBridge;
   private nextId = 100;
@@ -429,8 +440,61 @@ export class FakeEngine {
         this.written.delete(path);
         return b;
       };
+      bridge.onFileWritten = (cb) => {
+        this.writeListeners.add(cb);
+        return () => {
+          this.writeListeners.delete(cb);
+        };
+      };
+      bridge.opfs = this.opfs;
     }
+    if (opts.cache) bridge.cache = opts.cache;
     this.bridge = bridge;
+  }
+
+  /** 가짜 OPFS(OpfsStore). 디렉토리는 경로 접두로 흉내 낸다 */
+  readonly opfs: OpfsStore = {
+    write: async (path, bytes) => {
+      this.opfsFiles.set(path, bytes);
+    },
+    read: async (path) => this.opfsFiles.get(path) ?? null,
+    list: async (dir) => {
+      const prefix = dir.replace(/\/+$/, '') + '/';
+      const names = new Map<string, 'file' | 'directory'>();
+      for (const k of this.opfsFiles.keys()) {
+        if (!k.startsWith(prefix)) continue;
+        const rest = k.slice(prefix.length);
+        const slash = rest.indexOf('/');
+        if (slash < 0) names.set(rest, 'file');
+        else names.set(rest.slice(0, slash), 'directory');
+      }
+      return [...names].map(([name, kind]) => ({ name, kind })).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    remove: async (path) => {
+      for (const k of [...this.opfsFiles.keys()]) if (k === path || k.startsWith(path + '/')) this.opfsFiles.delete(k);
+    },
+    flush: async () => undefined,
+  };
+
+  /** 엔진의 파일 쓰기: `opfs:/` 는 가짜 OPFS 로, 아니면 구독자 또는 written 으로 */
+  writeFile(path: string, bytes: Uint8Array): void {
+    if (path.startsWith('opfs:/')) {
+      this.opfsFiles.set(path.slice('opfs:/'.length), bytes);
+      return;
+    }
+    if (this.writeListeners.size > 0) {
+      for (const cb of this.writeListeners) cb(path, bytes);
+      return;
+    }
+    this.written.set(path, bytes);
+  }
+
+  /** 프로젝트를 경로에 쓴다(상태 스냅샷 + 바이트) */
+  private writeProject(path: string): number {
+    const bytes = new TextEncoder().encode(JSON.stringify({ name: this.state.name, revision: this.state.revision, items: this.state.items.length }));
+    this.savedStates.set(path, clone(this.state));
+    this.writeFile(path, bytes);
+    return bytes.length;
   }
 
   static freshState(name: string): State {
@@ -765,6 +829,8 @@ export class FakeEngine {
           job.finished = true;
           job.result = { bytes: 123_456, seconds: 1.5 };
         }
+        // 내보내기 결과 파일(가짜 mp4 머리). 웹은 쓰기 알림으로 받는다
+        this.writeFile(q.path, new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]));
       } else more = true;
     }
     return more;
@@ -1500,7 +1566,8 @@ export class FakeEngine {
       case 'file.save': {
         if (!s.path) throw new FakeEngineError('file.save: project has no path, use file.saveAs');
         s.dirty = false;
-        return { path: s.path, bytes: 100 };
+        const bytes = this.writeProject(s.path);
+        return { path: s.path, bytes };
       }
       case 'file.saveAs': {
         const path = p['path'] as string;
@@ -1512,11 +1579,58 @@ export class FakeEngine {
             .pop()
             ?.replace(/\.fcproj$/i, '') ?? s.name;
         s.dirty = false;
-        return { path, bytes: 100, backup: null };
+        const bytes = this.writeProject(path);
+        return { path, bytes, backup: null };
+      }
+      case 'file.saveCopy': {
+        const path = p['path'] as string;
+        if (!path) throw new FakeEngineError('invalid parameters for `file.saveCopy`: missing path');
+        const bytes = this.writeProject(path);
+        return { path, bytes, backup: null };
+      }
+      case 'media.status':
+        return s.items
+          .filter((it) => typeof p['item'] !== 'number' || it.item === p['item'])
+          .map((it) => ({ item: it.item, name: it.name, path: it.path ?? null, status: it.missing ? 'missing' : it.path ? 'online' : 'generated' }));
+      case 'media.findMissing':
+        return {
+          missing: s.items
+            .filter((it) => it.missing)
+            .map((it) => ({
+              item: it.item,
+              name: it.name,
+              fileName: (it.path ?? it.name).split(/[\\/]/).pop(),
+              path: it.path ?? '',
+              status: 'missing',
+              duration: it.duration,
+            })),
+        };
+      case 'media.relink': {
+        const it = s.items.find((x) => x.item === p['item']);
+        if (!it) throw new FakeEngineError(`media.relink: no item ${String(p['item'])}`);
+        const path = p['path'] as string;
+        if (!path) throw new FakeEngineError('media.relink: need `path`');
+        this.snapshot('Link Media');
+        it.path = path;
+        it.missing = false;
+        this.touch();
+        return { relinked: [{ item: it.item, path }], remaining: s.items.filter((x) => x.missing).map((x) => x.item) };
       }
       case 'file.open': {
         const path = p['path'] as string;
         if (path.endsWith('.missing')) throw new FakeEngineError(`${path}: no such file`);
+        const saved = this.savedStates.get(path);
+        if (!saved && path.startsWith('opfs:/')) throw new FakeEngineError(`${path}: not found (OPFS file not staged for this command)`);
+        if (saved) {
+          this.state = clone(saved);
+          this.state.path = path;
+          this.state.dirty = false;
+          this.state.revision = s.revision + 1;
+          // 새로고침 뒤의 웹처럼 File 핸들이 없는 항목은 찾을 수 없다
+          for (const it of this.state.items) if (it.path && !this.files.has(it.path) && it.path.startsWith('/files/')) it.missing = true;
+          this.events.push({ type: 'projectChanged', revision: this.state.revision });
+          return { migrated: false, schemaVersion: 12, missingMedia: this.state.items.filter((it) => it.missing).length };
+        }
         this.state = FakeEngine.freshState(
           path
             .split(/[\\/]/)

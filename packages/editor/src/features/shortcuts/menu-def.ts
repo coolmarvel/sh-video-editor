@@ -10,6 +10,7 @@ import { useEffects } from '../effects/store';
 import { PLAYBACK_RATES, useMonitor } from '../monitor/store';
 import { useTimeline } from '../timeline/store';
 import { useAudio } from '../audio/store';
+import { recentMenuEntries } from '../project/recent';
 
 export interface MenuItemDef {
   kind: 'item';
@@ -54,6 +55,14 @@ export const MENUS: MenuDef[] = [
     items: [
       item('새 프로젝트', 'file.new'),
       item('열기...', 'file.open'),
+      // 최근 프로젝트는 열 때마다 다시 읽는다(getter). 목록은 features/project/recent
+      {
+        kind: 'sub',
+        label: '최근 프로젝트',
+        get items() {
+          return recentMenuEntries();
+        },
+      },
       item('저장', 'file.save'),
       item('다른 이름으로 저장...', 'file.saveAs'),
       sep,

@@ -8,6 +8,7 @@ import { hasMediaItem, readMediaItemIds } from '../timeline/dnd';
 import { runAction } from '../shortcuts/actions';
 import { addToTimeline, createDemoEdition } from './edition';
 import { useOnboarding } from './store';
+import { RecentProjects } from '../project/RecentProjects';
 import './onboarding.css';
 
 export const GUIDE_STEPS: ReadonlyArray<{ title: string; text: string }> = [
@@ -88,6 +89,7 @@ export function OnboardingCard({ variant }: Props) {
           자세히
         </button>
       </div>
+      {droppable && <RecentProjects />}
     </div>
   );
 }

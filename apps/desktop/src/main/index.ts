@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { runDiagnostics } from './diagnostics';
 import { EngineSupervisor } from './engine-supervisor';
 import { registerPickFilesIpc } from './pickFiles';
+import { registerCacheIpc } from './cache-db';
 
 // 엔진(.node)은 utility process(src/engine-host)에 산다. main 은 띄우고 감시하고 렌더러를 포트로 이어 줄 뿐이다.
 const engine = new EngineSupervisor();
@@ -60,6 +61,8 @@ void app.whenReady().then(() => {
   engine.start(join(app.getPath('userData'), 'engine'));
   registerPickFilesIpc();
   registerDialogIpc();
+  // 호스트 캐시(썸네일·파형·최근 프로젝트): userData/cache.sqlite (node:sqlite, ADR-0004)
+  registerCacheIpc(join(app.getPath('userData'), 'cache.sqlite'));
   const win = createWindow();
   runDiagnostics(win, engine);
   app.on('activate', () => {

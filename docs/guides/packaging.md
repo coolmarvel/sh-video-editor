@@ -169,6 +169,12 @@ napi 바인딩은 Windows·macOS 타깃에서만 `filmcraft-platform` 에 의존
 `filmcraft_speech::load`/`Whisper::load` 가 `std::fs` 로 읽는 것을 바이트 입력으로 바꾸는 vendor 변경, (3) 다운로드 feature(ureq) 대체,
 (4) wasm 크기·추론 속도 측정이 더 필요해 M2-2 에서는 **데스크톱 전용**으로 두고 웹 자막 탭은 안내 문구만 보인다(로드맵 M4).
 
+## 호스트 캐시(SQLite)는 내장 모듈
+
+캐시 DB(`userData/cache.sqlite`, ADR-0004)는 Node 내장 `node:sqlite` 로 연다. 네이티브 애드온(`better-sqlite3` 등)을 쓰지
+않으므로 electron-builder 의 rebuild 나 Windows 용 `.node` 추가가 없다. 패키징에 필요한 네이티브 파일은 엔진 애드온 하나뿐이다.
+electron-vite 는 `node:` 빌트인을 외부 모듈로 두므로 `out/main/index.js` 에 `require("node:sqlite")` 가 그대로 남아야 한다.
+
 ## 배포 소스 보호
 
 `apps/desktop/scripts/obfuscate.cjs` 가 `out/` 의 JS 를 난독화한다(`controlFlowFlattening`·`deadCodeInjection`·

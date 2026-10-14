@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { useEditor } from '../../store';
 import { findJobReport, runQueueLoop, type QueueItem } from './jobs';
 import { buildUiPresets, formatBytes, usableFormats, type EngineFormat, type EnginePreset, type UiPreset } from './presets';
+import { captureWrittenFile, downloadExport, isWebExport, webExportPath, type WrittenCapture } from './web-download';
 
 export interface Resolved {
   frames: number;
@@ -45,6 +46,8 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const NO_SEQUENCE = '내보낼 편집본이 없습니다. 먼저 미디어를 타임라인에 넣어 주세요.';
 
 let stopLoop: (() => void) | null = null;
+/** 웹: 내보내기 결과 바이트 수신(onFileWritten). 작업이 끝나면 다운로드로 떨어뜨린다 */
+let capture: WrittenCapture | null = null;
 
 export const useExport = create<ExportState>((set, get) => {
   const bridge = () => useEditor.getState().bridge;
@@ -108,12 +111,16 @@ export const useExport = create<ExportState>((set, get) => {
         const formats = usableFormats(formatsRaw);
         const presets = buildUiPresets(presetsRaw.presets);
         const first = presets[0];
+        // 엔진의 기본 이름 "Untitled" 는 화면처럼 "제목 없음" 으로
+        const projectName = project.name === 'Untitled' ? '제목 없음' : project.name;
         set({
           formats,
           presets,
           formatId: formats[0]?.id ?? 'h264',
           presetId: presets.some((p) => p.id === get().presetId) ? get().presetId : (first?.id ?? ''),
-          defaultName: `${project.name || 'export'}.mp4`,
+          defaultName: `${projectName || 'export'}.mp4`,
+          // 웹은 저장 위치가 없다: 엔진 가상 경로에 쓰고 완료되면 다운로드한다
+          path: isWebExport(b) ? webExportPath(`${projectName || 'export'}.mp4`) : get().path,
           loading: false,
         });
         await resolve();
@@ -126,6 +133,8 @@ export const useExport = create<ExportState>((set, get) => {
       if (get().job?.status === 'encoding') return;
       stopLoop?.();
       stopLoop = null;
+      capture?.dispose();
+      capture = null;
       set({ open: false, job: null });
     },
 
@@ -154,6 +163,8 @@ export const useExport = create<ExportState>((set, get) => {
       if (!b || !preset || !path || problem) return;
       set({ outcome: null });
       try {
+        capture?.dispose();
+        capture = isWebExport(b) ? captureWrittenFile(b, path) : null;
         await b.execute('export.queue.clear', { all: false });
         const added = (await b.execute('export.queue.add', {
           ...preset.params,
@@ -201,6 +212,26 @@ export const useExport = create<ExportState>((set, get) => {
     const bytes = report?.result?.bytes;
     const seconds = report?.result?.seconds ?? (Date.now() - startedAt) / 1000;
     const size = bytes === undefined ? '' : `, ${formatBytes(bytes)}`;
+    // 웹: 엔진이 쓴 바이트를 받아 다운로드로 떨어뜨린다
+    const cap = capture;
+    if (cap) {
+      capture = null;
+      const data = await cap.take().catch(() => null);
+      cap.dispose();
+      const fileName = item.path.split('/').pop() || 'export.mp4';
+      if (!data || data.length === 0) {
+        set({ outcome: { kind: 'danger', text: `내보내기 결과를 받지 못했습니다: ${fileName}` } });
+        return;
+      }
+      downloadExport(fileName, data);
+      set({
+        outcome: {
+          kind: 'success',
+          text: `내보냈습니다: ${fileName} (${seconds.toFixed(1)}초 걸림, ${formatBytes(data.length)}). 브라우저 다운로드 폴더를 확인하세요.`,
+        },
+      });
+      return;
+    }
     set({
       outcome: { kind: 'success', text: `내보냈습니다: ${item.path} (${seconds.toFixed(1)}초 걸림${size})` },
     });

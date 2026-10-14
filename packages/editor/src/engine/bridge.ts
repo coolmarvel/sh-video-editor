@@ -83,6 +83,39 @@ export interface SttHost {
   releaseModel(): Promise<void>;
 }
 
+/**
+ * 호스트 캐시(ADR-0004). 데스크톱은 userData/cache.sqlite(node:sqlite), 웹은 IndexedDB. 세션을 넘어 남는 파생 데이터만 둔다
+ * (썸네일 PNG, 파형 피크, 최근 프로젝트). 편집 상태는 두지 않는다. 키는 미디어 파일 경로 기준이라 항목 id 가 바뀌어도 맞는다.
+ * `mtime` 은 호스트가 채운다(데스크톱은 파일 수정 시각, 웹은 0). 없는 키는 null. 실패는 조용히 무시해도 된다(캐시).
+ */
+export interface ThumbCacheKey {
+  path: string;
+  tick: number;
+  width: number;
+}
+export interface PeaksCacheKey {
+  path: string;
+  perSecond: number;
+}
+export interface RecentProject {
+  path: string;
+  name: string;
+  /** 마지막으로 열거나 저장한 시각(Unix ms) */
+  openedAt: number;
+}
+export interface CacheStore {
+  getThumb(key: ThumbCacheKey): Promise<Uint8Array | null>;
+  putThumb(key: ThumbCacheKey, png: Uint8Array): Promise<void>;
+  getPeaks(key: PeaksCacheKey): Promise<Float32Array | null>;
+  putPeaks(key: PeaksCacheKey, peaks: Float32Array): Promise<void>;
+  /** 최근 프로젝트, 최근에 연 것이 먼저. `limit` 기본 10 */
+  recentProjects(limit?: number): Promise<RecentProject[]>;
+  /** 열거나 저장했을 때. 같은 경로는 시각만 갱신한다 */
+  touchProject(path: string, name: string): Promise<void>;
+  /** 더 이상 없는 파일을 목록에서 뺀다 */
+  forgetProject(path: string): Promise<void>;
+}
+
 export interface EngineBridge {
   version(): Promise<string>;
   commands(): Promise<CommandSpec[]>;
@@ -169,4 +202,6 @@ export interface EngineBridge {
 
   /** [데스크톱 전용] 자동 자막(음성 인식). 없으면 화면이 "데스크톱 앱에서만" 안내를 보인다(features/stt). */
   stt?: SttHost;
+  /** 호스트 캐시(썸네일·파형·최근 프로젝트). 없으면 화면은 메모리 캐시만 쓴다(features/cache). */
+  cache?: CacheStore;
 }

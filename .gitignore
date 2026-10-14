@@ -45,3 +45,9 @@ feedback/*
 
 # Windows 크로스 빌드 target (cargo-xwin)
 packages/engine/target-win/
+
+# 테스트 산출물 (vitest 커버리지, Playwright 트레이스·스크린샷)
+coverage/
+apps/*/e2e/.results/
+test-results/
+playwright-report/

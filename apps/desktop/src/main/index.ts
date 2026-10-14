@@ -1,41 +1,14 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import { dialog } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'node:path';
-import * as engine from '@sh-video-editor/engine-node';
+import { runDiagnostics } from './diagnostics';
+import { EngineSupervisor } from './engine-supervisor';
 import { registerPickFilesIpc } from './pickFiles';
 
-// 엔진은 당장은 메인 프로세스에 산다. 마일스톤 1 에서 utility process 로 옮겨 크래시를 격리한다(ADR-0002).
-let session: engine.Engine | null = null;
-function getSession(): engine.Engine {
-  if (!session) session = new engine.Engine();
-  return session;
-}
+// 엔진(.node)은 utility process(src/engine-host)에 산다. main 은 띄우고 감시하고 렌더러를 포트로 이어 줄 뿐이다.
+const engine = new EngineSupervisor();
 
-function registerEngineIpc() {
-  ipcMain.handle('engine:version', () => engine.engineVersion());
-  ipcMain.handle('engine:commands', () => engine.commandCatalog());
-  ipcMain.handle('engine:execute', (_e, id: string, paramsJson?: string) => getSession().execute(id, paramsJson));
-  ipcMain.handle('engine:isEnabled', (_e, id: string) => getSession().isEnabled(id));
-  ipcMain.handle('engine:undo', () => getSession().undo());
-  ipcMain.handle('engine:redo', () => getSession().redo());
-  ipcMain.handle('engine:playhead', () => getSession().playhead());
-  ipcMain.handle('engine:setPlayhead', (_e, tick: number) => getSession().setPlayhead(tick));
-  ipcMain.handle('engine:pumpJobs', (_e, budgetMs: number) => getSession().pumpJobs(budgetMs));
-  ipcMain.handle('engine:renderFrame', (_e, tick: number, scale: number) => {
-    const f = getSession().renderFrame(tick, scale);
-    if (!f) return null;
-    // Buffer 는 구조적 복제로 Uint8Array 가 되어 렌더러에 넘어간다
-    return { width: f.width, height: f.height, rgba: new Uint8Array(f.rgba) };
-  });
-}
-
-/** 자동 저장·복구와 파일 대화상자. 엔진 데이터 디렉토리는 userData/engine (preferences.json, Auto-Save/, Recovery/). */
-function registerPersistenceIpc() {
-  ipcMain.handle('engine:isDirty', () => getSession().isDirty());
-  ipcMain.handle('engine:startAutosave', () =>
-    getSession().startAutosave(join(app.getPath('userData'), 'engine'), -new Date().getTimezoneOffset() * 60),
-  );
-  ipcMain.handle('engine:pollPersistence', () => getSession().pollPersistence());
+/** 파일 대화상자(엔진 아님). 자동 저장·복구는 엔진 프로세스가 맡고 데이터 디렉토리는 userData/engine. */
+function registerDialogIpc() {
   ipcMain.handle('dialog:pickSavePath', async (e, defaultName: string, filters?: Electron.FileFilter[]) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     const options: Electron.SaveDialogOptions = { defaultPath: defaultName, filters: filters ?? [] };
@@ -66,26 +39,23 @@ function createWindow() {
 }
 
 void app.whenReady().then(() => {
-  registerEngineIpc();
+  engine.start(join(app.getPath('userData'), 'engine'));
   registerPickFilesIpc();
-  registerPersistenceIpc();
+  registerDialogIpc();
   const win = createWindow();
-  // 스모크 테스트(scripts/smoke.cjs): 창이 뜨고 엔진이 응답하면 "smoke: ok" 를 찍고 끝낸다.
-  if (process.env['SH_SMOKE']) {
-    win.webContents.once('did-finish-load', () => {
-      const count = JSON.parse(engine.commandCatalog()).length as number;
-      console.log(`smoke: ok (${engine.engineVersion()}, commands ${count})`);
-      app.exit(0);
-    });
-  }
+  runDiagnostics(win, engine);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-// 정상 종료: 저장하지 않은 변경이 있으면 복구 저널을 남기고, 없으면 세션 디렉토리를 지운다.
-app.on('will-quit', () => {
-  session?.shutdown();
+// 정상 종료: 엔진에 shutdown 을 보내 복구 저널을 정리한 뒤 끝낸다(한 번만).
+let quitting = false;
+app.on('before-quit', (e) => {
+  if (quitting) return;
+  quitting = true;
+  e.preventDefault();
+  void engine.shutdown().finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => {

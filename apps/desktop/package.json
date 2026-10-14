@@ -14,8 +14,9 @@
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "smoke": "xvfb-run -a node scripts/smoke.cjs",
-    "pack:win": "npm run build && electron-builder --win --dir",
-    "dist:win": "npm run build && electron-builder --win"
+    "pack:win": "npm run check:win-engine && npm run build && electron-builder --win --dir",
+    "dist:win": "npm run check:win-engine && npm run build && electron-builder --win",
+    "check:win-engine": "node scripts/check-win-engine.cjs"
   },
   "dependencies": {
     "@sh-video-editor/engine-node": "*"
@@ -35,13 +36,16 @@
   "build": {
     "appId": "seonghyunlee.shvideoeditor",
     "productName": "SH Video Editor",
+    "electronVersion": "44.7.2",
     "copyright": "Copyright © 2026 이성현 (SeongHyun Lee)",
     "directories": {
       "output": "release"
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/@sh-video-editor/engine-node/src/**",
+      "!node_modules/@sh-video-editor/engine-node/{Cargo.toml,build.rs}"
     ],
     "extraResources": [
       {
@@ -53,7 +57,13 @@
       "**/*.node"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "files": [
+        "out/**/*",
+        "package.json",
+        "!**/*.linux-*.node",
+        "!**/*.darwin-*.node"
+      ]
     },
     "nsis": {
       "oneClick": false,

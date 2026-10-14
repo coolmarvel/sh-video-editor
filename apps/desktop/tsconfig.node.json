@@ -9,5 +9,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/main", "src/preload", "electron.vite.config.ts"]
+  "include": ["src/main", "src/preload", "src/engine-host", "src/engine-protocol.ts", "electron.vite.config.ts"]
 }

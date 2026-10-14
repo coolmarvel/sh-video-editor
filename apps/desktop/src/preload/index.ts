@@ -33,8 +33,10 @@ const shEngine = {
     call<{ width: number; height: number; rgba: Uint8Array }>('renderItemThumbnail', item, tick, width),
   renderAudio: (tick: number, frames: number, sampleRate?: number) => call<Float32Array>('renderAudio', tick, frames, sampleRate),
   audioPeaks: (item: number, perSecond: number) => call<Float32Array>('audioPeaks', item, perSecond),
-  /** 엔진 프로세스가 죽었을 때(main 이 자동 재시작) 알림 구독. 해제 함수를 돌려준다. */
+  /** 엔진 프로세스가 죽었을 때(main 이 자동 재시작) 알림 구독. 해제 함수를 돌려준다. 알림에 문제 보고 파일 경로가 있다 */
   onCrashed,
+  /** 문제 보고 폴더(<userData>/crash-reports)를 OS 파일 탐색기로 연다. 파일 경로를 주면 그 파일을 선택한 채로. 폴더 경로를 돌려준다 */
+  openCrashReports: (path?: string | null) => ipcRenderer.invoke('host:openCrashReports', path ?? null) as Promise<string>,
   // 자동 자막(features/stt). 엔진 프로세스가 libuv 스레드에서 돌리고, 진행률은 sttProgress 폴링으로 본다
   sttDownloadModel: (model: string) => call<void>('sttDownloadModel', model),
   sttTranscribeItem: (item: number, model: string, language: string) => call<unknown>('sttTranscribeItem', item, model, language),

@@ -171,7 +171,12 @@ export const MENUS: MenuDef[] = [
   {
     id: 'help',
     label: '도움말',
-    items: [item('사용 안내', 'help.guide'), sep, item('SH Video Editor 정보', 'help.about')],
+    items: [
+      item('사용 안내', 'help.guide'),
+      item('문제 보고 폴더 열기', 'help.crashReports', { hosts: ['desktop'] }),
+      sep,
+      item('SH Video Editor 정보', 'help.about'),
+    ],
   },
 ];
 

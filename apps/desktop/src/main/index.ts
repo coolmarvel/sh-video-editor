@@ -1,10 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import { join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { runDiagnostics } from './diagnostics';
 import { EngineSupervisor } from './engine-supervisor';
 import { registerPickFilesIpc } from './pickFiles';
 import { registerCacheIpc } from './cache-db';
+import { CRASH_REPORT_DIR } from './crash-report';
 
 // 엔진(.node)은 utility process(src/engine-host)에 산다. main 은 띄우고 감시하고 렌더러를 포트로 이어 줄 뿐이다.
 const engine = new EngineSupervisor();
@@ -23,6 +24,14 @@ function registerDialogIpc() {
     const r = await (win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
     return r.canceled ? null : (r.filePaths[0] ?? null);
   });
+  // 문제 보고(M4-6): 보고 파일이 있는 폴더를 OS 파일 탐색기로 연다. 파일을 지정하면 그 파일을 선택한 채로
+  ipcMain.handle('host:openCrashReports', async (_e, path?: string | null) => {
+    const dir = crashReportDir();
+    await mkdir(dir, { recursive: true });
+    if (path && typeof path === 'string' && path.startsWith(dir)) shell.showItemInFolder(path);
+    else await shell.openPath(dir);
+    return dir;
+  });
   // 화면이 만든 바이트(스티커 PNG)를 임시 파일로 써 준다. 엔진 프로세스는 이 경로를 file.import 로 읽는다
   ipcMain.handle('host:writeTempFile', async (_e, name: string, bytes: Uint8Array) => {
     const dir = join(app.getPath('temp'), 'sh-video-editor');
@@ -35,6 +44,11 @@ function registerDialogIpc() {
     await writeFile(path, Buffer.from(bytes));
     return path;
   });
+}
+
+/** 문제 보고 파일 폴더: <userData>/crash-reports */
+function crashReportDir(): string {
+  return join(app.getPath('userData'), CRASH_REPORT_DIR);
 }
 
 function createWindow() {
@@ -58,7 +72,7 @@ void app.whenReady().then(() => {
   // Electron 기본 메뉴(File/Edit/View/Window)를 없앤다. 메뉴와 단축키는 화면(packages/editor)이 그린다.
   // 입력란의 복사·붙여넣기는 Windows/Linux 에서 Chromium 이 메뉴 없이도 처리한다.
   Menu.setApplicationMenu(null);
-  engine.start(join(app.getPath('userData'), 'engine'));
+  engine.start(join(app.getPath('userData'), 'engine'), crashReportDir());
   registerPickFilesIpc();
   registerDialogIpc();
   // 호스트 캐시(썸네일·파형·최근 프로젝트): userData/cache.sqlite (node:sqlite, ADR-0004)

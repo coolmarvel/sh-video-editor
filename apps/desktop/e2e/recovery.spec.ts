@@ -7,13 +7,27 @@
  *  2. 알림 대기가 무한이었다. 상한(CRASH_NOTICE_MS)을 두고 안 오면 현재 엔진 pid 를 다시 죽인다(최대 KILL_ATTEMPTS 회).
  * 단계마다 경과 시간을 로그로 남겨 실패 보고에서 어디서 멈췄는지 보이게 한다.
  */
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 
 const APP_DIR = resolve(__dirname, '..');
 const OUT_MAIN = join(APP_DIR, 'out', 'main', 'index.js');
+const APP_VERSION = (JSON.parse(readFileSync(join(APP_DIR, 'package.json'), 'utf8')) as { version: string }).version;
+
+/** 문제 보고 파일(src/main/crash-report.ts 의 CrashReport) 중 이 테스트가 보는 부분 */
+interface CrashReportFile {
+  schema: number;
+  app: { name: string; version: string };
+  engine: { version: string | null };
+  os: { platform: string; electron: string };
+  exit: { code: number; signal: string | null };
+  crashes: { total: number };
+  recentCommands: Array<{ id: string; ok: boolean; at: number; ms: number }>;
+  recentEdits: Array<{ id: string; ok: boolean; at: number; ms: number }>;
+  memory: { main: { rss: number }; system: { total: number } };
+}
 
 /** 크래시 알림을 기다리는 상한(한 번의 kill 마다) */
 const CRASH_NOTICE_MS = 20_000;
@@ -103,6 +117,49 @@ test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 �
     const version = await page.evaluate(() => (window as unknown as CrashWindow).shEngine.version());
     expect(version).toContain('sh-video-engine');
     log('새 엔진 version 응답');
+
+    // 문제 보고 파일(M4-6): <userData>/crash-reports/YYYY-MM-DD-HHMMSS.json 하나. 종료 코드·버전·마지막 커맨드가 들어 있다
+    const reportDir = join(userData, 'crash-reports');
+    await expect.poll(() => (existsSync(reportDir) ? readdirSync(reportDir).filter((f) => f.endsWith('.json')) : []), { timeout: 10_000 }).toHaveLength(1);
+    const reportName = readdirSync(reportDir).find((f) => f.endsWith('.json'))!;
+    expect(reportName).toMatch(/^\d{4}-\d{2}-\d{2}-\d{6}\.json$/);
+    const report = JSON.parse(readFileSync(join(reportDir, reportName), 'utf8')) as CrashReportFile;
+    expect(report.schema).toBe(1);
+    expect(report.app.version).toBe(APP_VERSION);
+    expect(report.engine.version).toContain('sh-video-engine');
+    expect(report.os.platform).toBe(process.platform);
+    expect(report.exit.code).toBe(code);
+    if (process.platform !== 'win32') expect(report.exit.signal).toBe('SIGKILL');
+    expect(report.crashes.total).toBe(1);
+    expect(report.memory.main.rss).toBeGreaterThan(0);
+    expect(report.memory.system.total).toBeGreaterThan(0);
+    // 전체 마지막 20개는 화면의 읽기(inspect 류)로 차므로 편집 흐름은 recentEdits 에서 본다
+    const ids = report.recentCommands.map((c) => c.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.length).toBeLessThanOrEqual(20);
+    const edits = report.recentEdits.map((c) => c.id);
+    expect(edits).toContain('file.importDemoFootage');
+    // "타임라인에 넣기" 는 편집본을 클립으로 만든다(file.newSequence fromItem, features/onboarding/edition.ts)
+    expect(edits).toContain('file.newSequence');
+    expect(edits.some((id) => /\.(inspect|list|items|status)$/.test(id))).toBe(false);
+    expect(report.recentEdits.length).toBeLessThanOrEqual(20);
+    for (const c of [...report.recentCommands, ...report.recentEdits]) {
+      expect(typeof c.ok).toBe('boolean');
+      expect(c.ms).toBeGreaterThanOrEqual(0);
+      expect(c.at).toBeGreaterThan(0);
+    }
+    log(`문제 보고 파일 ${reportName}: 커맨드 ${ids.length}개, 편집 ${edits.length}개, 종료 코드 ${report.exit.code}`);
+
+    // 토스트에 "폴더 열기" 버튼이 붙는다(누르면 OS 탐색기가 열리므로 여기서는 닫기만)
+    const toast = page.getByRole('status').filter({ hasText: '문제 보고 파일을 남겼습니다' });
+    await expect(toast).toBeVisible({ timeout: 20_000 });
+    await expect(toast.getByRole('button', { name: '폴더 열기' })).toBeVisible();
+    await toast.getByRole('button', { name: '알림 닫기' }).click();
+    // 도움말 메뉴에도 폴더 열기 항목이 있다(데스크톱만)
+    await page.getByRole('menubar').getByRole('button', { name: '도움말' }).click();
+    await expect(page.getByRole('menuitem', { name: '문제 보고 폴더 열기' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    log('문제 보고 토스트·메뉴 확인');
 
     // 화면은 살아 있고(새 엔진은 빈 세션) 다시 편집할 수 있다
     await expect(page.getByRole('menubar')).toBeVisible();

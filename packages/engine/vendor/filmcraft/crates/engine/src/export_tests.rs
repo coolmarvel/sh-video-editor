@@ -182,6 +182,14 @@ fn every_builtin_preset_exports_and_ffprobe_confirms() {
                 assert_eq!(a["codec_name"], "aac", "{name}");
                 assert!((num(&a["bit_rate"]) / 1000.0 - 320.0).abs() < 80.0, "{name}: AAC {}", a["bit_rate"]);
             }
+            "hevc" => {
+                // the ported software encoder (filmcraft-hevcenc): Main profile in an hvc1 MP4 with AAC
+                assert!(fmt_name.contains("mp4"), "{name}: {fmt_name}");
+                assert_eq!(v["codec_name"], "hevc", "{name}");
+                assert_eq!(v["profile"], "Main", "{name}");
+                assert_eq!(a["codec_name"], "aac", "{name}");
+                assert!((num(&a["bit_rate"]) / 1000.0 - 320.0).abs() < 80.0, "{name}: AAC {}", a["bit_rate"]);
+            }
             "prores" => {
                 assert!(fmt_name.contains("mov"), "{name}: {fmt_name}");
                 assert_eq!(v["codec_name"], "prores", "{name}");

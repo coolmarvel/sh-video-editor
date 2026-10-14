@@ -144,6 +144,57 @@ fn webm_export_roundtrip() {
     assert_eq!(d.duration_ns(), Some(1_000_000_000), "24 frames at 24 fps");
 }
 
+/// HEVC (filmcraft-hevcenc) in MP4: `hvc1` sample entry with an `hvcC`, AAC audio, read back with our
+/// demuxer and decoder; ffprobe (when installed) sees `hevc` Main.
+#[test]
+fn hevc_export_roundtrip() {
+    let (p, seq, m) = project();
+    let path = tmp("out-hevc.mp4");
+    let prog = Progress::default();
+    let s = ExportSettings { format: Format::Hevc, path: path.clone(), bitrate_kbps: 800, ..Default::default() };
+    assert_eq!((s.audio_codec(), s.extension()), (AudioCodec::Aac, "mp4"));
+    let r = export(&p, seq, &s, &m, &prog).unwrap();
+    assert_eq!(r.frames, 24);
+    assert!(r.bytes > 4_000, "{}", r.bytes);
+    let bytes: Arc<[u8]> = std::fs::read(&path).unwrap().into();
+    let src = filmcraft_codecs::open_bytes("out-hevc.mp4", bytes.clone()).unwrap();
+    let info = src.info();
+    let v = info.video.as_ref().unwrap();
+    assert_eq!((v.width, v.height), (320, 180));
+    assert!(v.codec.to_ascii_lowercase().contains("hevc") || v.codec.to_ascii_lowercase().contains("h.265"), "{}", v.codec);
+    let a = info.audio.as_ref().unwrap();
+    assert!(a.codec.to_ascii_lowercase().contains("aac"), "{}", a.codec);
+    assert!((info.duration.seconds() - 1.0).abs() < 0.03, "{}", info.duration.seconds());
+    let f = src.video_frame(FrameRequest::full(Tick(TICKS_PER_SECOND / 2))).unwrap().to_rgba8();
+    assert!(f[0] > 220 && f[1] < 40 && f[2] < 40, "{:?}", &f[..4]);
+    // the sample entry: hvc1 with a complete hvcC (VPS, SPS, PPS arrays, 4-byte lengths)
+    let mp4 = filmcraft_isobmff::open(&bytes[..]).unwrap();
+    let vt = mp4.tracks.iter().find(|t| t.kind == filmcraft_isobmff::TrackKind::Video).unwrap();
+    let e = &vt.entries[0];
+    assert_eq!(&e.format.0, b"hvc1");
+    let filmcraft_isobmff::CodecConfig::Hevc(cfg) = &e.codec else { panic!("hvcC expected, got {:?}", e.codec) };
+    assert_eq!((cfg.general_profile_idc, cfg.length_size, cfg.bit_depth_luma), (1, 4, 8));
+    assert_eq!(cfg.arrays.iter().map(|a| a.nal_type).collect::<Vec<_>>(), vec![32, 33, 34]);
+    if let Some(ffprobe) = filmcraft_testkit::ffprobe_or_skip("export hevc stream") {
+        let out = std::process::Command::new(ffprobe)
+            .args([
+                "-v",
+                "error",
+                "-count_packets",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name,profile,nb_read_packets",
+                "-of",
+                "csv=p=0",
+                &path,
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "hevc,Main,24");
+    }
+}
+
 #[test]
 fn prores_export_roundtrip() {
     let (p, seq, m) = project();

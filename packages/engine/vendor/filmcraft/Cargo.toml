@@ -36,6 +36,7 @@ filmcraft-opus = { path = "crates/opus" }
 filmcraft-h264enc = { path = "crates/h264enc" }
 filmcraft-vp9enc = { path = "crates/vp9enc" }
 filmcraft-opusenc = { path = "crates/opusenc" }
+filmcraft-hevcenc = { path = "crates/hevcenc" }
 filmcraft-audio-dsp = { path = "crates/audio-dsp" }
 filmcraft-frame = { path = "crates/frame" }
 filmcraft-media = { path = "crates/media" }
@@ -129,4 +130,7 @@ codegen-units = 1
 opt-level = 3
 
 [profile.dev.package.filmcraft-opusenc]
+opt-level = 3
+
+[profile.dev.package.filmcraft-hevcenc]
 opt-level = 3

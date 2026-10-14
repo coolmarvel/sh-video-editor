@@ -79,6 +79,12 @@ fn mxf(format: Format, codec: MxfVideoCodec, profile: &str) -> ExportSettings {
     s
 }
 
+/// HEVC (MP4): `filmcraft-hevcenc` at a target bitrate (VBR, 1 pass; about 60 % of the H.264 preset
+/// of the same size for a similar picture), AAC 320 kbps stereo at 48 kHz.
+fn hevc(size: Option<(u32, u32)>, kbps: u32, max_kbps: u32) -> ExportSettings {
+    ExportSettings { format: Format::Hevc, ..h264(size, kbps, max_kbps) }
+}
+
 /// WebM: VP9 at a target bitrate (VBR, 1 pass), Opus 128 kbps stereo at 48 kHz.
 fn webm(size: Option<(u32, u32)>, kbps: u32, max_kbps: u32) -> ExportSettings {
     ExportSettings {
@@ -131,6 +137,13 @@ pub fn builtin_presets() -> Vec<ExportPreset> {
             ExportSettings { bitrate_mode: BitrateMode::Vbr2Pass, ..h264(Some((3840, 2160)), 50_000, 65_000) },
         ),
         p("Social Vertical 1080×1920", web, "H.264 9:16 portrait for short-form social video, scaled to fill, 12 Mbps", vertical),
+        p(
+            "HEVC 1080p (Half Size)",
+            web,
+            "MP4, HEVC (H.265) Main 1920×1080, VBR 1 pass, 12 Mbps target, AAC 320 kbps; about half the size of H.264 at the same quality",
+            hevc(Some((1920, 1080)), 12_000, 16_000),
+        ),
+        p("HEVC 2160p 4K", web, "MP4, HEVC (H.265) Main 3840×2160, VBR 1 pass, 36 Mbps target, AAC 320 kbps", hevc(Some((3840, 2160)), 36_000, 48_000)),
         p(
             "WebM 1080p (Web)",
             web,

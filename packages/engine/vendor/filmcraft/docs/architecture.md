@@ -27,7 +27,7 @@ Design principles:
  L2  edit · codecs · interchange · captions · speech
  L1  frame · media · project · audio-dsp · text
  L0  foundation: time · geom · color · bitstream · testkit (dev-dependency only)
-     codecs/containers: isobmff · matroska · mxf · cfb · mpegts · ogg · h264 · h264enc · hevc · vp9 · vp9enc · av1 · mpeg2v · prores · dnx · apv · aac · ac3 · opus · opusenc
+     codecs/containers: isobmff · matroska · mxf · cfb · mpegts · ogg · h264 · h264enc · hevc · hevcenc · vp9 · vp9enc · av1 · mpeg2v · prores · dnx · apv · aac · ac3 · opus · opusenc
 ```
 
 Crates are named `filmcraft-<dir>` (`crates/time` is `filmcraft-time`). The apps are `filmcraft`
@@ -46,7 +46,7 @@ and `filmcraft-cli`.
 | `mpegts` | L0 | MPEG-2 Systems demux (H.222.0): transport streams (188 / 192-byte BDAV / 204), program streams (MPEG-2 / MPEG-1, VOB, MOD), PSI, PES, PTS / PCR, access-unit index built on open ([README](../crates/mpegts/README.md)) |
 | `ogg` | L0 | Ogg demux (RFC 3533), Ogg Opus timing (RFC 7845 granules, pre-skip, end trimming), Vorbis headers |
 | `h264`, `h264enc` | L0 | H.264 decoder; H.264 encoder |
-| `hevc` | L0 | H.265 Main/Main 10 decoder |
+| `hevc`, `hevcenc` | L0 | H.265 Main/Main 10 decoder; HEVC encoder (Main / Main 10 4:2:0, IDR + P slices, CABAC, deblocking, bitrate or constant-QP rate control, for MP4 `hvc1` export; ported from effectcraft, see `packages/engine/VENDOR.md`) |
 | `vp9`, `vp9enc` | L0 | VP9 decoder; VP9 encoder (profile 0, 8-bit 4:2:0; ported from effectcraft, see `packages/engine/VENDOR.md`) |
 | `opusenc` | L0 | Opus encoder (SILK / hybrid / CELT, 48 kHz, 20 ms; ported from effectcraft) |
 | `prores` | L0 | ProRes decoder and encoder |

@@ -1,6 +1,6 @@
 //! Clip-level audio: clip gain → clip effects → Volume / Channel Volume / Panner, audio transitions
-//! and speed changes (varispeed resampling), summed per track. The track/submix/Mix graph that
-//! consumes it is [`crate::mixer`].
+//! and speed changes (varispeed resampling, or WSOLA time stretch with Maintain Audio Pitch), summed
+//! per track. The track/submix/Mix graph that consumes it is [`crate::mixer`].
 //!
 //! Stereo, mono and adaptive tracks carry two channels. 5.1 tracks carry six (L, R, C, LFE, Ls,
 //! Rs): their clips play the source's first six channels (or the six `source_channels` picked with
@@ -358,6 +358,12 @@ fn raw_channels(item: &TrackItem, src: SourceAudio, x0: i64, len: usize, sr: u32
         remixed
     } else if (speed - 1.0).abs() < 1e-9 && !item.reverse {
         src(src_start_ticks.to_units_floor(sr as i64), n)
+    } else if item.maintain_pitch && !item.reverse && item.frame_hold.is_none() {
+        // Maintain Audio Pitch: WSOLA on a segment grid anchored at the clip's start, so blocks
+        // join seamlessly whatever their size (see `filmcraft_audio_dsp::timestretch`)
+        let base = item.source_in.to_units_floor(sr as i64);
+        let pull = |p: i64, len: usize| src(base + p, len).map(|b| b.channels);
+        filmcraft_audio_dsp::timestretch::Stretcher::new(sr).render(speed, a0 - item_s0, n, &pull).map(|channels| AudioBuffer { sample_rate: sr, channels })
     } else {
         // varispeed: read a longer span and resample linearly
         let span = ((n as f64) * speed).ceil() as usize + 2;

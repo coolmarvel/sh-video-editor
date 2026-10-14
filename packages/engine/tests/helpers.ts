@@ -120,6 +120,8 @@ export interface ClipInfo {
   speed: number;
   /** 역방향(clip.speedDuration reverse) */
   reverse?: boolean;
+  /** 음정 유지(clip.setMaintainPitch, clip.speedDuration maintainPitch) */
+  maintainPitch?: boolean;
   enabled: boolean;
   link: number | null;
 }

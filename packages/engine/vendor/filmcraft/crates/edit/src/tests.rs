@@ -54,6 +54,7 @@ impl Fx {
             gain_db: 0.0,
             frame_hold: None,
             scale_to_frame: false,
+            maintain_pitch: false,
             essential: None,
             multicam: None,
             time_interpolation: Default::default(),

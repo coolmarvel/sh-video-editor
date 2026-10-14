@@ -18,6 +18,8 @@ export interface ClipInfo {
   sourceIn: number;
   sourceOut: number;
   speed: number;
+  /** 역방향 재생(clip.speedDuration reverse) */
+  reverse?: boolean;
   enabled: boolean;
   /** 영상·음성이 연결된 클립끼리 같은 link id */
   link: number | null;

@@ -1,0 +1,55 @@
+/* 속도 탭·속도 배지 배치. 부품 모양은 sh-classic.css, 값은 --sh-* 토큰만. 계약은 DESIGN.md 4.17 */
+.ve-speed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+  min-width: 0;
+}
+.ve-speed__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-8);
+  min-width: 0;
+}
+.ve-speed__range {
+  flex: 1;
+  min-width: 0;
+  height: var(--sh-size-control-md);
+  margin: 0;
+  accent-color: var(--sh-color-accent);
+}
+.ve-speed__value {
+  width: calc(var(--sh-space-48) + var(--sh-space-24));
+  text-align: right;
+}
+.ve-speed__unit {
+  color: var(--sh-color-text-secondary);
+}
+.ve-speed .sh-form {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+.ve-speed .sh-select {
+  width: 100%;
+}
+.ve-speed__result {
+  margin: 0;
+  color: var(--sh-color-text-secondary);
+  word-break: keep-all;
+}
+.ve-speed__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sh-space-8);
+}
+.ve-speed-badge {
+  flex: none;
+  margin-right: var(--sh-space-2);
+  padding: 0 var(--sh-space-4);
+  border: var(--sh-border-width) solid var(--sh-color-accent-pressed);
+  background: var(--sh-color-accent-subtle);
+  color: var(--sh-color-accent-pressed);
+  font-size: var(--sh-font-size-caption);
+  line-height: var(--sh-space-16);
+  white-space: nowrap;
+  pointer-events: none;
+}

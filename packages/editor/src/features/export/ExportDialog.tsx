@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useEditor } from '../../store';
 import { formatEta } from './presets';
 import { useExport } from './store';
+import { RatioBar, SnsPresets } from '../ratio';
 import './export.css';
 
 export function ExportDialog() {
@@ -64,6 +65,8 @@ export function ExportDialog() {
               웹 내보내기는 준비 중입니다. 데스크톱 앱에서 내보내 주세요.
             </div>
           )}
+          <RatioBar />
+          <SnsPresets />
           <div className="sh-form">
             <label htmlFor="ve-export-preset">프리셋</label>
             <select id="ve-export-preset" className="sh-select" value={presetId} disabled={busy || loading} onChange={(e) => void setPreset(e.target.value)}>

@@ -1,6 +1,7 @@
 import { TransitionBlocks } from '../transitions/TransitionBlocks';
 import { tickToPx } from './geometry';
 import type { ClipInfo, TrackRow } from './types';
+import { SpeedBadge } from '../speed/SpeedBadge';
 
 /** 드래그 중 미리보기. 엔진에 보내기 전 화면만 먼저 움직인다 */
 export interface ClipPreview {
@@ -140,6 +141,7 @@ function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPoint
     >
       <div className="tl-clip__handle tl-clip__handle--in" onPointerDown={(e) => part(e, 'in')} />
       <span className="tl-clip__name">{clip.name}</span>
+      <SpeedBadge clip={clip} />
       <div className="tl-clip__handle tl-clip__handle--out" onPointerDown={(e) => part(e, 'out')} />
     </div>
   );

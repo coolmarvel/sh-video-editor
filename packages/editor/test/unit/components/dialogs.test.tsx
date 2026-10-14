@@ -113,6 +113,10 @@ describe('ExportDialog', () => {
       '세로 9:16 (1080 x 1920)',
       '정사각 1:1 (1080 x 1080)',
       '시퀀스 원본 크기',
+      'YouTube 1080p',
+      'Shorts, Reels',
+      'Instagram 정사각',
+      'YouTube 4K',
     ]);
     expect((screen.getByLabelText('형식') as HTMLSelectElement).options).toHaveLength(1);
     expect(screen.getByText('1920 x 1080, 30 fps, 8.0초 (240 프레임), 약 20 Mbps')).toBeInTheDocument();

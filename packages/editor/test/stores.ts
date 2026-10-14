@@ -6,6 +6,9 @@ import { useMedia } from '../src/features/media/store';
 import { useMonitor } from '../src/features/monitor/store';
 import { useProject } from '../src/features/project/store';
 import { useTransitions } from '../src/features/transitions/store';
+import { useSpeed } from '../src/features/speed/store';
+import { useRatio } from '../src/features/ratio/store';
+import { useSnsPresets } from '../src/features/ratio/sns';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -16,6 +19,9 @@ export function resetStores(): void {
   useMonitor.setState(useMonitor.getInitialState(), true);
   useProject.setState(useProject.getInitialState(), true);
   useTransitions.setState(useTransitions.getInitialState(), true);
+  useSpeed.setState(useSpeed.getInitialState(), true);
+  useRatio.setState(useRatio.getInitialState(), true);
+  useSnsPresets.setState(useSnsPresets.getInitialState(), true);
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

@@ -9,6 +9,7 @@ import { useMedia } from '../media/store';
 import { DEMO_SCENES, type DemoScene } from '../media/types';
 import { monitorController } from '../monitor/registry';
 import { useProject } from '../project/store';
+import { useRatio } from '../ratio/store';
 import { useTimeline } from '../timeline/store';
 import { useShortcutsUi } from './store';
 
@@ -149,6 +150,7 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'markers.out': () => void execCommand('markers.markOut', { target: 'program' }, '아웃 점을 표시했습니다'),
   'markers.clearInOut': () => void execCommand('markers.clearInOut', undefined, '인, 아웃 점을 지웠습니다'),
   'sequence.addTracks': () => void execCommand('sequence.addTracks', { video: 1, audio: 1 }, '트랙을 추가했습니다'),
+  'sequence.ratio': () => useRatio.getState().show(),
   'play.toggle': () => monitor()?.toggle(),
   'play.stop': () => monitor()?.pause(),
   'play.shuttleBack': () => monitor()?.shuttle(-1),

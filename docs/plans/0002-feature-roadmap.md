@@ -140,7 +140,7 @@ domain: development
   - (b) features/effects: 클립 인스펙터 탭, 슬라이더, 필터 프리셋 갤러리(Lumetri 프리셋 14종을 썸네일로)
   - (c) 효과 적용 전후 `scopes.read` 히스토그램 차이, GPU·CPU 패리티(엔진 golden)
   - (d) M
-- [ ] **M2-5 속도·리버스·프리즈**
+- [x] **M2-5 속도·리버스·프리즈** (2026-10-14 feat/speed-ratio, features/speed)
   - (a) `clip.speedDuration`(speed·reverse·ripple·interpolation), `clip.frameHold`, `clip.insertFrameHoldSegment`
   - (b) features/speed: 속도 슬라이더(0.1x~10x)·리버스 토글·"이 프레임 고정" 버튼. 속도 램프 곡선은 M3
   - (c) 2배속 후 내보내기 길이가 절반, 리버스 첫 프레임이 원본 마지막 프레임
@@ -150,7 +150,7 @@ domain: development
   - (b) features/audio: 볼륨 슬라이더·페이드 인/아웃 핸들·"음성 구간 자동 낮춤" 버튼, 파형(`clip.generateAudioWaveform`), 음악 라이브러리 패널(5절 조달)
   - (c) 재생 중 A/V 드리프트 1초에 1프레임 이하, 덕킹 적용 후 음성 구간 음악 -12dB(`loudness_radar` 또는 ffmpeg ebur128)
   - (d) L
-- [ ] **M2-7 비율·SNS 프리셋**
+- [x] **M2-7 비율·SNS 프리셋** (2026-10-14 feat/speed-ratio, features/ratio)
   - (a) `sequence.settings`(1920x1080, 1080x1920, 1080x1080), `clip.fillFrame`, `clip.scaleToFrameSize`, `export.presets.list`(YouTube·세로·4K), `export.quick`
   - (b) features/export 확장: 비율 선택이 시퀀스를 바꾸고 클립을 fillFrame, 프리셋 카드(YouTube·Shorts/Reels·Instagram 정사각)
   - (c) 세로 1080x1920 내보내기 ffprobe 해상도·sar 확인, Chrome 과 데스크톱 결과 md5 비교(오디오 제외 프레임 해시)

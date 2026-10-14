@@ -20,6 +20,10 @@ export interface FakeClip {
   sourceIn: number;
   link: number | null;
   enabled: boolean;
+  /** 속도 배수(없으면 1), 역방향, 맞춤 배율(clip.fillFrame/fitToFrame 결과). 속도·비율 기능 테스트용 */
+  speed?: number;
+  reverse?: boolean;
+  scale?: number;
 }
 
 /** 트랙의 전환(엔진 inspect 의 transitions[] 와 같은 모양). 두 클립 사이는 컷을 가운데 둔다 */
@@ -189,6 +193,11 @@ function clone<V>(v: V): V {
 
 function frameTicksOf(seq: FakeSequence): number {
   return (T * seq.fr.den) / seq.fr.num;
+}
+
+/** 속도를 바꾼 클립만 inspect 의 speed(배수)·reverse 를 덮어쓴다(기본은 toClip 의 speed: 1) */
+function speedFields(c: FakeClip): { speed?: number; reverse?: boolean } {
+  return c.speed === undefined && c.reverse === undefined ? {} : { speed: c.speed ?? 1, reverse: c.reverse ?? false };
 }
 
 /** 메모리 엔진 + EngineBridge 구현. 테스트는 `bridge` 를 store 에 주고 `engine` 으로 내부를 들여다본다. */
@@ -493,6 +502,7 @@ export class FakeEngine {
       speed: 1,
       enabled: c.enabled,
       link: c.link,
+      ...speedFields(c),
     });
     const toTrack = (t: FakeTrack) => ({
       id: t.id,
@@ -1053,6 +1063,105 @@ export class FakeEngine {
       case 'file.discardRecovery':
         this.recovery = this.recovery.filter((x) => x.id !== p['id']);
         return null;
+      case 'clip.speedDuration': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        if (ids.length === 0) throw new FakeEngineError('clip.speedDuration is disabled: nothing selected');
+        const percent = (p['speed'] as number | undefined) ?? 100;
+        if (!(percent > 0)) throw new FakeEngineError('invalid parameters for `clip.speedDuration`: speed must be positive');
+        this.snapshot('Speed/Duration');
+        const ft = frameTicksOf(seq);
+        const done = new Set<number>();
+        for (const id0 of ids) {
+          for (const c of this.linkedOf(seq, this.findClip(seq, id0).clip)) {
+            if (done.has(c.clip)) continue;
+            done.add(c.clip);
+            const { track } = this.findClip(seq, c.clip);
+            const span = (c.end - c.start) * (c.speed ?? 1);
+            const len = Math.max(ft, Math.round(span / (percent / 100) / ft) * ft);
+            const delta = len - (c.end - c.start);
+            const oldEnd = c.end;
+            c.end = c.start + len;
+            c.speed = percent / 100;
+            c.reverse = p['reverse'] === true;
+            if (p['ripple'] === true && delta !== 0) {
+              for (const o of track.items) {
+                if (o.clip !== c.clip && o.start >= oldEnd) {
+                  o.start += delta;
+                  o.end += delta;
+                }
+              }
+            }
+          }
+        }
+        this.touch();
+        return null;
+      }
+      case 'clip.insertFrameHoldSegment': {
+        const seq = this.sequence;
+        const target = (p['clip'] as number | undefined) ?? seq.selection[0];
+        if (target === undefined) throw new FakeEngineError('clip.insertFrameHoldSegment is disabled: nothing selected');
+        const { clip, track } = this.findClip(seq, target);
+        const time = (p['time'] as number | undefined) ?? s.playhead;
+        if (time < clip.start || time >= clip.end) throw new FakeEngineError('edit failed: time is not over the clip');
+        const hold = Math.round(((p['seconds'] as number | undefined) ?? 2) * T);
+        this.snapshot('Insert Frame Hold Segment');
+        const offset = time - clip.start;
+        const holdClip: FakeClip = { ...clip, clip: this.nextId++, start: time, end: time + hold, sourceIn: clip.sourceIn + offset, link: null };
+        const rest: FakeClip = { ...clip, clip: this.nextId++, start: time + hold, end: clip.end + hold, sourceIn: clip.sourceIn + offset };
+        clip.end = time;
+        for (const o of track.items) {
+          if (o.clip !== clip.clip && o.start >= time) {
+            o.start += hold;
+            o.end += hold;
+          }
+        }
+        track.items.push(holdClip, rest);
+        track.items.sort((a, b) => a.start - b.start);
+        // 연결된 소리 클립은 그 자리에서 갈라지고 뒷부분이 밀린다(정지 구간에는 소리가 없다)
+        for (const t of seq.audio) {
+          const next: FakeClip[] = [];
+          for (const a of t.items) {
+            if (a.link !== null && a.link === clip.link && a.start < time && time < a.end) {
+              next.push({ ...a, end: time });
+              next.push({ ...a, clip: this.nextId++, start: time + hold, end: a.end + hold, sourceIn: a.sourceIn + (time - a.start) });
+            } else if (a.start >= time) next.push({ ...a, start: a.start + hold, end: a.end + hold });
+            else next.push(a);
+          }
+          t.items = next;
+        }
+        seq.selection = [holdClip.clip];
+        this.touch();
+        return { clip: holdClip.clip, duration: hold };
+      }
+      case 'sequence.settings': {
+        const seq = this.sequence;
+        this.snapshot('Sequence Settings');
+        if (typeof p['width'] === 'number') seq.width = p['width'];
+        if (typeof p['height'] === 'number') seq.height = p['height'];
+        if (typeof p['name'] === 'string') seq.name = p['name'];
+        this.touch();
+        return null;
+      }
+      case 'clip.fillFrame':
+      case 'clip.fitToFrame': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        if (ids.length === 0) throw new FakeEngineError(`${id} is disabled: no clips selected`);
+        this.snapshot(id === 'clip.fillFrame' ? 'Fill Frame' : 'Fit to Frame');
+        const out: Array<{ clip: number; scale: number }> = [];
+        for (const cid of ids) {
+          const { clip, kind } = this.findClip(seq, cid);
+          if (kind !== 'video') continue;
+          // 소재는 1920x1080 으로 본다(project.items 의 Video Info 와 같다)
+          const sx = seq.width / 1920;
+          const sy = seq.height / 1080;
+          clip.scale = (id === 'clip.fillFrame' ? Math.max(sx, sy) : Math.min(sx, sy)) * 100;
+          out.push({ clip: cid, scale: clip.scale });
+        }
+        this.touch();
+        return { clips: out };
+      }
       default:
         throw new FakeEngineError(`unknown command \`${id}\``);
     }

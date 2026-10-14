@@ -1,0 +1,88 @@
+/* 미디어 패널 전용 배치. 값은 전부 --sh-* 토큰. 부품 모양(sh-tree, sh-toolbar, sh-menu, sh-alert)은 sh-classic.css 가 정한다. */
+.ve-media-toolbar {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+}
+.ve-media-menu-slot {
+  position: relative;
+  display: inline-flex;
+}
+.ve-media-menu {
+  top: 100%;
+  left: 0;
+  z-index: 10;
+}
+.ve-media-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+.ve-media-body[data-drop='over'] {
+  outline: var(--sh-border-width) dashed var(--sh-color-accent);
+  outline-offset: calc(-1 * var(--sh-space-4));
+  background: var(--sh-color-accent-subtle);
+}
+.ve-media-empty {
+  padding: var(--sh-space-12) var(--sh-space-8);
+  color: var(--sh-color-text-muted);
+}
+.ve-media-empty p {
+  margin: 0 0 var(--sh-space-6);
+}
+.ve-media-tree {
+  min-width: 0;
+}
+.ve-media-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sh-space-4);
+  max-width: 100%;
+  min-width: 0;
+}
+.ve-media-icon {
+  display: inline-flex;
+  flex: none;
+  width: var(--sh-size-icon);
+  height: var(--sh-size-icon);
+  color: var(--sh-color-text-secondary);
+}
+.ve-media-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ve-media-time {
+  flex: none;
+  margin-left: var(--sh-space-8);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+}
+.ve-media-notice {
+  flex: none;
+  margin: var(--sh-space-4);
+  min-width: 0;
+}
+.ve-media-notice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.ve-media-details {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sh-space-4) var(--sh-space-8);
+  padding: var(--sh-space-4) var(--sh-space-6);
+  border-top: var(--sh-border-width) solid var(--sh-color-border);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+  min-width: 0;
+}
+.ve-media-details .ve-media-name {
+  color: var(--sh-color-text);
+  flex: 1 1 100%;
+}

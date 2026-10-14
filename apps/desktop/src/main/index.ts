@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'node:path';
 import * as engine from '@sh-video-editor/engine-node';
+import { registerPickFilesIpc } from './pickFiles';
 
 // 엔진은 당장은 메인 프로세스에 산다. 마일스톤 1 에서 utility process 로 옮겨 크래시를 격리한다(ADR-0002).
 let session: engine.Engine | null = null;
@@ -44,6 +45,7 @@ function createWindow() {
 
 void app.whenReady().then(() => {
   registerEngineIpc();
+  registerPickFilesIpc();
   const win = createWindow();
   // 스모크 테스트(scripts/smoke.cjs): 창이 뜨고 엔진이 응답하면 "smoke: ok" 를 찍고 끝낸다.
   if (process.env['SH_SMOKE']) {

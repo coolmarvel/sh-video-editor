@@ -25,6 +25,8 @@ const bridge: EngineBridge = {
         }
       : null;
   },
+  pickFiles: () => api.pickFiles(),
+  pathForFile: (file) => api.pathForFile(file),
 };
 
 const el = document.getElementById('root');

@@ -31,6 +31,16 @@ const fx: ClipEffectInfo = {
 
 describe('parseParamValue', () => {
   it('Float, Bool, Choice, Vec2, Color, Text 를 읽는다', () => {
+    expect(parseParamValue({ kind: 'float', value: 50, keyframes: 0 })).toEqual({ kind: 'float', value: 50 });
+    expect(parseParamValue({ kind: 'bool', value: true, keyframes: 0 })).toEqual({ kind: 'bool', value: true });
+    expect(parseParamValue({ kind: 'choice', value: 2, keyframes: 0 })).toEqual({ kind: 'choice', value: 2 });
+    expect(parseParamValue({ kind: 'point', value: [100, 200.5], keyframes: 0 })).toEqual({ kind: 'point', x: 100, y: 200.5 });
+    expect(parseParamValue({ kind: 'point', value: [null, null], keyframes: 0 })).toEqual({ kind: 'point', x: null, y: null });
+    expect(parseParamValue({ kind: 'color', value: [1, 0.5, 0, 1], keyframes: 0 })).toEqual({ kind: 'color', rgba: [1, 0.5, 0, 1] });
+    expect(parseParamValue({ kind: 'text', value: 'hi', keyframes: 0 })).toEqual({ kind: 'text', value: 'hi' });
+    expect(parseParamValue({ kind: 'curve', value: [[0, 0]], keyframes: 0 })).toEqual({ kind: 'other', raw: '[[0,0]]' });
+    // 이전 엔진 모양(kind 없이 Debug 문자열)도 읽는다
+    expect(parseParamValue({ value: 'Float(50.0)', keyframes: 0 })).toEqual({ kind: 'float', value: 50 });
     expect(parseParamValue('Float(50.0)')).toEqual({ kind: 'float', value: 50 });
     expect(parseParamValue('Float(-2.5)')).toEqual({ kind: 'float', value: -2.5 });
     expect(parseParamValue('Bool(true)')).toEqual({ kind: 'bool', value: true });

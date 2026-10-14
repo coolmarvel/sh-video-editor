@@ -389,29 +389,30 @@ describe('커맨드 실패', () => {
 export type { FakeEngine };
 
 describe('Alt 드래그(연결 상대를 두고 이 클립만)', () => {
-  it('trimClip linked:false 는 연결 선택을 잠시 끄고 트림한 뒤 되돌리며, 소리만 움직인다', async () => {
+  it('trimClip linked:false 는 엔진 timeline.trim 의 linked 옵션으로 보내고, 소리만 움직인다', async () => {
     const { engine, clips } = await ready();
     const audio = tl().sequence!.audio[0]!.items[0]!;
     await tl().trimClip(audio.clip, 'in', 15, { linked: false });
-    const ids = engine.calls.map((c) => c.id).filter((id) => id === 'sequence.linkedSelection' || id === 'timeline.trim');
-    expect(ids).toEqual(['sequence.linkedSelection', 'timeline.trim', 'sequence.linkedSelection']);
-    expect(engine.callsOf('sequence.linkedSelection')).toEqual([{ on: false }, { on: true }]);
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([]);
+    expect(engine.callsOf('timeline.trim')).toEqual([{ clip: audio.clip, edge: 'in', mode: 'regular', deltaFrames: 15, linked: false }]);
     expect(engine.state.linkedSelection).toBe(true);
     expect(tl().sequence!.audio[0]!.items[0]!.start).toBe(15 * FT30);
     expect(tl().sequence!.video[0]!.items[0]!.start).toBe(0);
     expect(useEditor.getState().status).toBe('시작 트림: +15프레임 (이 클립만)');
-    // 보통 트림은 둘 다 움직인다
+    // 보통 트림은 둘 다 움직인다(linked 를 보내지 않아 엔진의 연결 선택 상태가 정한다)
     await tl().trimClip(clips[0]!.clip, 'in', 15);
     expect(tl().sequence!.video[0]!.items[0]!.start).toBe(15 * FT30);
     expect(tl().sequence!.audio[0]!.items[0]!.start).toBe(30 * FT30);
-    expect(engine.callsOf('sequence.linkedSelection')).toHaveLength(2);
+    expect(engine.callsOf('timeline.trim').at(-1)).toEqual({ clip: clips[0]!.clip, edge: 'in', mode: 'regular', deltaFrames: 15 });
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([]);
   });
 
-  it('트림이 실패해도 연결 선택은 되돌린다', async () => {
+  it('트림이 실패해도 연결 선택 상태는 건드리지 않는다', async () => {
     const { engine, clips } = await ready();
     engine.failNext('timeline.trim', '막힘');
     await tl().trimClip(clips[0]!.clip, 'out', -10, { linked: false });
-    expect(engine.callsOf('sequence.linkedSelection')).toEqual([{ on: false }, { on: true }]);
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([]);
+    expect(engine.state.linkedSelection).toBe(true);
     expect(tl().lastError).toBe('편집할 수 없습니다: 막힘');
   });
 

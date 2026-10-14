@@ -2,12 +2,25 @@
  * 엔진 `sequence.inspect` 결과 중 타임라인이 읽는 부분. 모양은 filmcraft 의 inspect JSON 과 1:1 이고
  * 여기서 가공하지 않는다(편집 로직은 엔진 커맨드로만). 시간 값은 전부 tick(engine/time.ts).
  */
-/** 클립에 적용된 효과 하나(sequence.inspect 의 effects[]). 값 문자열은 엔진 Debug 표기("Float(0.0)") 그대로, features/effects 가 읽는다 */
+/**
+ * 클립에 적용된 효과 하나(sequence.inspect 의 effects[]). 값은 `kind`(float, point, color, bool, choice, text, curve, path)와
+ * 그 JSON 값(숫자, [x, y], [r, g, b, a], 불, 색인, 문자열)이다. 이전 엔진의 Debug 문자열("Float(0.0)")도 잠시 받는다. features/effects 가 읽는다
+ */
+export interface EffectParamInfo {
+  keyframes: number;
+  /** 종류. 없으면 value 는 이전 엔진의 Debug 문자열 */
+  kind?: string;
+  /** 키프레임이 있으면 플레이헤드 시점의 보간값, 아니면 고정값 */
+  value: unknown;
+  /** 키프레임이 하나라도 있는가. 목록은 `effects.keyframes` 커맨드로 */
+  animated?: boolean;
+}
+
 export interface ClipEffectInfo {
   effect: string;
   enabled: boolean;
   masks: number;
-  params: Record<string, { keyframes: number; value: string }>;
+  params: Record<string, EffectParamInfo>;
 }
 
 export interface ClipInfo {

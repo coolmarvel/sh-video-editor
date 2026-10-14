@@ -87,12 +87,12 @@ describe('효과 추가, 값, 켜기 끄기, 삭제', () => {
       { clip: video, effect: 0, param: 'brightness', value: 20, merge: true },
       { clip: video, effect: 0, param: 'brightness', value: 30, merge: true },
     ]);
-    expect(effectsOf(clipOf(video))[0]!.params['brightness']!.value).toBe('Float(30.0)');
+    expect(effectsOf(clipOf(video))[0]!.params['brightness']!.value).toBe(30);
     expect(engine.undoStack.map((u) => u.label)).toEqual(['Apply brightness_contrast', 'Change Effect Parameter']);
     // 묶음 중간은 상태 줄을 바꾸지 않는다(패널 재조회 폭주 방지), 확정은 바꾼다
     expect(useEditor.getState().status).toBe('효과 값을 바꿨습니다');
     await tl().undo();
-    expect(effectsOf(clipOf(video))[0]!.params['brightness']!.value).toBe('Float(0.0)');
+    expect(effectsOf(clipOf(video))[0]!.params['brightness']!.value).toBe(0);
     // 숫자 입력(묶지 않음)과 이름으로 가리키는 고정 효과
     await fx().setParam(video, 'opacity', 'opacity', 40);
     await fx().setParam(video, 'motion', 'position', [100, 200]);
@@ -100,7 +100,7 @@ describe('효과 추가, 값, 켜기 끄기, 삭제', () => {
       { clip: video, effect: 'opacity', param: 'opacity', value: 40 },
       { clip: video, effect: 'motion', param: 'position', value: [100, 200] },
     ]);
-    expect(effectsOf(clipOf(video)).find((e) => e.effect === 'motion')!.params['position']!.value).toBe('Vec2(Vec2 { x: 100.0, y: 200.0 })');
+    expect(effectsOf(clipOf(video)).find((e) => e.effect === 'motion')!.params['position']!.value).toEqual([100, 200]);
   });
 
   it('켜기 끄기, 초기화, 삭제는 index 로 보내고 한국어 상태 줄', async () => {
@@ -114,7 +114,7 @@ describe('효과 추가, 값, 켜기 끄기, 삭제', () => {
     expect(effectsOf(clipOf(video))[0]!.enabled).toBe(true);
     expect(useEditor.getState().status).toBe('효과를 켰습니다: 선명하게');
     await fx().resetEffect(video, 0);
-    expect(effectsOf(clipOf(video))[0]!.params['amount']!.value).toBe('Float(0.0)');
+    expect(effectsOf(clipOf(video))[0]!.params['amount']!.value).toBe(0);
     expect(useEditor.getState().status).toBe('효과 값을 초기화했습니다');
     await fx().removeEffect(video, 0);
     expect(clipEffects(video)).toEqual(['motion', 'opacity', 'time_remap']);
@@ -133,7 +133,7 @@ describe('색 탭', () => {
     expect(engine.callsOf('effects.setParam')).toEqual([{ clip: video, effect: 0, param: 'exposure', value: 1.5, merge: true, begin: true }]);
     await fx().setColor(video, 'exposure', 2, { merge: true });
     expect(engine.callsOf('effects.apply')).toHaveLength(1);
-    expect(effectsOf(clipOf(video))[0]!.params['exposure']!.value).toBe('Float(2.0)');
+    expect(effectsOf(clipOf(video))[0]!.params['exposure']!.value).toBe(2);
     expect(useEditor.getState().status).toBe('색을 바꿨습니다');
     await fx().resetColor([video]);
     expect(clipEffects(video)).toEqual(['motion', 'opacity', 'time_remap']);

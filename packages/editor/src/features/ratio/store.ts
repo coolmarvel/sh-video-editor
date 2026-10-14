@@ -3,6 +3,7 @@
  * `clip.fillFrame`(채우기) 또는 `clip.fitToFrame`(맞추기). 엔진에 묶음(트랜잭션) 커맨드가 없어 실행 취소는 두 번이다.
  */
 import { create } from 'zustand';
+import { withTransaction } from '../../engine/transaction';
 import { useEditor } from '../../store';
 import { refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
@@ -62,18 +63,21 @@ export const useRatio = create<RatioState>((set, get) => ({
     const fitLabel = FIT_MODES.find((m) => m.id === fit)?.label ?? fit;
     let steps = 0;
     try {
-      await bridge.execute('sequence.settings', { width: r.width, height: r.height });
-      steps = 1;
-      if (clips.length > 0) {
-        await bridge.execute(fit === 'fill' ? 'clip.fillFrame' : 'clip.fitToFrame', { clips });
-        steps = 2;
-      }
+      // 설정 변경과 클립 맞춤이 실행 취소 한 단계가 되게 묶는다(실패하면 엔진이 처음 상태로 되돌린다)
+      await withTransaction(bridge, `화면 비율 ${r.label}`, async () => {
+        await bridge.execute('sequence.settings', { width: r.width, height: r.height });
+        steps = 1;
+        if (clips.length > 0) {
+          await bridge.execute(fit === 'fill' ? 'clip.fillFrame' : 'clip.fitToFrame', { clips });
+          steps = 2;
+        }
+      });
       set({ open: false, fit, lastSteps: steps });
-      const tail = clips.length > 0 ? `, 클립 ${clips.length}개 ${fitLabel}. 되돌리려면 실행 취소 두 번` : '';
+      const tail = clips.length > 0 ? `, 클립 ${clips.length}개 ${fitLabel}. 되돌리려면 실행 취소 한 번` : '';
       await refreshAll(`화면 비율 ${r.label} (${r.width} x ${r.height})${tail}`);
       return true;
     } catch (e) {
-      set({ lastSteps: steps });
+      set({ lastSteps: 0 });
       useEditor.setState({ error: `화면 비율을 바꾸지 못했습니다: ${message(e)}` });
       await refreshAll();
       return false;

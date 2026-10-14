@@ -107,8 +107,8 @@ function sharedCases(make: () => AnyEngine, render: (engine: AnyEngine, tick: nu
     assertInvariants(seq);
     const clip = textClip(engine, made.clip);
     const fx = clip.effects?.find((e) => e.effect === 'graphic_text');
-    expect(fx?.params['text']?.value).toBe('Text("안녕하세요 Hello 2026")');
-    expect(fx?.params['font']?.value).toBe('Text("Pretendard")');
+    expect(fx?.params['text']?.value).toBe('안녕하세요 Hello 2026');
+    expect(fx?.params['font']?.value).toBe('Pretendard');
     // 레이어 상자가 글자 폭만큼 넓다(한글 5자 + 영문·숫자 10자, 160px)
     const list = exec<{ layers: Array<{ quad: Array<[number, number]>; text: string }> }>(engine, 'graphics.list', { clip: made.clip });
     const xs = list.layers[0]!.quad.map((p) => p[0]);
@@ -154,7 +154,7 @@ function sharedCases(make: () => AnyEngine, render: (engine: AnyEngine, tick: nu
     const red = render(engine, 0, 0.5)!;
     expect(reddishPixels(red.rgba)).toBeGreaterThan(2000);
     const fx = textClip(engine, made.clip).effects?.find((e) => e.effect === 'graphic_text');
-    expect(fx?.params['fill_color']?.value).toBe('Color([1.0, 0.0, 0.0, 1.0])');
+    expect(fx?.params['fill_color']?.value).toEqual([1, 0, 0, 1]);
     exec(engine, 'graphics.set', {
       clip: made.clip,
       props: { stroke: true, stroke_width: 12, stroke_color: '#00ff00', background: true, background_color: '#0000ff', shadow: true },

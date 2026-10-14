@@ -1,10 +1,8 @@
 /**
- * 전환 상태. 적용·길이·종류 교체·반전은 전부 엔진 커맨드(`sequence.applyVideoTransition`, `sequence.setTransition`)로
- * 보내고 `sequence.inspect` 를 다시 읽어 그린다. 화면 전용 상태는 선택한 전환 id, 끌어다 놓을 자리, 더블클릭 적용 위치뿐이다.
- *
- * 엔진 사실(2026-10-14): 길이·정렬을 바꾸는 커맨드가 없다. 길이는 같은 편집점에 다시 적용하면 엔진이 그 자리의
- * 전환을 교체하므로(`edit::add_transition`) 그 방법으로 바꾼다. 정렬은 항상 엔진 규칙(두 클립 사이는 가운데)이고,
- * 삭제 커맨드도 없다(`edit.clear` 는 전환 id 를 무시한다). 둘 다 todo 로 보고한다.
+ * 전환 상태. 적용·길이·종류 교체·반전·삭제는 전부 엔진 커맨드(`sequence.applyVideoTransition`, `sequence.setTransitionLength`,
+ * `sequence.setTransition`, `sequence.removeTransition`)로 보내고 `sequence.inspect` 를 다시 읽어 그린다. 화면 전용 상태는
+ * 선택한 전환 id, 끌어다 놓을 자리, 더블클릭 적용 위치뿐이다. 길이 변경은 id 를 유지하고 정렬은 엔진이 기억한다
+ * (docs/guides/engine-commands.md).
  */
 import { create } from 'zustand';
 import { useEditor } from '../../store';
@@ -12,7 +10,17 @@ import { refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
 import { findClip } from '../timeline/types';
 import { transitionLabel } from './catalog';
-import { applyTarget, clipEditPoints, defaultFrames, findTransition, framesOf, plainParams, transitionPoint, type EditPoint } from './types';
+import {
+  ALIGN_LABEL,
+  applyTarget,
+  clipEditPoints,
+  defaultFrames,
+  findTransition,
+  framesOf,
+  transitionPoint,
+  type EditPoint,
+  type TransitionAlign,
+} from './types';
 
 export type ApplyEdges = 'both' | 'in' | 'out';
 
@@ -38,10 +46,12 @@ interface TransitionsState {
   applyAtPoint(point: EditPoint, effect: string, frames?: number): Promise<number | null>;
   /** 타임라인에서 선택한 영상 클립의 경계(applyEdges)에 전환을 넣는다(갤러리 더블클릭) */
   applyToSelectedClips(effect: string): Promise<void>;
+  /** 길이(프레임, 1 이상)를 제자리에서 바꾼다. 정렬은 그대로 */
   setDuration(id: number, frames: number): Promise<void>;
+  /** 컷 기준 정렬(가운데, 앞, 뒤)을 바꾼다. 길이는 그대로. 한쪽 편집점은 엔진이 정렬을 정하므로 그대로다 */
+  setAlign(id: number, align: TransitionAlign): Promise<void>;
   replaceEffect(id: number, effect: string): Promise<void>;
   setReverse(id: number, reverse: boolean): Promise<void>;
-  /** 엔진에 삭제 커맨드가 없어 안내만 한다 */
   remove(id: number): Promise<void>;
 }
 
@@ -140,16 +150,22 @@ export const useTransitions = create<TransitionsState>((set, get) => {
 
     async setDuration(id, frames) {
       const seq = useTimeline.getState().sequence;
+      if (!seq || !findTransition(seq, id)) return;
+      const n = Math.max(1, Math.round(frames));
+      const r = await send('sequence.setTransitionLength', { transition: id, frames: n });
+      if (r === undefined) return;
+      set({ selected: id });
+      await refreshAll(`전환 길이: ${n}프레임`);
+    },
+
+    async setAlign(id, align) {
+      const seq = useTimeline.getState().sequence;
       const found = seq ? findTransition(seq, id) : null;
       if (!found) return;
-      const n = Math.max(1, Math.round(frames));
-      const point = transitionPoint(found.track, found.transition);
-      if (!point) return;
-      const { effect, params, reverse } = found.transition;
-      const next = await apply(point, effect, n, { params: plainParams(params), reverse });
-      if (next === null) return;
-      set({ selected: next });
-      await refreshAll(`전환 길이: ${n}프레임`);
+      const frames = framesOf(found.transition, frameRate());
+      const r = await send('sequence.setTransitionLength', { transition: id, frames, align });
+      if (r === undefined) return;
+      await refreshAll(`전환 정렬: ${ALIGN_LABEL[align]}`);
     },
 
     async replaceEffect(id, effect) {
@@ -171,8 +187,14 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       await refreshAll(reverse ? '전환 방향을 뒤집었습니다' : '전환 방향을 되돌렸습니다');
     },
 
-    async remove(_id) {
-      useEditor.setState({ status: '전환 삭제는 엔진 커맨드가 아직 없습니다. 실행 취소(Ctrl+Z)로 되돌리세요' });
+    async remove(id) {
+      const seq = useTimeline.getState().sequence;
+      const found = seq ? findTransition(seq, id) : null;
+      if (!found) return;
+      const r = await send('sequence.removeTransition', { transition: id });
+      if (r === undefined) return;
+      if (get().selected === id) set({ selected: null });
+      await refreshAll(`전환 삭제: ${transitionLabel(found.transition.effect)}`);
     },
   };
 });

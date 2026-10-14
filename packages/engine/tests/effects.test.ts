@@ -10,7 +10,7 @@ import { exec, hasNativeBinding, loadNapi, type NapiEngine, type SequenceInfo } 
 interface ClipWithEffects {
   clip: number;
   start: number;
-  effects: { effect: string; enabled: boolean; params: Record<string, { keyframes: number; value: string }> }[];
+  effects: { effect: string; enabled: boolean; params: Record<string, { keyframes: number; kind: string; value: unknown }> }[];
 }
 
 interface Rgb {
@@ -65,7 +65,7 @@ describe.skipIf(!hasNativeBinding())('효과·필터(napi)', () => {
 
   it('클립은 고정 효과(motion, opacity, time_remap)로 시작한다', () => {
     expect(clip.effects.map((e) => e.effect)).toEqual(['motion', 'opacity', 'time_remap']);
-    expect(clip.effects[0]!.params['scale']!.value).toBe('Float(100.0)');
+    expect(clip.effects[0]!.params['scale']).toEqual({ kind: 'float', value: 100, keyframes: 0, animated: false });
   });
 
   it('화면 카탈로그의 효과·파라미터 id 와 범위는 엔진 effects.list 안에 있다', () => {
@@ -114,7 +114,7 @@ describe.skipIf(!hasNativeBinding())('효과·필터(napi)', () => {
     const scopeBefore = exec<{ stats: { y: { mean: number } } }>(engine, 'scopes.read', { scopes: ['histogram'], bins: false, time: tick });
     exec(engine, 'effects.apply', { clips: [clip.clip], effect: 'brightness_contrast' });
     exec(engine, 'effects.setParam', { clip: clip.clip, effect: 0, param: 'brightness', value: 60 });
-    expect(firstClip().effects[0]!.params['brightness']!.value).toBe('Float(60.0)');
+    expect(firstClip().effects[0]!.params['brightness']!.value).toBe(60);
     const after = render();
     expect(after.luma).toBeGreaterThan(before.luma + 10);
     const scopeAfter = exec<{ stats: { y: { mean: number } } }>(engine, 'scopes.read', { scopes: ['histogram'], bins: false, time: tick });
@@ -131,11 +131,11 @@ describe.skipIf(!hasNativeBinding())('효과·필터(napi)', () => {
     exec(engine, 'effects.setParam', { clip: clip.clip, effect: 0, param: 'brightness', value: 30, merge: true });
     exec(engine, 'effects.setParam', { clip: clip.clip, effect: 0, param: 'brightness', value: 40, merge: true, begin: true });
     exec(engine, 'effects.setParam', { clip: clip.clip, effect: 0, param: 'brightness', value: 50, merge: true });
-    expect(value()).toBe('Float(50.0)');
+    expect(value()).toBe(50);
     expect(engine.undo()).toBe('Change Effect Parameter');
-    expect(value()).toBe('Float(30.0)');
+    expect(value()).toBe(30);
     expect(engine.undo()).toBe('Change Effect Parameter');
-    expect(value()).toBe('Float(0.0)');
+    expect(value()).toBe(0);
     expect(engine.undo()).toBe('Apply Brightness & Contrast');
     expect(firstClip().effects.map((e) => e.effect)).toEqual(['motion', 'opacity', 'time_remap']);
   });
@@ -148,8 +148,11 @@ describe.skipIf(!hasNativeBinding())('효과·필터(napi)', () => {
     expect(effects[0]!.effect).toBe('lumetri');
     expect(effects[0]!.params['saturation']).toBeDefined();
     expect(render().grayish).toBeGreaterThan(0.98);
-    // 프리셋을 또 적용하면 lumetri 가 하나 더 생긴다(화면은 앞 것을 먼저 뗀다)
+    // 프리셋을 또 적용하면 앞 것을 교체한다(replace 기본 true). replace:false 면 상류처럼 쌓인다
     exec(engine, 'lumetri.applyPreset', { name: 'Sepia Tone', clips: [clip.clip] });
+    expect(firstClip().effects.filter((e) => e.effect === 'lumetri')).toHaveLength(1);
+    expect(render().grayish).toBeLessThan(0.5);
+    exec(engine, 'lumetri.applyPreset', { name: 'Neutral Mono', clips: [clip.clip], replace: false });
     expect(firstClip().effects.filter((e) => e.effect === 'lumetri')).toHaveLength(2);
     exec(engine, 'effects.remove', { clip: clip.clip, index: 1 });
     exec(engine, 'effects.remove', { clip: clip.clip, index: 0 });

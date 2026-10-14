@@ -724,7 +724,7 @@ d('적대적 입력', () => {
     const { engine, clips } = withDemo();
     expect(() => engine.execute('nope.cmd')).toThrow(/unknown command/);
     expect(() => engine.execute('timeline.razor', '{bad json')).toThrow(/params/);
-    expect(() => exec(engine, 'timeline.trim', { clip: 99_999, edge: 'out', mode: 'regular', deltaFrames: 1 })).toThrow(/no such track item/);
+    expect(() => exec(engine, 'timeline.trim', { clip: 99_999, edge: 'out', mode: 'regular', deltaFrames: 1 })).toThrow(/no clip 99999/);
     expect(() => exec(engine, 'timeline.move', { moves: [{ clip: 99_999, track: 'V1', time: 0 }] })).toThrow(/no such track item/);
     expect(() => exec(engine, 'timeline.move', { moves: [{ clip: clips[0], track: 'V9', time: 0 }] })).toThrow(/no track V9/);
     expect(() => exec(engine, 'timeline.place', { item: 99_999, track: 'V1', time: 0 })).toThrow(/no such item/);
@@ -751,24 +751,37 @@ d('적대적 입력', () => {
    * 바인딩은 params 를 JSON 으로만 파싱하고 객체인지 확인하지 않는다. 엔진도 razor 의 time 이 빠지거나 타입이 틀리면
    * 거부하지 않고 0 으로 본다(결과는 cuts 0 이라 실제 손상은 없다). 잘못된 입력은 거부하는 편이 안전하다.
    */
-  it.fails('params 가 객체가 아니거나 time 타입이 틀리면 거부해야 한다 (알려진 결함: 조용히 0 으로 처리)', () => {
+  it('params 가 객체가 아니거나 time 타입이 틀리면 거부한다(보강: validate_params)', () => {
     const { engine, clips } = withDemo();
-    expect(() => engine.execute('timeline.razor', '[]')).toThrow();
-    expect(() => engine.execute('timeline.razor', '"str"')).toThrow();
-    expect(() => engine.execute('timeline.razor', '{"time":"abc"}')).toThrow();
-    expect(() => exec(engine, 'timeline.razor', { time: 1.5 })).toThrow();
-    // 없는 데모 장면은 빈 결과({items: []})로 끝난다
-    expect(() => exec(engine, 'file.importDemoFootage', { scene: 'Nope' })).toThrow();
-    // 클립 길이보다 큰 트림은 거부 대신 클램프된다(delta 가 줄어든다)
-    expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'out', mode: 'regular', deltaFrames: -100_000 })).toThrow();
-    // trim 의 edge 가 'in'|'out' 이 아니어도 거부하지 않는다(delta 0 의 no-op)
-    expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'sideways', mode: 'regular', deltaFrames: 1 })).toThrow();
+    const before = inspect(engine);
+    expect(() => engine.execute('timeline.razor', '[]')).toThrow(/JSON object/);
+    expect(() => engine.execute('timeline.razor', '"str"')).toThrow(/JSON object/);
+    expect(() => engine.execute('timeline.razor', '{"time":"abc"}')).toThrow(/`time` must be an integer/);
+    expect(() => exec(engine, 'timeline.razor', { time: 1.5 })).toThrow(/`time` must be an integer/);
+    expect(() => exec(engine, 'playhead.set', { seconds: 'x' })).toThrow(/`seconds`/);
+    // 없는 데모 장면은 오류다
+    expect(() => exec(engine, 'file.importDemoFootage', { scene: 'Nope' })).toThrow(/unknown demo scene/);
+    // 클립 길이보다 큰 트림은 거부 대신 클램프된다(delta 가 줄어든다): 드래그 트림이 기대하는 동작
+    const r = exec<{ delta: number }>(engine, 'timeline.trim', { clip: clips[0], edge: 'out', mode: 'regular', deltaFrames: -100_000 });
+    expect(r.delta).toBeLessThan(0);
+    expect(r.delta).toBeGreaterThan(-16 * T);
+    engine.undo();
+    // trim 의 edge·mode 는 정해진 값만
+    expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'sideways', mode: 'regular', deltaFrames: 1 })).toThrow(/`edge`/);
+    expect(() => exec(engine, 'timeline.trim', { clip: clips[0], edge: 'in', mode: 'slide', deltaFrames: 1 })).toThrow(/`mode`/);
+    expect(inspect(engine)).toEqual(before);
   });
 
-  /** timeline.select 는 없는 클립 id 도 선택 목록에 넣는다. 화면은 inspect 로 되돌아오는 selection 을 그대로 믿는다. */
-  it.fails('없는 클립 id 선택은 거부해야 한다 (알려진 결함: 그대로 선택에 들어간다)', () => {
-    const { engine } = withDemo();
-    expect(() => exec(engine, 'timeline.select', { clips: [123_456], add: false, toggle: false })).toThrow();
+  it('없는 클립 id 는 거부한다(선택, 효과, 트림)', () => {
+    const { engine, clips } = withDemo();
+    exec(engine, 'edit.deselectAll');
+    expect(() => exec(engine, 'timeline.select', { clips: [123_456], add: false, toggle: false })).toThrow(/no clip 123456/);
+    expect(() => exec(engine, 'timeline.select', { clips: 'x' })).toThrow(/`clips`/);
+    expect(() => exec(engine, 'effects.apply', { clips: [clips[0], 999_999], effect: 'gaussian_blur' })).toThrow(/no clip 999999/);
+    expect(() => exec(engine, 'timeline.trim', { clip: 999_999, edge: 'out', deltaFrames: -1 })).toThrow(/no clip 999999/);
+    expect(inspect(engine).selection).toEqual([]);
+    // 대상이 전부 없는 선택 기반 커맨드는 "비활성" 이다(상류 규칙 유지)
+    expect(() => exec(engine, 'edit.rippleDelete', { clips: [987_654_321] })).toThrow(/not available|nothing selected|no clips selected/);
   });
 
   it('엔진 여러 개는 서로 독립이다', () => {

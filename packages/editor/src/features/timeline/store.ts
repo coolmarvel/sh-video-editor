@@ -223,18 +223,12 @@ export const useTimeline = create<TimelineState>((set, get) => {
       if (deltaFrames === 0) return;
       const mode = get().ripple ? 'ripple' : 'regular';
       const solo = opts?.linked === false;
-      const bridge = bridgeOrNull();
-      // 엔진 timeline.trim 에는 linked 옵션이 없다. 연결 선택을 잠시 끄고 트림한 뒤 되돌린다
-      if (solo && bridge) await bridge.execute('sequence.linkedSelection', { on: false }).catch(() => undefined);
-      try {
-        await exec(
-          'timeline.trim',
-          { clip: clipId, edge, mode, deltaFrames },
-          `${edge === 'in' ? '시작' : '끝'} 트림: ${deltaFrames > 0 ? '+' : ''}${deltaFrames}프레임${solo ? ' (이 클립만)' : ''}`,
-        );
-      } finally {
-        if (solo && bridge) await bridge.execute('sequence.linkedSelection', { on: true }).catch(() => undefined);
-      }
+      // 엔진 timeline.trim 의 linked 옵션: false 면 연결 선택 상태와 관계없이 이 클립만 트림한다
+      await exec(
+        'timeline.trim',
+        { clip: clipId, edge, mode, deltaFrames, ...(solo ? { linked: false } : {}) },
+        `${edge === 'in' ? '시작' : '끝'} 트림: ${deltaFrames > 0 ? '+' : ''}${deltaFrames}프레임${solo ? ' (이 클립만)' : ''}`,
+      );
     },
 
     async placeItem(itemId, trackId, kind, time) {

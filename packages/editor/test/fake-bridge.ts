@@ -46,7 +46,7 @@ export interface FakeEffect {
   effect: string;
   enabled: boolean;
   masks: number;
-  params: Record<string, { keyframes: number; value: string }>;
+  params: Record<string, FakeParam>;
 }
 
 /** 가짜 엔진이 아는 효과 카탈로그(실제 effects.list 의 일부). 값은 기본값 */
@@ -87,20 +87,44 @@ export function fakeEffect(id: string): FakeEffect {
   const defaults = FAKE_EFFECT_DEFAULTS[id];
   if (!defaults) throw new FakeEngineError(`invalid parameters for \`effects.apply\`: unknown effect \`${id}\``);
   const params: FakeEffect['params'] = {};
-  for (const [k, v] of Object.entries(defaults)) params[k] = { keyframes: 0, value: v };
+  for (const [k, v] of Object.entries(defaults)) params[k] = fromDebug(v);
   return { effect: id, enabled: true, masks: 0, params };
 }
 
 /** 화면 값(num | [x,y] | "#rrggbb" | bool)을 Debug 표기로 */
-export function fakeParamValue(value: unknown): string {
-  if (typeof value === 'boolean') return `Bool(${value})`;
-  if (typeof value === 'number') return `Float(${Number.isInteger(value) ? `${value}.0` : value})`;
-  if (Array.isArray(value)) return `Vec2(Vec2 { x: ${Number(value[0]).toFixed(1)}, y: ${Number(value[1]).toFixed(1)} })`;
+/** 기본값 표의 Debug 표기("Float(100.0)" 등)를 엔진의 `{kind, value}` 모양으로 */
+function fromDebug(s: string): FakeParam {
+  let m = /^Float\((.*)\)$/.exec(s);
+  if (m) return { keyframes: 0, kind: 'float', value: Number(m[1]) };
+  m = /^Bool\((true|false)\)$/.exec(s);
+  if (m) return { keyframes: 0, kind: 'bool', value: m[1] === 'true' };
+  m = /^Choice\((\d+)\)$/.exec(s);
+  if (m) return { keyframes: 0, kind: 'choice', value: Number(m[1]) };
+  m = /^Vec2\(Vec2 \{ x: ([^,]*), y: ([^}]*)\}\)$/.exec(s);
+  if (m) return { keyframes: 0, kind: 'point', value: [Number(m[1]), Number(m[2])] };
+  m = /^Color\(\[(.*)\]\)$/.exec(s);
+  if (m) return { keyframes: 0, kind: 'color', value: (m[1] ?? '').split(',').map((x) => Number(x.trim())) };
+  m = /^Text\("(.*)"\)$/.exec(s);
+  if (m) return { keyframes: 0, kind: 'text', value: m[1] ?? '' };
+  return { keyframes: 0, kind: 'text', value: s };
+}
+
+/** 엔진 `sequence.inspect` 의 파라미터 모양 `{kind, value, keyframes}` (effects.setParam 의 value 를 그대로 되돌린다) */
+export function fakeParam(value: unknown): FakeParam {
+  if (typeof value === 'boolean') return { keyframes: 0, kind: 'bool', value };
+  if (typeof value === 'number') return { keyframes: 0, kind: 'float', value };
+  if (Array.isArray(value)) return { keyframes: 0, kind: 'point', value: [Number(value[0]), Number(value[1])] };
   if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) {
-    const c = [1, 3, 5].map((i) => (Number.parseInt(value.slice(i, i + 2), 16) / 255).toFixed(1));
-    return `Color([${c.join(', ')}, 1.0])`;
+    const c = [1, 3, 5].map((i) => Number.parseInt(value.slice(i, i + 2), 16) / 255);
+    return { keyframes: 0, kind: 'color', value: [...c, 1] };
   }
-  return `Text("${String(value)}")`;
+  return { keyframes: 0, kind: 'text', value: String(value) };
+}
+
+export interface FakeParam {
+  keyframes: number;
+  kind: string;
+  value: unknown;
 }
 
 export interface FakeTrack {
@@ -359,6 +383,8 @@ export class FakeEngine {
   readonly bridge: EngineBridge;
   private nextId = 100;
   private nextLink = 1;
+  /** 열린 edit.beginTransaction (엔진과 같은 규칙: 바깥 end 가 하나의 실행 취소 단계로 접는다) */
+  transaction: { label: string; mark: number; depth: number } | null = null;
   /** effects.setParam merge 묶음: 같은 clip/effect/param 의 연속 변경은 스냅샷을 하나만 남긴다 */
   private mergeKey: string | null = null;
   private nextQueue = 1;
@@ -468,37 +494,36 @@ export class FakeEngine {
   }
 
   /** sequence.inspect 의 효과 파라미터 모양(filmcraft Debug 문자열)으로 */
-  static debugParams(g: FakeGraphic): Record<string, { keyframes: number; value: string }> {
-    const color = (hex: string) => {
+  static debugParams(g: FakeGraphic): Record<string, FakeParam> {
+    const color = (hex: string): FakeParam => {
       const n = parseInt(hex.slice(1, 7), 16);
-      const f = (v: number) => (v / 255).toString();
-      return `Color([${f((n >> 16) & 255)}, ${f((n >> 8) & 255)}, ${f(n & 255)}, 1.0])`;
+      return { keyframes: 0, kind: 'color', value: [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1] };
     };
-    const float = (v: number) => `Float(${Number.isInteger(v) ? `${v}.0` : String(v)})`;
-    const text = (v: string) => `Text(${JSON.stringify(v)})`;
-    const v = (value: string) => ({ keyframes: 0, value });
+    const float = (value: number): FakeParam => ({ keyframes: 0, kind: 'float', value });
+    const text = (value: string): FakeParam => ({ keyframes: 0, kind: 'text', value });
+    const bool = (value: boolean): FakeParam => ({ keyframes: 0, kind: 'bool', value });
     return {
-      text: v(text(g.text)),
-      font: v(text(g.font)),
-      font_style: v(text(g.font_style)),
-      size: v(float(g.size)),
-      align: v(`Choice(${g.align})`),
-      fill_color: v(color(g.fill_color)),
-      stroke: v(`Bool(${g.stroke})`),
-      stroke_width: v(float(g.stroke_width)),
-      stroke_color: v(color(g.stroke_color)),
-      background: v(`Bool(${g.background})`),
-      background_color: v(color(g.background_color)),
-      background_opacity: v(float(g.background_opacity)),
-      background_size: v(float(g.background_size)),
-      shadow: v(`Bool(${g.shadow})`),
-      shadow_color: v(color(g.shadow_color)),
-      shadow_opacity: v(float(g.shadow_opacity)),
-      shadow_distance: v(float(g.shadow_distance)),
-      shadow_blur: v(float(g.shadow_blur)),
-      position: v(`Vec2(Vec2 { x: ${float(g.position[0]).slice(6, -1)}, y: ${float(g.position[1]).slice(6, -1)} })`),
-      opacity: v(float(g.opacity)),
-      scale: v(float(g.scale)),
+      text: text(g.text),
+      font: text(g.font),
+      font_style: text(g.font_style),
+      size: float(g.size),
+      align: { keyframes: 0, kind: 'choice', value: g.align },
+      fill_color: color(g.fill_color),
+      stroke: bool(g.stroke),
+      stroke_width: float(g.stroke_width),
+      stroke_color: color(g.stroke_color),
+      background: bool(g.background),
+      background_color: color(g.background_color),
+      background_opacity: float(g.background_opacity),
+      background_size: float(g.background_size),
+      shadow: bool(g.shadow),
+      shadow_color: color(g.shadow_color),
+      shadow_opacity: float(g.shadow_opacity),
+      shadow_distance: float(g.shadow_distance),
+      shadow_blur: float(g.shadow_blur),
+      position: { keyframes: 0, kind: 'point', value: [g.position[0], g.position[1]] },
+      opacity: float(g.opacity),
+      scale: float(g.scale),
     };
   }
 
@@ -698,6 +723,7 @@ export class FakeEngine {
   }
 
   undo(): string | null {
+    if (this.transaction) return null;
     const top = this.undoStack.pop();
     if (!top) return null;
     this.redoStack.push({ label: top.label, state: clone(this.state) });
@@ -893,6 +919,19 @@ export class FakeEngine {
     if (clip.link === null || !follow) return [clip];
     return [...seq.video, ...seq.audio].flatMap((t) => t.items).filter((c) => c.link === clip.link);
   }
+  /** id 목록을 클립으로, follow 면 연결 상대까지(중복 없이) */
+  private withPartners(seq: FakeSequence, ids: number[], follow: boolean): FakeClip[] {
+    const out: FakeClip[] = [];
+    for (const id of ids) for (const c of this.linkedOf(seq, this.findClip(seq, id).clip, follow)) if (!out.includes(c)) out.push(c);
+    return out;
+  }
+  private findTransition(seq: FakeSequence, id: unknown): { track: FakeTrack; tr: FakeTransition } {
+    for (const track of [...seq.video, ...seq.audio]) {
+      const tr = (track.transitions ?? []).find((x) => x.id === id);
+      if (tr) return { track, tr };
+    }
+    throw new FakeEngineError(`invalid parameters for \`sequence.setTransition\`: no transition ${String(id)}`);
+  }
 
   private removeClips(seq: FakeSequence, ids: number[], ripple: boolean): void {
     const targets = new Set<number>();
@@ -930,7 +969,7 @@ export class FakeEngine {
       t.transitions = t.transitions.filter(
         (tr) => (tr.from === null || byId.has(tr.from)) && (tr.to === null || byId.has(tr.to)) && (tr.from !== null || tr.to !== null),
       );
-      // 단순화: 두 클립이 더 이상 맞닿지 않으면(이동·틈) 전환을 지운다. 실제 엔진은 이동 때만 지우고 일반 트림의 틈은 남긴다
+      // 두 클립이 더 이상 맞닿지 않으면(이동·틈) 전환을 지운다(엔진 edit::remove_orphan_transitions 과 같다)
       t.transitions = t.transitions.filter((tr) => tr.from === null || tr.to === null || byId.get(tr.from)!.end === byId.get(tr.to)!.start);
       for (const tr of t.transitions) {
         const cut = tr.to !== null ? byId.get(tr.to)!.start : byId.get(tr.from!)!.end;
@@ -1052,6 +1091,63 @@ export class FakeEngine {
       case 'sequence.linkedSelection':
         s.linkedSelection = typeof p['on'] === 'boolean' ? p['on'] : !s.linkedSelection;
         return { linkedSelection: s.linkedSelection };
+      case 'sequence.removeTransition': {
+        const seq = this.sequence;
+        const { track, tr } = this.findTransition(seq, p['transition']);
+        if (track.locked) throw new FakeEngineError('edit failed: track is locked');
+        this.snapshot('Remove Transition');
+        track.transitions = (track.transitions ?? []).filter((x) => x !== tr);
+        this.touch();
+        return { transition: tr.id, track: track.id };
+      }
+      case 'sequence.setTransitionLength': {
+        const seq = this.sequence;
+        const { track, tr } = this.findTransition(seq, p['transition']);
+        const frames = p['frames'];
+        if (typeof frames !== 'number' || frames < 1)
+          throw new FakeEngineError('invalid parameters for `sequence.setTransitionLength`: `frames` must be at least 1');
+        if (track.locked) throw new FakeEngineError('edit failed: track is locked');
+        this.snapshot('Set Transition Length');
+        const byId = new Map(track.items.map((c) => [c.clip, c] as const));
+        const cut = tr.to !== null ? byId.get(tr.to)!.start : byId.get(tr.from!)!.end;
+        const align = tr.from !== null && tr.to !== null ? ((p['align'] as string | undefined) ?? 'center') : tr.to !== null ? 'start' : 'end';
+        tr.duration = frames * frameTicksOf(seq);
+        tr.start = align === 'start' ? cut : align === 'end' ? cut - tr.duration : cut - tr.duration / 2;
+        this.touch();
+        return { transition: tr.id, start: tr.start, duration: tr.duration, align };
+      }
+      case 'edit.beginTransaction': {
+        if (this.transaction) this.transaction.depth += 1;
+        else this.transaction = { label: String(p['label'] ?? 'Edit'), mark: this.undoStack.length, depth: 0 };
+        return { depth: this.transaction.depth };
+      }
+      case 'edit.endTransaction': {
+        const t = this.transaction;
+        if (!t) throw new FakeEngineError('invalid parameters for `edit.endTransaction`: no transaction is open');
+        if (t.depth > 0) {
+          t.depth -= 1;
+          return { open: true, depth: t.depth };
+        }
+        this.transaction = null;
+        const steps = this.undoStack.length - t.mark;
+        if (steps > 0) {
+          this.undoStack.length = t.mark + 1;
+          this.undoStack[t.mark]!.label = t.label;
+        }
+        return { open: false, label: t.label, steps };
+      }
+      case 'edit.cancelTransaction': {
+        const t = this.transaction;
+        if (!t) throw new FakeEngineError('invalid parameters for `edit.cancelTransaction`: no transaction is open');
+        this.transaction = null;
+        const steps = this.undoStack.length - t.mark;
+        if (steps > 0) {
+          this.state = this.undoStack[t.mark]!.state;
+          this.undoStack.length = t.mark;
+          this.touch();
+        }
+        return { label: t.label, rolledBack: steps };
+      }
       case 'file.newBin': {
         this.snapshot('New Bin');
         const b: FakeBin = { id: this.nextId++, name: (p['name'] as string | undefined) ?? 'New Bin', parent: (p['parent'] as number | undefined) ?? null };
@@ -1131,7 +1227,7 @@ export class FakeEngine {
         const seq = this.sequence;
         const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
         if (ids.length === 0) throw new FakeEngineError('command `clip.link` is not available right now: no clips selected');
-        const clips = ids.map((id) => this.findClip(seq, id).clip);
+        const clips = this.withPartners(seq, ids, p['linked'] !== false);
         const linked = clips.every((c) => c.link !== null);
         this.snapshot(linked ? 'Unlink' : 'Link');
         const l = linked ? null : this.nextLink++;
@@ -1302,7 +1398,7 @@ export class FakeEngine {
         const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
         if (ids.length === 0) throw new FakeEngineError('command `clip.enable` is not available right now: no clips selected');
         this.snapshot('Enable');
-        const clips = ids.map((id) => this.findClip(seq, id).clip);
+        const clips = this.withPartners(seq, ids, p['linked'] !== false);
         const target = !clips.every((c) => c.enabled);
         for (const c of clips) c.enabled = target;
         this.touch();
@@ -1351,11 +1447,13 @@ export class FakeEngine {
         const ft = frameTicksOf(seq);
         const delta = typeof p['delta'] === 'number' ? p['delta'] : (p['deltaFrames'] as number) * ft;
         const edge = p['edge'] as 'in' | 'out';
+        if (edge !== 'in' && edge !== 'out') throw new FakeEngineError('invalid parameters for `timeline.trim`: `edge` must be in or out');
         const len = clip.end - clip.start;
         if ((edge === 'in' && delta >= len) || (edge === 'out' && -delta >= len))
           throw new FakeEngineError('edit failed: clip would be shorter than one frame');
         this.snapshot('Trim Edit');
-        for (const c of this.linkedOf(seq, clip, s.linkedSelection)) {
+        // linked 옵션: 주면 그것이, 없으면 연결 선택 상태가 상대를 데려갈지 정한다(엔진과 같다)
+        for (const c of this.linkedOf(seq, clip, this.linkFollow(p))) {
           if (edge === 'in') {
             c.start += delta;
             c.sourceIn += delta;
@@ -1667,7 +1765,7 @@ export class FakeEngine {
         const merge = p['merge'] === true && p['begin'] !== true && this.mergeKey === key;
         if (!merge) this.snapshot('Change Effect Parameter');
         this.mergeKey = p['merge'] === true ? key : null;
-        fx.params[param] = { keyframes: 0, value: fakeParamValue(p['value']) };
+        fx.params[param] = fakeParam(p['value']);
         this.touch();
         return null;
       }
@@ -1703,8 +1801,8 @@ export class FakeEngine {
           const { clip } = this.findClip(seq, cid);
           const list = clip.effects ?? (clip.effects = []);
           const fx = fakeEffect('lumetri');
-          if (name === 'Neutral Mono') fx.params['saturation'] = { keyframes: 0, value: 'Float(0.0)' };
-          if (name === 'Sepia Tone') fx.params['temperature'] = { keyframes: 0, value: 'Float(40.0)' };
+          if (name === 'Neutral Mono') fx.params['saturation'] = fakeParam(0);
+          if (name === 'Sepia Tone') fx.params['temperature'] = fakeParam(40);
           const at = list.findIndex((e) => ['motion', 'opacity', 'time_remap'].includes(e.effect));
           list.splice(at < 0 ? list.length : at, 0, fx);
         }
@@ -1719,7 +1817,7 @@ export class FakeEngine {
         for (const cid of ids) {
           const { clip } = this.findClip(seq, cid);
           const op = (clip.effects ?? []).find((e) => e.effect === 'opacity');
-          if (op) op.params['opacity'] = { keyframes: 2, value: 'Float(100.0)' };
+          if (op) op.params['opacity'] = { keyframes: 2, kind: 'float', value: 100 };
         }
         this.touch();
         return { applied: ids.length };

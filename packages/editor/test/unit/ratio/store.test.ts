@@ -70,7 +70,7 @@ describe('apply', () => {
     expect(engine.sequence.video[0]!.items[0]!.scale).toBeCloseTo((1920 / 1080) * 100, 5);
     expect(useTimeline.getState().sequence?.settings).toMatchObject({ width: 1080, height: 1920 });
     expect(rt()).toMatchObject({ open: false, lastSteps: 2 });
-    expect(useEditor.getState().status).toBe('화면 비율 세로 9:16 (1080 x 1920), 클립 2개 채우기. 되돌리려면 실행 취소 두 번');
+    expect(useEditor.getState().status).toBe('화면 비율 세로 9:16 (1080 x 1920), 클립 2개 채우기. 되돌리려면 실행 취소 한 번');
     expect(currentRatio()).toBe('9:16');
   });
 
@@ -94,13 +94,13 @@ describe('apply', () => {
     expect(useEditor.getState().status).toBe('화면 비율 세로 4:5 (1080 x 1350)');
   });
 
-  it('실행 취소 두 번이면 원래 크기와 배율', async () => {
+  it('실행 취소 한 번이면 원래 크기와 배율(트랜잭션으로 묶인다)', async () => {
     const { engine } = await ready();
     await rt().apply('9:16');
+    expect(engine.callsOf('edit.beginTransaction')).toEqual([{ label: '화면 비율 세로 9:16' }]);
+    expect(engine.callsOf('edit.endTransaction')).toHaveLength(1);
     await useTimeline.getState().undo();
-    expect(useEditor.getState().status).toBe('실행 취소: Fill Frame');
-    await useTimeline.getState().undo();
-    expect(useEditor.getState().status).toBe('실행 취소: Sequence Settings');
+    expect(useEditor.getState().status).toBe('실행 취소: 화면 비율 세로 9:16');
     expect(engine.sequence).toMatchObject({ width: 1920, height: 1080 });
     expect(engine.sequence.video[0]!.items[0]!.scale).toBeUndefined();
   });
@@ -115,12 +115,14 @@ describe('apply', () => {
     expect(engine.sequence.width).toBe(1920);
   });
 
-  it('fillFrame 이 거부되면 settings 만 남고(실행 취소 한 번) 오류', async () => {
+  it('fillFrame 이 거부되면 트랜잭션을 취소해 settings 도 되돌리고 오류', async () => {
     const { engine } = await ready();
     engine.failNext('clip.fillFrame', 'fill rejected');
     expect(await rt().apply('9:16')).toBe(false);
-    expect(rt().lastSteps).toBe(1);
-    expect(engine.sequence.width).toBe(1080);
+    expect(rt().lastSteps).toBe(0);
+    expect(engine.callsOf('edit.cancelTransaction')).toHaveLength(1);
+    expect(engine.sequence.width).toBe(1920);
+    expect(engine.undoStack).toHaveLength(0);
     expect(useEditor.getState().error).toContain('fill rejected');
   });
 

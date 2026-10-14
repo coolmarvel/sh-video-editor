@@ -43,10 +43,10 @@ afterAll(() => {
 const inspect = (engine: NapiEngine) => exec<SequenceInfo>(engine, 'sequence.inspect');
 
 /** 320x180 30fps 시퀀스에 데모 영상(16초)을 V1 0초에 놓은 엔진. */
-function withDemo(width = 320, height = 180): { engine: NapiEngine; clips: number[] } {
+function withDemo(width = 320, height = 180, fps = 30): { engine: NapiEngine; clips: number[] } {
   const engine = new mod.Engine();
   exec(engine, 'file.newProject', { name: 'speed-ratio' });
-  exec(engine, 'file.newSequence', { name: 'seq', width, height, fps: 30 });
+  exec(engine, 'file.newSequence', { name: 'seq', width, height, fps });
   const demo = exec<{ items: number[] }>(engine, 'file.importDemoFootage', { scene: 'Aurora' });
   const placed = exec<{ clips: number[] }>(engine, 'timeline.place', { item: demo.items[0], track: 'V1', time: 0, insert: true });
   return { engine, clips: placed.clips };
@@ -160,26 +160,30 @@ d('속도', () => {
 });
 
 d('리버스', () => {
-  it('inspect 에 reverse 가 실리고 길이는 그대로, 마지막 프레임은 원본 첫 프레임', () => {
-    const { engine, clips } = withDemo();
+  it('inspect 에 reverse 가 실리고 길이는 그대로, 첫 프레임은 원본 마지막, 마지막 프레임은 원본 첫 프레임', () => {
+    // 데모 영상은 23.976fps 다. 시퀀스를 같은 속도로 두면 타임라인 프레임과 소스 프레임이 1:1 이라 정확히 비교할 수 있다
+    const { engine, clips } = withDemo(320, 180, 23.976);
     const ft = frameTicks(inspect(engine));
+    // 16초 소재는 23.976 에서 383.6 프레임이라 클립 길이가 프레임 단위로 올림된다: 길이는 inspect 가 말하는 값 기준
+    const dur = inspect(engine).duration;
+    expect(dur).toBeGreaterThanOrEqual(16 * T);
     const origFirst = engine.renderFrame(0, 0.5)!.rgba;
-    const origLast = engine.renderFrame(16 * T - ft, 0.5)!.rgba;
+    const origLast = engine.renderFrame(dur - ft, 0.5)!.rgba;
     expect(pixelsDiffer(origFirst, origLast)).toBeGreaterThan(1000);
     exec(engine, 'clip.speedDuration', { clips, speed: 100, reverse: true });
     const seq = inspect(engine);
     assertInvariants(seq);
-    expect(seq.duration).toBe(16 * T);
+    expect(seq.duration).toBe(dur);
     expect(seq.video[0]!.items[0]!).toMatchObject({ reverse: true, speed: 1 });
     // 역방향 마지막 프레임 = 원본 첫 프레임
-    const revLast = engine.renderFrame(16 * T - ft, 0.5)!.rgba;
+    const revLast = engine.renderFrame(dur - ft, 0.5)!.rgba;
     expect(pixelsDiffer(revLast, origFirst)).toBe(0);
-    // 역방향 첫 프레임은 원본 마지막 프레임이어야 하지만, 엔진은 소스 끝(sourceOut, 마지막 프레임 한 칸 뒤)을 읽어
-    // 한 프레임 어긋난다. 두 번째 프레임이 원본 마지막 프레임과 같다. (엔진 todo: 역방향 매핑 off-by-one)
+    // 역방향 첫 프레임 = 원본 마지막 프레임 (render::frame_time 이 소스 끝 경계 안쪽을 읽는다), 두 번째는 그 앞 프레임
     const rev0 = engine.renderFrame(0, 0.5)!.rgba;
     const rev1 = engine.renderFrame(ft, 0.5)!.rgba;
     expect(nonBlackPixels(rev0)).toBeGreaterThan(1000);
-    expect(pixelsDiffer(rev1, origLast)).toBe(0);
+    expect(pixelsDiffer(rev0, origLast)).toBe(0);
+    expect(pixelsDiffer(rev1, origLast)).toBeGreaterThan(0);
     expect(pixelsDiffer(rev0, origFirst)).toBeGreaterThan(1000);
     // 되돌리면 정방향
     engine.undo();
@@ -252,15 +256,15 @@ d('비율 변환', () => {
     expect(fill.clips[0]!.clip).toBe(clips[0]);
     expect(fill.clips[0]!.scale).toBeCloseTo((320 / 1080) * 100, 6);
     const motion = (s: SequenceInfo) =>
-      (s.video[0]!.items[0] as unknown as { effects: Array<{ effect: string; params: { scale: { value: string } } }> }).effects.find(
+      (s.video[0]!.items[0] as unknown as { effects: Array<{ effect: string; params: { scale: { value: number } } }> }).effects.find(
         (e) => e.effect === 'motion',
       )!.params.scale.value;
-    expect(motion(inspect(engine))).toContain('29.6296');
+    expect(motion(inspect(engine))).toBeCloseTo(29.6296, 3);
     expect(nonBlackPixels(engine.renderFrame(0, 1)!.rgba)).toBeGreaterThan(180 * 320 * 0.9);
     expect(engine.undo()).toBe('Fill Frame');
     const fit = exec<{ clips: Array<{ clip: number; scale: number }> }>(engine, 'clip.fitToFrame', { clips: [clips[0]] });
     expect(fit.clips[0]!.scale).toBeCloseTo((180 / 1920) * 100, 6);
-    expect(motion(inspect(engine))).toContain('9.375');
+    expect(motion(inspect(engine))).toBeCloseTo(9.375, 3);
     // 맞추기는 위아래가 검다
     const fitted = engine.renderFrame(0, 1)!.rgba;
     const lit = nonBlackPixels(fitted);
@@ -279,10 +283,10 @@ d('비율 변환', () => {
     expect(() => exec(engine, 'clip.scaleToFrameSize')).toThrow(/no clips selected/);
     exec(engine, 'timeline.select', { clips, add: false, toggle: false });
     exec(engine, 'clip.scaleToFrameSize');
-    const scale = (inspect(engine).video[0]!.items[0] as unknown as { effects: Array<{ effect: string; params: { scale: { value: string } } }> }).effects.find(
+    const scale = (inspect(engine).video[0]!.items[0] as unknown as { effects: Array<{ effect: string; params: { scale: { value: number } } }> }).effects.find(
       (e) => e.effect === 'motion',
     )!.params.scale.value;
-    expect(scale).toBe('Float(100.0)');
+    expect(scale).toBe(100);
   });
 
   it('9:16 으로 바꾼 2초 소재를 내보내면 ffprobe 해상도가 180x320', async () => {

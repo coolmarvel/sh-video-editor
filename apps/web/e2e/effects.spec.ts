@@ -96,13 +96,13 @@ test.describe('효과 탭', () => {
       .poll(
         async () => {
           const seq = (await app.evaluate(() => (window as unknown as { shBridge: ShBridge }).shBridge.execute('sequence.inspect'))) as {
-            video: { items: { effects: { effect: string; params: Record<string, { value: string }> }[] }[] }[];
+            video: { items: { effects: { effect: string; params: Record<string, { value: unknown }> }[] }[] }[];
           };
           return seq.video[0]!.items[0]!.effects.find((e) => e.effect === 'brightness_contrast')!.params['brightness']!.value;
         },
         { timeout: 10_000 },
       )
-      .toBe('Float(70.0)');
+      .toBe(70);
     await expect.poll(async () => (await canvasStats(app)).luma, { timeout: 10_000 }).toBeGreaterThan(lumaBefore + 10);
 
     // 숫자 입력으로 범위 밖 값은 잘린다

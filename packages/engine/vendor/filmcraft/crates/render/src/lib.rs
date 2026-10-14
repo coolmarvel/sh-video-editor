@@ -492,7 +492,9 @@ fn plain_layer(frame: &VideoFrame, n: usize, opacity: f32, blend: Blend) -> Laye
 /// a time well inside the frame (half of a 120 fps frame earlier), never before their source In.
 /// Audio and effect times keep the exact mapping.
 pub fn frame_time(item: &TrackItem, t: Tick) -> Tick {
-    let ft = item.source_time_at(t);
+    // sh-video-editor: Time Remapping keyframes (speed ramps) move the frame shown; effects and
+    // audio keep the plain mapping
+    let ft = item.remapped_source_time_at(t);
     if item.reverse && item.frame_hold.is_none() { (ft - Tick(filmcraft_time::TICKS_PER_SECOND / 240)).max(item.source_in.min(ft)) } else { ft }
 }
 
@@ -533,8 +535,8 @@ pub(crate) fn base_layer(
     sources: &dyn SourceProvider,
     want: f32,
 ) -> Option<Image> {
-    // `ft`: the media time of the frame shown
-    let ft = item.source_time_at(t);
+    // `ft`: the media time of the frame shown (Time Remapping applied)
+    let ft = item.remapped_source_time_at(t);
     let mt = item.effect_time_at(t);
     let src_size = source_size(project, item.item)?;
     let pi = project.item(item.item)?;
@@ -595,10 +597,10 @@ pub fn interpolation_blend(item: &TrackItem, t: Tick, src_rate: filmcraft_time::
     if item.time_interpolation == filmcraft_project::TimeInterpolation::FrameSampling || item.frame_hold.is_some() {
         return None;
     }
-    if (item.speed.abs() - 1.0).abs() < 1e-9 {
+    if (item.speed.abs() - 1.0).abs() < 1e-9 && item.time_remap_speed().is_none() {
         return None;
     }
-    let mt = item.source_time_at(t);
+    let mt = item.remapped_source_time_at(t);
     if src_rate.frame_duration().0 <= 0 {
         return None;
     }

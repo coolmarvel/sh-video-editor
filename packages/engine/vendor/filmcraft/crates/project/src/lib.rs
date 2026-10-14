@@ -611,6 +611,55 @@ pub enum FieldProcessing {
     FlickerRemoval,
 }
 
+/// The integral of a scalar keyframe curve over media time `[a, b]` (ticks; `b >= a`): flat outside
+/// the first and last keyframes, exact for linear and hold segments, composite Simpson over eased
+/// ones. Used by Time Remapping, whose Speed curve is integrated to find the frame shown.
+fn integrate_speed_curve(p: &Param, a: Tick, b: Tick) -> f64 {
+    if b <= a {
+        return 0.0;
+    }
+    let value = |t: Tick| p.scalar_at(t);
+    let k = &p.keyframes;
+    let Some((first, last)) = k.first().zip(k.last()) else {
+        return value(a) * (b - a).0 as f64;
+    };
+    let mut total = 0.0;
+    // flat tails
+    let head_end = b.min(first.time);
+    if head_end > a {
+        total += value(first.time) * (head_end - a).0 as f64;
+    }
+    let tail_start = a.max(last.time);
+    if b > tail_start {
+        total += value(last.time) * (b - tail_start).0 as f64;
+    }
+    // keyframe segments overlapping [a, b]
+    for w in k.windows(2) {
+        let (ka, kb) = (&w[0], &w[1]);
+        let lo = a.max(ka.time);
+        let hi = b.min(kb.time);
+        if hi <= lo {
+            continue;
+        }
+        let eased = !matches!(ka.interp, Interpolation::Linear | Interpolation::Hold) || !matches!(kb.interp, Interpolation::Linear | Interpolation::Hold);
+        if ka.interp == Interpolation::Hold {
+            total += value(ka.time) * (hi - lo).0 as f64;
+        } else if !eased {
+            total += (value(lo) + value(hi)) / 2.0 * (hi - lo).0 as f64;
+        } else {
+            const N: usize = 32;
+            let h = (hi - lo).0 as f64 / N as f64;
+            let mut sum = value(lo) + value(hi);
+            for i in 1..N {
+                let t = Tick(lo.0 + (i as f64 * h).round() as i64);
+                sum += if i % 2 == 1 { 4.0 } else { 2.0 } * value(t);
+            }
+            total += sum * h / 3.0;
+        }
+    }
+    total
+}
+
 impl TrackItem {
     pub fn end(&self) -> Tick {
         self.start + self.duration
@@ -647,6 +696,32 @@ impl TrackItem {
     /// Media time consumed by the item (the source out point).
     pub fn source_out(&self) -> Tick {
         self.source_in + Tick((self.duration.0 as f64 * self.speed.abs()).round() as i64)
+    }
+    /// The Time Remapping speed curve (`time_remap` ▸ Speed keyframes, percent), when the clip has
+    /// one and the effect is on.
+    pub fn time_remap_speed(&self) -> Option<&Param> {
+        let e = self.effects.iter().find(|e| e.effect == "time_remap" && e.enabled)?;
+        let p = e.params.get("speed")?;
+        p.is_animated().then_some(p)
+    }
+    /// Media time of the frame shown at timeline time `t` with Time Remapping keyframes applied
+    /// (sh-video-editor: speed ramps). The Speed curve is keyed in the clip's plain media time
+    /// ([`Self::source_time_at`], which effects and audio keep using) and integrated from the clip's
+    /// first frame, so 200 % over the first second shows the source's second second there. The clip
+    /// keeps its duration: a ramp averaging above 100 % runs past the trimmed source (the decoder
+    /// clamps at the media end) and one below it does not reach the trimmed end. Without a curve, or
+    /// inside a frame hold, this is `source_time_at`.
+    pub fn remapped_source_time_at(&self, t: Tick) -> Tick {
+        let Some(speed) = self.time_remap_speed() else { return self.source_time_at(t) };
+        if self.frame_hold.is_some() {
+            return self.source_time_at(t);
+        }
+        let origin = self.moving_source_time_at(self.start);
+        let plain = self.moving_source_time_at(t);
+        let (a, b) = if plain < origin { (plain, origin) } else { (origin, plain) };
+        let travelled = integrate_speed_curve(speed, a, b) / 100.0;
+        let remapped = if self.reverse { origin.0 as f64 - travelled } else { origin.0 as f64 + travelled };
+        Tick(remapped.round().max(0.0) as i64)
     }
     pub fn effect(&self, id: &str) -> Option<&EffectInstance> {
         self.effects.iter().find(|e| e.effect == id)
@@ -1954,5 +2029,54 @@ mod tests {
         assert_eq!(p.nest_overhang(&nest), None);
         nest.frame_hold = Some(f(100));
         assert_eq!(p.nest_overhang(&nest), Some(nest.range()));
+    }
+
+    /// sh-video-editor speed ramps: Time Remapping ▸ Speed keyframes move the frame shown
+    /// (`remapped_source_time_at`), while the plain mapping effects and audio use stays.
+    #[test]
+    fn time_remap_keyframes_move_the_frame_shown() {
+        let (mut p, clip, _seq) = demo_project();
+        let rate = FrameRate::FPS_30;
+        let sec = |s: f64| Tick((s * TICKS_PER_SECOND as f64).round() as i64);
+        let mut it = p.make_track_item(clip, TrackKind::Video, sec(10.0), TimeRange::new(sec(1.0), sec(4.0)), rate).unwrap();
+        assert_eq!(it.time_remap_speed(), None);
+        assert_eq!(it.remapped_source_time_at(sec(11.0)), sec(2.0));
+        // constant 200 %: the clip's second second shows the source's third
+        let speed = it.effect_mut("time_remap").unwrap().params.get_mut("speed").unwrap();
+        speed.put_keyframe(sec(1.0), ParamValue::Float(200.0));
+        speed.put_keyframe(sec(3.0), ParamValue::Float(200.0));
+        assert!(it.time_remap_speed().is_some());
+        assert_eq!(it.source_time_at(sec(11.0)), sec(2.0));
+        assert_eq!(it.remapped_source_time_at(sec(10.0)), sec(1.0));
+        assert_eq!(it.remapped_source_time_at(sec(11.0)), sec(3.0));
+        // past the last keyframe the curve stays flat: 2 s of 200 % plus 1 s of 200 %
+        assert_eq!(it.remapped_source_time_at(sec(13.0)), sec(7.0));
+        // linear ramp 100 -> 300 over the first two seconds averages 200 %
+        let speed = it.effect_mut("time_remap").unwrap().params.get_mut("speed").unwrap();
+        speed.put_keyframe(sec(1.0), ParamValue::Float(100.0));
+        speed.put_keyframe(sec(3.0), ParamValue::Float(300.0));
+        let at = it.remapped_source_time_at(sec(12.0));
+        assert!((at.0 - sec(5.0).0).abs() <= 2, "{at:?}");
+        // eased segments integrate numerically to the same bounds
+        let speed = it.effect_mut("time_remap").unwrap().params.get_mut("speed").unwrap();
+        speed.keyframes[0].interp = Interpolation::EaseOut;
+        let eased = it.remapped_source_time_at(sec(12.0));
+        assert!(eased > sec(3.0) && eased < sec(7.0), "{eased:?}");
+        // the effect switched off restores the plain mapping; a frame hold ignores the curve
+        it.effect_mut("time_remap").unwrap().enabled = false;
+        assert_eq!(it.remapped_source_time_at(sec(12.0)), sec(3.0));
+        it.effect_mut("time_remap").unwrap().enabled = true;
+        it.frame_hold = Some(sec(1.5));
+        assert_eq!(it.remapped_source_time_at(sec(12.0)), sec(1.5));
+        it.frame_hold = None;
+        // reversed: the curve is travelled backwards from the clip's first (last source) frame
+        let speed = it.effect_mut("time_remap").unwrap().params.get_mut("speed").unwrap();
+        speed.keyframes.clear();
+        speed.put_keyframe(sec(1.0), ParamValue::Float(50.0));
+        speed.put_keyframe(sec(4.0), ParamValue::Float(50.0));
+        it.reverse = true;
+        let origin = it.source_time_at(sec(10.0));
+        assert_eq!(origin, sec(5.0) - Tick(1));
+        assert_eq!(it.remapped_source_time_at(sec(12.0)), origin - sec(1.0));
     }
 }

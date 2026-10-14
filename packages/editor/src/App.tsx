@@ -10,6 +10,7 @@ import { ExportDialog } from './features/export/ExportDialog';
 import { ProjectHost } from './features/project/ProjectHost';
 import { ProjectStatus } from './features/project/ProjectStatus';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
+import { InspectorPanel } from './features/inspector';
 import { useShortcuts } from './features/shortcuts';
 import './shell/layout.css';
 
@@ -76,6 +77,7 @@ export function App({ bridge, host }: AppProps) {
           onReset={() => setMediaWidth(null)}
         />
         <Monitor />
+        <InspectorPanel />
       </div>
       <Splitter
         orientation="horizontal"

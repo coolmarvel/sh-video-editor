@@ -7,7 +7,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CHROMA_PARAMS, STABILIZER_PARAMS } from '../../editor/src/features/motion-fx/chroma';
-import { exec, hasNativeBinding, loadNapi, type NapiEngine, type SequenceInfo } from './helpers';
+import { exec, hasNativeBinding, loadNapi, type NapiEngine } from './helpers';
 
 const T = 254_016_000_000;
 
@@ -38,7 +38,7 @@ function plasmaSequence(engine: NapiEngine): Clip {
   const r = exec<{ items: number[] }>(engine, 'file.importDemoFootage', { scene: 'Plasma' });
   exec(engine, 'project.select', { items: [r.items[0]] });
   exec(engine, 'file.newSequenceFromClip', {});
-  const seq = exec<SequenceInfo & { video: { items: Clip[] }[] }>(engine, 'sequence.inspect');
+  const seq = exec<{ video: { items: Clip[] }[] }>(engine, 'sequence.inspect');
   return seq.video[0]!.items[0]!;
 }
 
@@ -69,7 +69,7 @@ describe.skipIf(!hasNativeBinding())('속도 램프(napi)', () => {
     const ramp1 = engine.renderFrame(clip.start + T, 0.25)!;
     expect(diff(ramp1, plain2)).toBeLessThan(4);
     expect(diff(ramp1, plain1)).toBeGreaterThan(10);
-    const after = exec<SequenceInfo & { video: { items: Clip[] }[] }>(engine, 'sequence.inspect').video[0]!.items[0]!;
+    const after = exec<{ video: { items: Clip[] }[] }>(engine, 'sequence.inspect').video[0]!.items[0]!;
     expect(after.duration).toBe(clip.duration);
     expect(after.effects.find((e) => e.effect === 'time_remap')!.params['speed']!.keyframes).toBe(2);
     // 곡선을 지우면(toggleAnimation) 다시 보통 프레임
@@ -117,7 +117,7 @@ describe.skipIf(!hasNativeBinding())('크로마키, 흔들림 줄이기(napi)', 
     expect(diff(solid, plain)).toBeGreaterThan(10);
     expect(solid.rgba[1]).toBeGreaterThan(150);
     exec(engine, 'effects.apply', { clips: [top], effect: 'ultra_key' });
-    const seq = exec<SequenceInfo & { video: { items: Clip[] }[] }>(engine, 'sequence.inspect');
+    const seq = exec<{ video: { items: Clip[] }[] }>(engine, 'sequence.inspect');
     const matteClip = seq.video.flatMap((t) => t.items).find((c) => c.clip === top)!;
     const index = matteClip.effects.findIndex((e) => e.effect === 'ultra_key');
     expect(index).toBe(0);
@@ -126,7 +126,7 @@ describe.skipIf(!hasNativeBinding())('크로마키, 흔들림 줄이기(napi)', 
     exec(engine, 'effects.setParam', { clip: top, effect: index, param: 'tolerance', value: 60 });
     const keyed = engine.renderFrame(tick, 0.25)!;
     expect(diff(keyed, plain)).toBeLessThan(4);
-    const got = exec<SequenceInfo & { video: { items: Clip[] }[] }>(engine, 'sequence.inspect');
+    const got = exec<{ video: { items: Clip[] }[] }>(engine, 'sequence.inspect');
     const after = got.video.flatMap((t) => t.items).find((c) => c.clip === top)!;
     expect(after.effects[0]!.params['tolerance']!.value).toBe(60);
     const rgba = after.effects[0]!.params['key_color']!.value as number[];
@@ -147,7 +147,7 @@ describe.skipIf(!hasNativeBinding())('크로마키, 흔들림 줄이기(napi)', 
     const next = performance.now() - t1;
     // 10초 플라스마 클립: 분석 수 초, 다음 프레임은 분석의 절반 아래
     expect(next).toBeLessThan(Math.max(50, analysis / 2));
-    const got = exec<SequenceInfo & { video: { items: Clip[] }[] }>(engine, 'sequence.inspect').video[0]!.items[0]!;
+    const got = exec<{ video: { items: Clip[] }[] }>(engine, 'sequence.inspect').video[0]!.items[0]!;
     expect(got.effects[0]!.effect).toBe('warp_stabilizer');
     expect(got.effects[0]!.params['smoothness']!.value).toBe(50);
   });

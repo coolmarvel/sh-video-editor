@@ -67,11 +67,17 @@ export function predictDuration(clip: ClipInfo, percent: number, frameTicks: num
   return Math.max(frameTicks, Math.round(raw / frameTicks) * frameTicks);
 }
 
-/** 타임라인 클립 배지 문구. 원래 속도·정방향이면 null(배지 없음). 예: "2x", "역", "0.5x 역" */
-export function badgeLabel(clip: Pick<ClipInfo, 'speed' | 'reverse'>): string | null {
+/** 클립에 속도 곡선(time_remap speed 키프레임, features/motion-fx)이 있는가 */
+export function hasSpeedRamp(clip: Pick<ClipInfo, 'effects'>): boolean {
+  return (clip.effects?.find((e) => e.effect === 'time_remap')?.params['speed']?.keyframes ?? 0) > 0;
+}
+
+/** 타임라인 클립 배지 문구. 원래 속도·정방향·곡선 없음이면 null(배지 없음). 예: "2x", "역", "0.5x 역", "램프", "2x 램프" */
+export function badgeLabel(clip: Pick<ClipInfo, 'speed' | 'reverse'> & Partial<Pick<ClipInfo, 'effects'>>): string | null {
   const parts: string[] = [];
   if (clip.speed !== 1) parts.push(formatSpeed(clip.speed * 100));
   if (clip.reverse) parts.push('역');
+  if (hasSpeedRamp(clip)) parts.push('램프');
   return parts.length === 0 ? null : parts.join(' ');
 }
 

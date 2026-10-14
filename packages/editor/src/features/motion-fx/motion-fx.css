@@ -1,0 +1,104 @@
+/* 속도 곡선 편집기, 크로마키·작은 화면·흔들림 줄이기 절, 스포이트 오버레이 배치(DESIGN.md 4.24). 값은 전부 --sh-* 토큰. */
+.mfx-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sh-space-6);
+  min-width: 0;
+}
+.mfx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sh-space-6);
+  min-width: 0;
+}
+.mfx-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sh-space-4);
+}
+.mfx-corners {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: var(--sh-space-4);
+}
+.mfx-params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4);
+  min-width: 0;
+}
+.mfx-hint {
+  margin: 0;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+  line-height: var(--sh-font-line-height-normal);
+  word-break: keep-all;
+}
+.mfx-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+}
+.mfx-progress .sh-progress {
+  width: var(--sh-space-48);
+}
+/* 곡선 편집기: 높이 96 의 SVG, canvas 면 + 1px border, 눈금선 grid, 1x 선은 border-strong, 곡선 accent, 점은 canvas 면 + accent 테두리 */
+.mfx-curve {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: var(--sh-border-width) solid var(--sh-color-border);
+  touch-action: none;
+  user-select: none;
+}
+.mfx-curve:focus-visible {
+  outline: var(--sh-border-width) dotted var(--sh-color-text);
+  outline-offset: calc(-1 * var(--sh-space-2));
+}
+.mfx-curve__bg {
+  fill: var(--sh-color-canvas);
+}
+.mfx-curve__grid {
+  stroke: var(--sh-color-grid);
+  stroke-width: var(--sh-border-width);
+}
+.mfx-curve__grid--base {
+  stroke: var(--sh-color-border-strong);
+}
+.mfx-curve__label {
+  fill: var(--sh-color-text-muted);
+  font-size: var(--sh-font-size-caption);
+  font-family: var(--sh-font-family-ui);
+}
+.mfx-curve__line {
+  fill: none;
+  stroke: var(--sh-color-accent);
+  stroke-width: calc(var(--sh-border-width) * 2);
+}
+.mfx-curve__point {
+  fill: var(--sh-color-canvas);
+  stroke: var(--sh-color-accent);
+  stroke-width: var(--sh-border-width);
+  cursor: move;
+}
+.mfx-curve__point:hover,
+.mfx-curve__point[data-selected='true'] {
+  fill: var(--sh-color-accent);
+}
+.mfx-curve__point[data-dragging='true'] {
+  fill: var(--sh-color-accent-pressed);
+  stroke: var(--sh-color-accent-pressed);
+}
+/* 스포이트 오버레이: 텍스트(z 2)·변형 상자(z 1) 위, 십자 커서 */
+.mfx-pick {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  cursor: crosshair;
+  background: transparent;
+}

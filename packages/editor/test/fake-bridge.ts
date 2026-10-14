@@ -49,8 +49,8 @@ export interface FakeEffect {
   enabled: boolean;
   masks: number;
   params: Record<string, FakeParam>;
-  /** 파라미터별 키프레임 미디어 시각·보간(실제 엔진처럼 inspect 에는 개수만 나간다) */
-  kf?: Record<string, Array<{ time: number; interp: string }>>;
+  /** 파라미터별 키프레임 미디어 시각·보간·값(실제 엔진처럼 inspect 에는 개수만 나가고 목록은 effects.keyframes 로) */
+  kf?: Record<string, Array<{ time: number; interp: string; value?: unknown }>>;
 }
 
 /** 가짜 엔진이 아는 효과 카탈로그(실제 effects.list 의 일부). 값은 기본값 */
@@ -66,6 +66,31 @@ export const FAKE_EFFECT_DEFAULTS: Record<string, Record<string, string>> = {
   },
   opacity: { opacity: 'Float(100.0)', blend: 'Choice(0)' },
   time_remap: { speed: 'Float(100.0)' },
+  ultra_key: {
+    key_color: 'Color([0.0, 0.8, 0.2, 1.0])',
+    output: 'Choice(0)',
+    setting: 'Choice(0)',
+    transparency: 'Float(45.0)',
+    highlight: 'Float(10.0)',
+    shadow: 'Float(50.0)',
+    tolerance: 'Float(50.0)',
+    pedestal: 'Float(10.0)',
+    choke: 'Float(0.0)',
+    soften: 'Float(0.0)',
+    spill: 'Float(50.0)',
+  },
+  warp_stabilizer: {
+    result: 'Choice(0)',
+    smoothness: 'Float(50.0)',
+    method: 'Choice(1)',
+    preserve_scale: 'Bool(false)',
+    framing: 'Choice(2)',
+    max_scale: 'Float(150.0)',
+    action_safe: 'Float(0.0)',
+    additional_scale: 'Float(100.0)',
+    detailed: 'Bool(false)',
+    crop_less: 'Float(50.0)',
+  },
   brightness_contrast: { brightness: 'Float(0.0)', contrast: 'Float(0.0)' },
   gaussian_blur: { blurriness: 'Float(0.0)', dimensions: 'Choice(0)', repeat_edge: 'Bool(false)' },
   sharpen: { amount: 'Float(0.0)' },
@@ -1931,7 +1956,9 @@ export class FakeEngine {
         if (kfTimes && kfTimes.length > 0) {
           // 애니메이션 중: time(없으면 플레이헤드)의 키프레임을 추가·갱신한다. 정적 값은 그대로(실제 엔진 Param::set_at)
           const mt = this.fakeMediaTime(clip, (p['time'] as number | undefined) ?? this.state.playhead);
-          if (!kfTimes.some((k) => k.time === mt)) kfTimes.push({ time: mt, interp: [...kfTimes].filter((k) => k.time < mt).pop()?.interp ?? 'linear' });
+          const at = kfTimes.find((k) => k.time === mt);
+          if (at) at.value = p['value'];
+          else kfTimes.push({ time: mt, interp: [...kfTimes].filter((k) => k.time < mt).pop()?.interp ?? 'linear', value: p['value'] });
           kfTimes.sort((a, b) => a.time - b.time);
           fx.params[param] = { ...(fx.params[param] ?? fakeParam(p['value'])), keyframes: kfTimes.length };
           this.touch();
@@ -2318,7 +2345,7 @@ export class FakeEngine {
         if (id === 'effects.addKeyframe') {
           const at = times.findIndex((k) => k.time === mtNow);
           if (at >= 0) times.splice(at, 1);
-          else times.push({ time: mtNow, interp: 'linear' });
+          else times.push({ time: mtNow, interp: 'linear', value: entry.value });
         } else if (id === 'effects.deleteKeyframe') {
           if (mediaTime === undefined) throw new FakeEngineError('invalid parameters for `keyframe`: need `mediaTime`');
           const at = times.findIndex((k) => k.time === mediaTime);
@@ -2340,13 +2367,47 @@ export class FakeEngine {
           const k = times.find((x) => x.time === at);
           if (!k) throw new FakeEngineError('invalid parameters for `keyframe`: no keyframe at that time');
           if (id === 'effects.setInterpolation') k.interp = String(p['interpolation'] ?? 'linear');
-          else if (p['value'] !== undefined) entry.value = fakeParamValue(p['value']);
+          else if (p['value'] !== undefined) {
+            entry.value = fakeParamValue(p['value']);
+            k.value = p['value'];
+          }
         }
         times.sort((a, b) => a.time - b.time);
         entry.keyframes = times.length;
         this.mergeKey = null;
         this.touch();
         return null;
+      }
+      case 'effects.keyframes': {
+        // 조회: 실제 엔진 sh_commands.rs list_keyframes 와 같은 모양(undo 없음)
+        const seq = this.sequence;
+        const { clip } = this.findClip(seq, p['clip'] as number);
+        const list = clip.effects ?? [];
+        const ref = p['effect'] ?? 'motion';
+        const fx = typeof ref === 'number' ? list[ref] : list.find((e) => e.effect === ref);
+        if (!fx) throw new FakeEngineError('invalid parameters for `effects.keyframes`: no such effect');
+        const only = p['param'] as string | undefined;
+        if (only !== undefined && !(only in fx.params)) throw new FakeEngineError(`invalid parameters for \`effects.keyframes\`: no param \`${only}\``);
+        const params: Record<string, unknown> = {};
+        for (const [name, entry] of Object.entries(fx.params)) {
+          if (only !== undefined && name !== only) continue;
+          const times = fx.kf?.[name] ?? [];
+          params[name] = {
+            kind: entry.kind,
+            animated: times.length > 0,
+            value: entry.value,
+            keyframes: times.map((k) => ({
+              mediaTime: k.time,
+              time: clip.start + (k.time - clip.sourceIn),
+              value: k.value === undefined ? entry.value : fakeParamValue(k.value),
+              interpolation: k.interp,
+              inInfluence: 1 / 3,
+              outInfluence: 1 / 3,
+            })),
+          };
+        }
+        const mt = this.fakeMediaTime(clip, this.state.playhead);
+        return { clip: clip.clip, effect: fx.effect, playhead: this.state.playhead, mediaTime: mt, params };
       }
       case 'file.newColorMatte': {
         const seconds = (p['seconds'] as number | undefined) ?? 5;

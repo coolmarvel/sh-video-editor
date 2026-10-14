@@ -27,6 +27,7 @@ export function clipMenu(clip: ClipInfo): ContextMenuEntry[] {
     item('복제', () => duplicateClip(clip), { disabled: busy }),
     sep,
     item('속도, 길이...', () => runAction('clip.speed'), { disabled: busy, key: shortcutLabel('clip.speed') }),
+    item('흔들림 줄이기', () => runAction('effects.stabilize'), { disabled: busy || kind !== 'video' }),
     sep,
     item(linked ? '소리 분리(연결 해제)' : '다시 연결', () => toggleLink(clips), {
       disabled: busy || (!linked && groups < 2),

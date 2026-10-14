@@ -8,3 +8,5 @@ export { EffectsTab, CompareButton } from './EffectsTab';
 export { ColorTab } from './ColorTab';
 export { FilterGallery } from './FilterGallery';
 export type { EffectDef, ParamDef, ParamValue, FilterPreset, PresetStep, ClipEffectInfo } from './types';
+export { registerEffectsSection, useEffectsSections } from './sections';
+export type { EffectsSection } from './sections';

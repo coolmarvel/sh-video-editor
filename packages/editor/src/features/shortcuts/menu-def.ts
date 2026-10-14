@@ -118,6 +118,7 @@ export const MENUS: MenuDef[] = [
         label: '효과 추가',
         items: USER_EFFECTS.map((d) => item(d.label, 'effects.add', { params: { effect: d.id } })),
       },
+      item('흔들림 줄이기', 'effects.stabilize'),
       item('색 보정 초기화', 'effects.resetColor'),
       item('필터 해제', 'effects.clearFilter'),
       item('비교(원본 보기)', 'effects.compare', { checked: () => useEffects.getState().compare !== null }),

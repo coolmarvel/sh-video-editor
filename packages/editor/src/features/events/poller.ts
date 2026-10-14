@@ -46,10 +46,13 @@ export class EnginePoller {
     this.now = opts.now ?? (() => Date.now());
   }
 
+  private unsubscribeRestart: (() => void) | null = null;
+
   start(): void {
     if (this.running) return;
     this.running = true;
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.onVisibility);
+    if (this.bridge.onEngineRestart) this.unsubscribeRestart = this.bridge.onEngineRestart(() => this.onRestart());
     void this.tick();
   }
 
@@ -58,6 +61,24 @@ export class EnginePoller {
     clearTimeout(this.timer);
     this.timer = 0;
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.onVisibility);
+    this.unsubscribeRestart?.();
+    this.unsubscribeRestart = null;
+  }
+
+  /** 엔진이 다시 떴다(데스크톱 크래시 복구). 새 엔진은 빈 세션이므로 모든 패널이 처음처럼 다시 읽게 신호를 올린다 */
+  onRestart(): void {
+    this.fallbackRevision = -1;
+    useEngineEvents.setState((s) => ({
+      revision: 0,
+      projectChanged: s.projectChanged + 1,
+      openedSequence: null,
+      sequenceChanged: s.sequenceChanged + 1,
+      playhead: 0,
+      playheadChanged: s.playheadChanged + 1,
+    }));
+    // 죽기 직전에 걸려 있던 호출들의 거부 오류(글꼴 목록 등)는 새 엔진과 무관하므로 지운다
+    useEditor.setState({ engineRevision: 0, error: null, status: '엔진을 다시 시작했습니다. 저장하지 않은 변경은 복구 후보에서 되살릴 수 있습니다.' });
+    void this.tick();
   }
 
   isRunning(): boolean {

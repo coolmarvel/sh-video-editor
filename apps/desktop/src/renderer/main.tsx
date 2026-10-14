@@ -38,6 +38,11 @@ const bridge: EngineBridge = {
   pickFiles: () => api.pickFiles(),
   pathForFile: (file) => api.pathForFile(file),
   renderAudio: (tick, frames, sampleRate) => api.renderAudio(tick, frames, sampleRate),
+  // 엔진 크래시 알림을 받으면 새 엔진이 응답할 때까지 기다렸다가 화면에 재시작을 알린다
+  onEngineRestart: (cb) =>
+    api.onCrashed(() => {
+      void api.version().then(() => cb());
+    }),
   audioPeaks: (item, perSecond) => api.audioPeaks(item, perSecond),
 };
 

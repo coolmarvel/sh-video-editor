@@ -1,11 +1,35 @@
 import type { EngineBridge, Frame } from '@editor';
+import type { OpfsStore } from '@editor/engine/bridge';
 
-/** Worker 안의 wasm 엔진을 EngineBridge 모양으로 감싼다. */
-export function createWorkerBridge(): EngineBridge {
+type Res = { id: number; ok: boolean; result?: unknown; error?: string };
+type Event = { event: 'fileWritten'; path: string; bytes: Uint8Array };
+
+/** 진단(QA 스크립트용): 등록된 파일과 범위 읽기 통계. 화면은 쓰지 않는다. */
+export interface WebBridgeDiag {
+  listFiles(): Promise<{ path: string; size: number; kind: 'blob' | 'memory' }[]>;
+  ioStats(): Promise<{
+    rangeReads: number;
+    blobReads: number;
+    blobBytes: number;
+    chunkHits: number;
+    cacheBytes: number;
+  }>;
+}
+
+/** Worker 안의 wasm 엔진을 EngineBridge 모양으로 감싼다. 웹 전용 선택 메서드(파일 등록·내보내기 수신·OPFS)도 여기서. */
+export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
   const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' });
   let seq = 0;
   const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-  worker.onmessage = (e: MessageEvent<{ id: number; ok: boolean; result?: unknown; error?: string }>) => {
+  const writeListeners = new Set<(path: string, bytes: Uint8Array) => void>();
+
+  worker.onmessage = (e: MessageEvent<Res | Event>) => {
+    if ('event' in e.data) {
+      if (e.data.event === 'fileWritten') {
+        for (const cb of writeListeners) cb(e.data.path, e.data.bytes);
+      }
+      return;
+    }
     const p = pending.get(e.data.id);
     if (!p) return;
     pending.delete(e.data.id);
@@ -19,7 +43,16 @@ export function createWorkerBridge(): EngineBridge {
       worker.postMessage({ id, method, args });
     });
 
-  return {
+  const opfs: OpfsStore = {
+    write: (path, bytes) => call('opfsWrite', path, bytes),
+    read: (path) => call('opfsRead', path),
+    list: (dir) => call('opfsList', dir),
+    remove: (path) => call('opfsRemove', path),
+    flush: () => call('opfsFlush'),
+  };
+
+  const bridge: EngineBridge & { diag: WebBridgeDiag } = {
+    diag: { listFiles: () => call('listFiles'), ioStats: () => call('ioStats') },
     version: () => call('version'),
     commands: () => call('commands'),
     execute: (id, params) => call('execute', id, params),
@@ -30,5 +63,22 @@ export function createWorkerBridge(): EngineBridge {
     setPlayhead: (tick) => call('setPlayhead', tick),
     pumpJobs: (ms) => call('pumpJobs', ms),
     renderFrame: (tick, scale) => call<Frame | null>('renderFrame', tick, scale),
+
+    // File 은 structured clone 으로 Worker 에 넘어간다(바이트 복사 없음, 핸들만)
+    registerFiles: (files) => call<string[]>('registerFiles', files),
+    onFileWritten: (cb) => {
+      writeListeners.add(cb);
+      if (writeListeners.size === 1) void call('setForwardWrites', true);
+      return () => {
+        writeListeners.delete(cb);
+        if (writeListeners.size === 0) void call('setForwardWrites', false);
+      };
+    },
+    takeWrittenFile: (path) => call<Uint8Array | null>('takeWrittenFile', path),
   };
+  // OPFS 는 Worker 에서만 쓴다. 지원 여부는 메인 스레드의 navigator.storage 로 미리 판단한다
+  if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.getDirectory === 'function') {
+    bridge.opfs = opfs;
+  }
+  return bridge;
 }

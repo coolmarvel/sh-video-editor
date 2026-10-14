@@ -758,13 +758,16 @@ dependencies = [
  "filmcraft-geom",
  "filmcraft-h264enc",
  "filmcraft-isobmff",
+ "filmcraft-matroska",
  "filmcraft-media",
  "filmcraft-mxf",
+ "filmcraft-opusenc",
  "filmcraft-project",
  "filmcraft-prores",
  "filmcraft-render",
  "filmcraft-text",
  "filmcraft-time",
+ "filmcraft-vp9enc",
  "image",
  "rayon",
  "serde",
@@ -896,6 +899,10 @@ name = "filmcraft-opus"
 version = "0.2.1"
 
 [[package]]
+name = "filmcraft-opusenc"
+version = "0.2.1"
+
+[[package]]
 name = "filmcraft-platform"
 version = "0.2.1"
 dependencies = [
@@ -1005,6 +1012,10 @@ dependencies = [
  "rayon",
  "thiserror 2.0.21",
 ]
+
+[[package]]
+name = "filmcraft-vp9enc"
+version = "0.2.1"
 
 [[package]]
 name = "find-msvc-tools"

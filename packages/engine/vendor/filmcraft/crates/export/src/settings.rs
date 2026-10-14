@@ -148,6 +148,8 @@ pub enum AudioCodec {
     Auto,
     Aac,
     Pcm,
+    /// Opus (WebM only; 48 kHz).
+    Opus,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -387,14 +389,15 @@ impl ExportSettings {
         let keyint = self.keyframe_distance.filter(|k| *k > 0).unwrap_or_else(|| (fps * 2.0).round().max(1.0) as u32);
         let channels = match self.audio.channels {
             0 | 1 => 1,
-            6.. => 6,
+            // Opus (WebM) streams are mono or stereo
+            6.. if self.format != Format::WebM => 6,
             _ => 2,
         };
         Resolved {
             width: w,
             height: h,
             rate,
-            sample_rate: self.audio.sample_rate.filter(|r| (8000..=192_000).contains(r)).unwrap_or(seq_sr),
+            sample_rate: if self.format == Format::WebM { 48_000 } else { self.audio.sample_rate.filter(|r| (8000..=192_000).contains(r)).unwrap_or(seq_sr) },
             channels,
             target_kbps: target,
             max_kbps: max,
@@ -406,6 +409,7 @@ impl ExportSettings {
     pub fn audio_codec(&self) -> AudioCodec {
         match (self.format, self.audio.codec) {
             (Format::Wav | Format::Aiff | Format::MxfOp1a | Format::MxfOpAtom, _) => AudioCodec::Pcm,
+            (Format::WebM, _) => AudioCodec::Opus,
             (f, _) if f.is_h26x() && self.multiplexer == Multiplexer::Mp4 => AudioCodec::Aac,
             (_, AudioCodec::Auto) if self.format.is_h26x() => AudioCodec::Aac,
             (_, AudioCodec::Auto) => AudioCodec::Pcm,
@@ -435,7 +439,7 @@ impl ExportSettings {
         let fps = r.rate.num as f64 / r.rate.den as f64;
         let px = r.width as f64 * r.height as f64;
         let video_bps = match self.video_format() {
-            Format::H264 | Format::Hevc => r.target_kbps as f64 * 1000.0,
+            Format::H264 | Format::Hevc | Format::WebM => r.target_kbps as f64 * 1000.0,
             Format::ProRes => crate::prores_profile(&self.prores_profile).nominal_mbps_1080p30() * 1e6 * px / (1920.0 * 1080.0) * fps / 29.97,
             Format::DnxHr => {
                 // nominal 1080p29.97 data rates of the DNxHR profiles (Mb/s)
@@ -464,7 +468,7 @@ impl ExportSettings {
         };
         let audio_bps = if self.has_audio() || matches!(self.format, Format::Wav | Format::Aiff) {
             match self.audio_codec() {
-                AudioCodec::Aac => self.audio.bitrate_kbps as f64 * 1000.0,
+                AudioCodec::Aac | AudioCodec::Opus => self.audio.bitrate_kbps as f64 * 1000.0,
                 _ => r.sample_rate as f64 * r.channels as f64 * if self.audio.bits >= 24 { 24.0 } else { 16.0 },
             }
         } else {
@@ -528,6 +532,14 @@ impl ExportSettings {
                 Format::DnxHr => v += &format!(", DNxHR {}", if self.dnx_profile.is_empty() { "HQ".into() } else { self.dnx_profile.to_ascii_uppercase() }),
                 Format::Apv => v += &format!(", {}", crate::apv_profile(&self.apv_profile).name()),
                 Format::Mjpeg => v += &format!(", quality {}", self.quality),
+                Format::WebM => {
+                    v += &format!(", VP9, {}", self.bitrate_mode.label());
+                    v += &match self.bitrate_mode {
+                        BitrateMode::Cbr => format!(", {}", mbps(r.target_kbps)),
+                        _ => format!(", Target {}, Max {}", mbps(r.target_kbps), mbps(r.max_kbps)),
+                    };
+                    v += &format!(", keyframe every {} frames", r.keyint);
+                }
                 _ => {}
             }
             v
@@ -540,6 +552,7 @@ impl ExportSettings {
             };
             match self.audio_codec() {
                 AudioCodec::Aac => format!("AAC, {} kbps, {} Hz, {ch}", self.audio.bitrate_kbps, r.sample_rate),
+                AudioCodec::Opus => format!("Opus, {} kbps, {} Hz, {ch}", self.audio.bitrate_kbps.clamp(6, 510), r.sample_rate),
                 _ => format!("Uncompressed {}-bit PCM, {} Hz, {ch}", if self.audio.bits >= 24 { 24 } else { 16 }, r.sample_rate),
             }
         } else {
@@ -551,6 +564,7 @@ impl ExportSettings {
             Format::ProRes | Format::DnxHr | Format::Apv | Format::Mjpeg => "QuickTime",
             Format::MxfOp1a | Format::MxfOpAtom => self.mxf_video_codec.label(),
             Format::PngSequence | Format::TiffSequence | Format::BmpSequence => "Image sequence",
+            Format::WebM => "Matroska",
             _ => "",
         };
         let format = if container.is_empty() { self.format.label().to_string() } else { format!("{} ({container})", self.format.label()) };

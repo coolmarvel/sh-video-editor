@@ -79,6 +79,19 @@ fn mxf(format: Format, codec: MxfVideoCodec, profile: &str) -> ExportSettings {
     s
 }
 
+/// WebM: VP9 at a target bitrate (VBR, 1 pass), Opus 128 kbps stereo at 48 kHz.
+fn webm(size: Option<(u32, u32)>, kbps: u32, max_kbps: u32) -> ExportSettings {
+    ExportSettings {
+        format: Format::WebM,
+        frame_size: size,
+        bitrate_kbps: kbps,
+        max_bitrate_kbps: Some(max_kbps),
+        bitrate_mode: BitrateMode::Vbr1Pass,
+        audio: AudioSettings { codec: AudioCodec::Opus, sample_rate: Some(48_000), channels: 2, bitrate_kbps: 128, bits: 16 },
+        ..Default::default()
+    }
+}
+
 fn audio_only(format: Format, bits: u16) -> ExportSettings {
     ExportSettings {
         format,
@@ -118,6 +131,13 @@ pub fn builtin_presets() -> Vec<ExportPreset> {
             ExportSettings { bitrate_mode: BitrateMode::Vbr2Pass, ..h264(Some((3840, 2160)), 50_000, 65_000) },
         ),
         p("Social Vertical 1080×1920", web, "H.264 9:16 portrait for short-form social video, scaled to fill, 12 Mbps", vertical),
+        p(
+            "WebM 1080p (Web)",
+            web,
+            "WebM, VP9 1920×1080, VBR 1 pass, 8 Mbps target, Opus 128 kbps; plays in browsers without plug-ins",
+            webm(Some((1920, 1080)), 8_000, 12_000),
+        ),
+        p("WebM 720p", web, "WebM, VP9 1280×720, VBR 1 pass, 4 Mbps target, Opus 128 kbps", webm(Some((1280, 720)), 4_000, 6_000)),
         p("Apple ProRes 422 HQ", bc, "QuickTime, ProRes 422 HQ, 24-bit 48 kHz PCM", mov(Format::ProRes, "hq")),
         p("Apple ProRes 422", bc, "QuickTime, ProRes 422, 24-bit 48 kHz PCM", mov(Format::ProRes, "standard")),
         p("Apple ProRes 422 LT", bc, "QuickTime, ProRes 422 LT, 24-bit 48 kHz PCM", mov(Format::ProRes, "lt")),

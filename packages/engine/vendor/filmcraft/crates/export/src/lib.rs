@@ -5,8 +5,8 @@
 //! are shared atomics so the UI (Export mode, header progress) and MCP can observe/cancel jobs.
 //!
 //! Video encoders implement [`VideoEncoder`]; codec crates register theirs with
-//! [`register_encoder`] (H.264, ProRes …). Built in: Motion-JPEG (MOV), PNG / TIFF / BMP
-//! sequences, GIF, WAV and AIFF.
+//! [`register_encoder`] (H.264, ProRes …). Built in: Motion-JPEG (MOV), WebM (VP9 + Opus, see
+//! [`webm_out`]), PNG / TIFF / BMP sequences, GIF, WAV and AIFF.
 //!
 //! [`ExportSettings`] carries every Export-mode setting (frame size, rate, bitrate encoding, audio
 //! format, multiplexer, captions, effects, metadata) as serde data; [`presets`] defines the
@@ -23,6 +23,7 @@ mod pcm;
 mod pipeline;
 pub mod presets;
 pub mod settings;
+mod webm_out;
 pub use audio_out::LoudnessReport;
 pub use job::{Exporter, Step, stepped};
 pub use mxf_out::opatom_audio_paths;
@@ -102,6 +103,10 @@ pub enum Format {
     /// audio channel ([`opatom_audio_paths`]).
     #[serde(rename = "mxf-opatom", alias = "MxfOpAtom")]
     MxfOpAtom,
+    /// WebM (Matroska): VP9 profile 0 video (`filmcraft-vp9enc`) + Opus audio (`filmcraft-opusenc`),
+    /// 48 kHz. Playable in browsers without plug-ins; `bitrate_kbps` / `keyframe_distance` apply.
+    #[serde(rename = "webm", alias = "WebM")]
+    WebM,
 }
 
 impl Format {
@@ -114,6 +119,7 @@ impl Format {
             "apv" | "apv1" => Format::Apv,
             "mxf" | "mxfop1a" | "op1a" => Format::MxfOp1a,
             "mxfopatom" | "opatom" | "mxfatom" | "avidmxf" => Format::MxfOpAtom,
+            "webm" | "vp9" | "vp9opus" | "matroska" | "mkv" => Format::WebM,
             "mjpeg" | "motionjpeg" | "jpeg" => Format::Mjpeg,
             "png" | "pngsequence" => Format::PngSequence,
             "tif" | "tiff" | "tiffsequence" => Format::TiffSequence,
@@ -141,6 +147,7 @@ impl Format {
             Format::Aiff => "aiff",
             Format::MxfOp1a => "mxf-op1a",
             Format::MxfOpAtom => "mxf-opatom",
+            Format::WebM => "webm",
         }
     }
     pub fn extension(self) -> &'static str {
@@ -154,6 +161,7 @@ impl Format {
             Format::Wav => "wav",
             Format::Aiff => "aif",
             Format::MxfOp1a | Format::MxfOpAtom => "mxf",
+            Format::WebM => "webm",
         }
     }
     pub fn label(self) -> &'static str {
@@ -172,6 +180,7 @@ impl Format {
             Format::Aiff => "AIFF",
             Format::MxfOp1a => "MXF OP1a",
             Format::MxfOpAtom => "MXF OP-Atom",
+            Format::WebM => "WebM (VP9 + Opus)",
         }
     }
     /// An MXF container format.
@@ -187,7 +196,7 @@ impl Format {
     pub fn is_h26x(self) -> bool {
         matches!(self, Format::H264 | Format::Hevc)
     }
-    pub const ALL: [Format; 14] = [
+    pub const ALL: [Format; 15] = [
         Format::H264,
         Format::Hevc,
         Format::ProRes,
@@ -202,6 +211,7 @@ impl Format {
         Format::Aiff,
         Format::MxfOp1a,
         Format::MxfOpAtom,
+        Format::WebM,
     ];
 }
 
@@ -505,6 +515,9 @@ impl ExportSettings {
         if self.format == Format::Hevc && self.bitrate_mode == BitrateMode::Vbr2Pass {
             return Err(ExportError::Unsupported("H.265 export has no two-pass mode: choose CBR or VBR, 1 pass".into()));
         }
+        if self.format == Format::WebM && self.bitrate_mode == BitrateMode::Vbr2Pass {
+            return Err(ExportError::Unsupported("WebM export has no two-pass mode: choose CBR or VBR, 1 pass".into()));
+        }
         Ok(())
     }
 }
@@ -587,6 +600,10 @@ pub struct EncoderFrame<'a> {
 pub trait VideoEncoder: Send {
     /// MP4/MOV sample entry (codec config) — may only be complete after the first frame.
     fn sample_entry(&self) -> SampleEntry;
+    /// Matroska `CodecID` and `CodecPrivate` of the stream (WebM export); None for codecs WebM does not carry.
+    fn matroska_codec(&self) -> Option<(&'static str, Vec<u8>)> {
+        None
+    }
     fn timescale(&self) -> u32;
     fn encode(&mut self, frame: &EncoderFrame) -> Result<Vec<EncodedPacket>>;
     fn flush(&mut self) -> Result<Vec<EncodedPacket>>;
@@ -603,6 +620,10 @@ pub trait VideoEncoder: Send {
 /// Audio encoder (AAC) plugged in by codec crates; PCM is built in.
 pub trait AudioEncoder: Send {
     fn sample_entry(&self) -> SampleEntry;
+    /// Matroska `CodecID` and `CodecPrivate` of the stream (WebM export); None for codecs WebM does not carry.
+    fn matroska_codec(&self) -> Option<(&'static str, Vec<u8>)> {
+        None
+    }
     fn encode(&mut self, planar: &[Vec<f32>]) -> Result<Vec<Vec<u8>>>;
     fn flush(&mut self) -> Result<Vec<Vec<u8>>>;
     /// Encoder delay (priming) in samples.
@@ -616,11 +637,11 @@ pub type AudioEncoderFactory = fn(format: Format, sample_rate: u32, channels: u3
 
 fn video_factories() -> &'static RwLock<Vec<EncoderFactory>> {
     static F: OnceLock<RwLock<Vec<EncoderFactory>>> = OnceLock::new();
-    F.get_or_init(|| RwLock::new(vec![h264_factory, prores_factory, dnx_factory, apv_factory, mjpeg_factory]))
+    F.get_or_init(|| RwLock::new(vec![h264_factory, prores_factory, dnx_factory, apv_factory, mjpeg_factory, vp9_factory]))
 }
 fn audio_factories() -> &'static RwLock<Vec<AudioEncoderFactory>> {
     static F: OnceLock<RwLock<Vec<AudioEncoderFactory>>> = OnceLock::new();
-    F.get_or_init(|| RwLock::new(vec![aac_factory]))
+    F.get_or_init(|| RwLock::new(vec![opus_factory, aac_factory]))
 }
 
 /// Hardware encoder counters (`perf.stats` `export.hardware`): pictures encoded by hardware
@@ -762,7 +783,10 @@ impl AudioEncoder for AacEncoder {
     }
 }
 
-fn aac_factory(_format: Format, sample_rate: u32, channels: u32, s: &ExportSettings) -> Option<Result<Box<dyn AudioEncoder>>> {
+fn aac_factory(format: Format, sample_rate: u32, channels: u32, s: &ExportSettings) -> Option<Result<Box<dyn AudioEncoder>>> {
+    if format == Format::WebM {
+        return None;
+    }
     // AAC caps a frame at 6144 bits per channel (ISO/IEC 14496-3 §4.5.3.2): 6 bits per sample, so
     // 264.6 kbps for stereo at 22.05 kHz; a higher setting is capped instead of refused
     let max = (6 * sample_rate as u64 * channels.max(1) as u64).min(u32::MAX as u64) as u32;
@@ -772,6 +796,85 @@ fn aac_factory(_format: Format, sample_rate: u32, channels: u32, s: &ExportSetti
             .map(|enc| Box::new(AacEncoder { enc, rate: sample_rate, channels }) as Box<dyn AudioEncoder>)
             .map_err(|e| ExportError::Encode(e.to_string())),
     )
+}
+
+/// Opus (our encoder, WebM audio): 48 kHz mono or stereo, 20 ms packets at the audio bitrate
+/// setting (CELT, hybrid or SILK by bitrate). Input is buffered to whole packets; `flush` pads the
+/// tail with at least the pre-skip worth of silence so the last samples come out of the decoder.
+struct OpusAudioEncoder {
+    enc: filmcraft_opusenc::OpusEncoder,
+    channels: usize,
+    /// Interleaved samples not yet encoded (less than one packet).
+    pending: Vec<f32>,
+}
+
+impl OpusAudioEncoder {
+    const FRAME: usize = filmcraft_opusenc::OpusEncoder::FRAME_SIZE;
+
+    fn drain(&mut self) -> Vec<Vec<u8>> {
+        let n = Self::FRAME * self.channels;
+        let mut out = Vec::new();
+        let mut off = 0;
+        while off + n <= self.pending.len() {
+            out.push(self.enc.encode_float(&self.pending[off..off + n]));
+            off += n;
+        }
+        self.pending.drain(..off);
+        out
+    }
+}
+
+impl AudioEncoder for OpusAudioEncoder {
+    fn sample_entry(&self) -> SampleEntry {
+        // WebM carries the OpusHead in the track's CodecPrivate ([`AudioEncoder::matroska_codec`]); the MP4
+        // mapping (`Opus` + `dOps`) is not written by this crate
+        let f = filmcraft_isobmff::FourCc(*b"Opus");
+        SampleEntry::audio(f, filmcraft_isobmff::CodecConfig::Unknown { fourcc: f, raw: self.enc.opus_head() }, self.channels as u32, 48_000.0, 16)
+    }
+    fn matroska_codec(&self) -> Option<(&'static str, Vec<u8>)> {
+        Some(("A_OPUS", self.enc.opus_head()))
+    }
+    fn encode(&mut self, planar: &[Vec<f32>]) -> Result<Vec<Vec<u8>>> {
+        let n = planar.first().map_or(0, Vec::len);
+        self.pending.reserve(n * self.channels);
+        for i in 0..n {
+            for c in 0..self.channels {
+                self.pending.push(planar.get(c).and_then(|p| p.get(i)).copied().unwrap_or(0.0));
+            }
+        }
+        Ok(self.drain())
+    }
+    fn flush(&mut self) -> Result<Vec<Vec<u8>>> {
+        if self.pending.is_empty() {
+            return Ok(Vec::new());
+        }
+        let n = Self::FRAME * self.channels;
+        let mut pad = (n - self.pending.len() % n) % n;
+        if pad < self.enc.pre_skip() as usize * self.channels {
+            pad += n;
+        }
+        self.pending.resize(self.pending.len() + pad, 0.0);
+        Ok(self.drain())
+    }
+    fn priming(&self) -> u32 {
+        u32::from(self.enc.pre_skip())
+    }
+    fn frame_size(&self) -> u32 {
+        Self::FRAME as u32
+    }
+}
+
+fn opus_factory(format: Format, sample_rate: u32, channels: u32, s: &ExportSettings) -> Option<Result<Box<dyn AudioEncoder>>> {
+    if format != Format::WebM {
+        return None;
+    }
+    if sample_rate != 48_000 {
+        return Some(Err(ExportError::Encode(format!("Opus needs 48 kHz audio, not {sample_rate} Hz"))));
+    }
+    let channels = channels.clamp(1, 2) as usize;
+    let bps = s.audio.bitrate_kbps.clamp(6, 510) * 1000;
+    let enc = filmcraft_opusenc::OpusEncoder::new(channels as u8, bps);
+    Some(Ok(Box::new(OpusAudioEncoder { enc, channels, pending: Vec::new() })))
 }
 
 /// ProRes 422 encoder (HQ unless the settings pick another flavour): sRGB/709 RGBA8 → 10-bit limited-range BT.709 4:2:2.
@@ -1214,6 +1317,59 @@ fn h264_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSetti
     )
 }
 
+/// VP9 profile 0 (our encoder, WebM video): sRGB/709 RGBA8 → 8-bit limited-range BT.709 4:2:0, one
+/// packet per frame (no reordering), a key frame every `keyframe_distance` frames, rate controlled
+/// to the target bitrate.
+struct Vp9Encoder {
+    enc: filmcraft_vp9enc::Vp9Encoder,
+    w: u32,
+    h: u32,
+    rate: FrameRate,
+    y: Vec<u8>,
+    u: Vec<u8>,
+    v: Vec<u8>,
+}
+
+impl VideoEncoder for Vp9Encoder {
+    fn sample_entry(&self) -> SampleEntry {
+        // WebM does not use it; the MP4 mapping (`vp09` + `vpcC`) is not written by this crate
+        let f = filmcraft_isobmff::FourCc(*b"vp09");
+        SampleEntry::video(f, filmcraft_isobmff::CodecConfig::Unknown { fourcc: f, raw: Vec::new() }, self.w as u16, self.h as u16)
+    }
+    fn matroska_codec(&self) -> Option<(&'static str, Vec<u8>)> {
+        Some(("V_VP9", Vec::new()))
+    }
+    fn timescale(&self) -> u32 {
+        self.rate.num as u32
+    }
+    fn encode(&mut self, f: &EncoderFrame) -> Result<Vec<EncodedPacket>> {
+        rgba_to_yuv420_8(f.rgba, f.width as usize, f.height as usize, &mut self.y, &mut self.u, &mut self.v);
+        let p = self.enc.encode_frame(&self.y, &self.u, &self.v, false);
+        Ok(vec![EncodedPacket { data: p.data, key: p.key, duration: self.rate.den as u32, composition_offset: 0 }])
+    }
+    fn flush(&mut self) -> Result<Vec<EncodedPacket>> {
+        Ok(Vec::new())
+    }
+}
+
+fn vp9_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSettings) -> Option<Result<Box<dyn VideoEncoder>>> {
+    if format != Format::WebM {
+        return None;
+    }
+    let fps = (rate.num as f64 / rate.den.max(1) as f64).max(1.0);
+    let cfg = filmcraft_vp9enc::EncoderConfig {
+        width: w,
+        height: h,
+        quality: s.quality.clamp(1, 100),
+        full_range: false,
+        keyframe_interval: s.keyframe_distance.filter(|k| *k > 0).unwrap_or_else(|| (fps * 2.0).round().max(1.0) as u32),
+        target_kbps: Some(s.bitrate_kbps.max(100)),
+        frame_rate: fps,
+        loop_filter: true,
+    };
+    Some(Ok(Box::new(Vp9Encoder { enc: filmcraft_vp9enc::Vp9Encoder::new(cfg), w, h, rate, y: Vec::new(), u: Vec::new(), v: Vec::new() })))
+}
+
 /// The range to export (settings → In/Out → whole sequence).
 pub fn export_range(project: &Project, seq: ItemId, settings: &ExportSettings) -> Result<TimeRange> {
     let q = project.sequence(seq).ok_or(ExportError::NoSequence)?;
@@ -1377,7 +1533,7 @@ pub fn export(project: &Arc<Project>, seq: ItemId, settings: &ExportSettings, so
             }
             (total, count)
         }
-        Format::H264 | Format::Hevc | Format::ProRes | Format::DnxHr | Format::Apv | Format::Mjpeg | Format::MxfOp1a | Format::MxfOpAtom => {
+        Format::H264 | Format::Hevc | Format::ProRes | Format::DnxHr | Format::Apv | Format::Mjpeg | Format::MxfOp1a | Format::MxfOpAtom | Format::WebM => {
             // Handled by the stepped exporter above; reaching here would be a dispatch bug.
             return Err(ExportError::Unsupported(format!("{:?} must run as a stepped export", settings.format)));
         }

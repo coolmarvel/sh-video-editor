@@ -89,6 +89,61 @@ fn wav_png_gif() {
     assert!(std::path::Path::new(&tmp("seq005.png")).exists());
 }
 
+/// WebM (VP9 + Opus): our demuxer and decoders read the file back (size, codecs, duration, the red
+/// frame, the tone), and ffprobe (when installed) counts 24 VP9 packets; a silent export has one track.
+#[test]
+fn webm_export_roundtrip() {
+    let (p, seq, m) = project();
+    let path = tmp("out.webm");
+    let prog = Progress::default();
+    let s = ExportSettings { format: Format::WebM, path: path.clone(), bitrate_kbps: 800, ..Default::default() };
+    assert_eq!(s.audio_codec(), AudioCodec::Opus);
+    let r = export(&p, seq, &s, &m, &prog).unwrap();
+    assert_eq!(r.frames, 24);
+    assert!(r.bytes > 4_000, "{}", r.bytes);
+    let bytes: Arc<[u8]> = std::fs::read(&path).unwrap().into();
+    assert_eq!(&bytes[..4], &[0x1A, 0x45, 0xDF, 0xA3], "EBML header");
+    let src = filmcraft_codecs::open_bytes("out.webm", bytes.clone()).unwrap();
+    let info = src.info();
+    let v = info.video.as_ref().unwrap();
+    assert_eq!((v.width, v.height), (320, 180));
+    assert!(v.codec.to_ascii_lowercase().contains("vp9"), "{}", v.codec);
+    let a = info.audio.as_ref().unwrap();
+    assert!(a.codec.to_ascii_lowercase().contains("opus"), "{}", a.codec);
+    assert_eq!((a.sample_rate, a.channels), (48_000, 2));
+    assert!((info.duration.seconds() - 1.0).abs() < 0.03, "{}", info.duration.seconds());
+    let f = src.video_frame(FrameRequest::full(Tick(TICKS_PER_SECOND / 2))).unwrap().to_rgba8();
+    assert!(f[0] > 220 && f[1] < 40 && f[2] < 40, "{:?}", &f[..4]);
+    let au = src.audio(0, 24_000, 48_000).unwrap();
+    let pk = au.peaks()[0];
+    assert!((pk - 0.5).abs() < 0.08, "tone at -6 dB through Opus: {pk}");
+    // the container: webm doc type, both tracks, cues at the key frame
+    let mut d = filmcraft_matroska::Demuxer::from_slice(&bytes).unwrap();
+    assert_eq!(d.tracks().len(), 2);
+    assert_eq!(d.tracks()[0].codec_id, "V_VP9");
+    assert_eq!(d.tracks()[1].codec_id, "A_OPUS");
+    assert!(!d.file().cues.is_empty());
+    let packets: Vec<_> = d.by_ref().map(|p| p.unwrap()).collect();
+    assert_eq!(packets.iter().filter(|p| p.track == 0).count(), 24);
+    assert!(packets.iter().filter(|p| p.track == 1).count() >= 50, "20 ms Opus packets for one second");
+    assert!(packets[0].track == 0 && packets[0].keyframe);
+    if let Some(ffprobe) = filmcraft_testkit::ffprobe_or_skip("export webm packet count") {
+        let out = std::process::Command::new(ffprobe)
+            .args(["-v", "error", "-count_packets", "-select_streams", "v:0", "-show_entries", "stream=codec_name,nb_read_packets", "-of", "csv=p=0", &path])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "vp9,24");
+    }
+    // without audio: one track, the extension logic of the engine is not involved here
+    let path = tmp("silent.webm");
+    let s = ExportSettings { format: Format::WebM, path: path.clone(), include_audio: false, ..Default::default() };
+    export(&p, seq, &s, &m, &Progress::default()).unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+    let d = filmcraft_matroska::Demuxer::from_slice(&bytes).unwrap();
+    assert_eq!(d.tracks().len(), 1);
+    assert_eq!(d.duration_ns(), Some(1_000_000_000), "24 frames at 24 fps");
+}
+
 #[test]
 fn prores_export_roundtrip() {
     let (p, seq, m) = project();

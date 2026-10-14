@@ -38,6 +38,9 @@ fn compare(ffprobe: &Path, path: &Path) -> (MkvFile, Vec<Packet>) {
     let packets: Vec<Packet> = d.by_ref().collect::<Result<_>>().unwrap();
     let ff = json["packets"].as_array().unwrap();
     assert_eq!(packets.len(), ff.len(), "{name}: packet count");
+    // The last packet of a track: we clamp its duration to the segment end, while ffprobe keeps the
+    // codec's nominal frame duration (ffmpeg 6.1 muxes AC-3 tails like that), so only compare the rest.
+    let last_of_track: Vec<usize> = file.tracks.iter().enumerate().filter_map(|(ti, _)| packets.iter().rposition(|p| p.track == ti)).collect();
     let (mut pts_checked, mut dur_checked) = (0, 0);
     for (i, (p, f)) in packets.iter().zip(ff).enumerate() {
         let ctx = format!("{name}: packet {i} (track {})", p.track);
@@ -60,6 +63,7 @@ fn compare(ffprobe: &Path, path: &Path) -> (MkvFile, Vec<Packet>) {
         }
         if let Some(dur) = int(&f["duration"])
             && p.duration != 0
+            && !(last_of_track.contains(&i) && (p.duration as i64) < dur)
         {
             assert!((dur - p.duration as i64).abs() <= 1, "{ctx}: duration ffprobe {dur} vs {}", p.duration);
             dur_checked += 1;

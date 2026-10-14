@@ -157,12 +157,17 @@ pub fn stats() -> PoolStats {
 mod tests {
     use super::*;
     use crate::Chroma;
+    use std::sync::{Mutex, PoisonError};
+
+    /// The shelves are process-global, so these tests must not interleave on the test threads.
+    static SERIAL: Mutex<()> = Mutex::new(());
 
     /// The plane shelves may hold up to this much alongside the float shelf in a test binary.
     const U8_BYTES_UPPER_BOUND: usize = 2 * MAX_BYTES;
 
     #[test]
     fn shelf_hands_back_a_fitting_buffer_and_stays_within_its_budget() {
+        let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
         let mut s = Shelf::<u8>::new();
         s.give(Vec::with_capacity(1 << 20), 3 << 20);
         s.give(Vec::with_capacity(2 << 20), 3 << 20);
@@ -183,6 +188,7 @@ mod tests {
 
     #[test]
     fn float_images_come_back_whole_and_unchanged_within_their_budget() {
+        let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
         // a length nothing else in this test binary asks for
         let len = 1_000_003usize;
         let mut b = take_f32_overwritten(len);
@@ -210,6 +216,7 @@ mod tests {
 
     #[test]
     fn recycled_frames_feed_the_next_take_unless_still_shared() {
+        let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
         // sizes nothing else in this test binary asks for
         let (n, c) = (777_001usize, 333_003usize);
         let yuv = |fill: u8| {

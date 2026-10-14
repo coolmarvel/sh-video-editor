@@ -87,6 +87,11 @@ npm run dev:web                   # http://localhost:5174 (엔진은 Worker 의 
 npm run verify                    # 전체 검증 (변경 후 자동 규칙 2)
 npm run check:engine              # cargo check (빠른 엔진 확인)
 npm run smoke -w apps/desktop     # 빌드된 Electron 을 xvfb 로 띄워 엔진 응답 확인
+npm run test:unit                 # 화면 단위 테스트(vitest, jsdom). 커버리지 임계는 test:unit:coverage
+npm run test:engine               # 엔진 기능 테스트(빌드된 .node·wasm 을 Node 에서, ffmpeg 오라클)
+npm run test:e2e:web              # 웹 e2e(Playwright chromium, 1440·390). 포트는 자동, 고정은 SH_E2E_PORT
+npm run test:e2e:desktop          # 데스크톱 빌드 + xvfb e2e(app 뒤 recovery 프로젝트)
+npm run test:report               # 층별 테스트 수·시간 표(session-log 용). 층·전제는 docs/guides/testing.md
 npm run dist:win                  # Windows 인스톨러 (release/)
 cd packages/engine/vendor/filmcraft && cargo xtask ci   # 이식 엔진 자체 CI
 cd packages/engine/vendor/filmcraft && cargo run -p filmcraft-cli -- commands   # 헤드리스로 커맨드 목록

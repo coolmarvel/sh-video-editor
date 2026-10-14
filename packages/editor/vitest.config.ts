@@ -23,7 +23,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: resolve(__dirname, 'coverage'),
-      reporter: ['text', 'json-summary'],
+      // lcov 는 CI artifact 용(.github/workflows/ci.yml 의 lint-unit job)
+      reporter: ['text', 'json-summary', 'lcov'],
       // 순수 모듈·store 만 측정한다. 컴포넌트는 e2e 가 실제 브라우저에서 본다
       include: [
         'src/engine/time.ts',
@@ -69,7 +70,8 @@ export default defineConfig({
         'src/features/templates/catalog.ts',
         'src/features/templates/store.ts',
       ],
-      thresholds: { statements: 85, branches: 80, functions: 85, lines: 85 },
+      // 임계는 CI 가 강제한다(`npm run test:unit:coverage` 가 미달이면 실패). 2026-10-14 실측 93/84/91/96 에서 2~3%p 여유
+      thresholds: { statements: 90, branches: 82, functions: 88, lines: 93 },
     },
   },
 });

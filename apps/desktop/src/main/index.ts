@@ -30,6 +30,8 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     title: 'SH Video Editor',
+    // 개발 실행·Linux 창 아이콘. Windows 패키지는 exe 리소스 아이콘(build/icon.ico, electron-builder win.icon)을 쓴다
+    icon: join(__dirname, '../../build/icon.png'),
     backgroundColor: '#2a2c32',
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false },
   });

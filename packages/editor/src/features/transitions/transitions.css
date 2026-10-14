@@ -1,0 +1,210 @@
+/* 전환 갤러리·타임라인 전환 블록·인스펙터 탭 (DESIGN.md 4.15 "전환 블록"). 값은 --sh-* 토큰과 그 조합만. */
+
+/* 갤러리(미디어 패널의 전환 탭) */
+.ve-transitions {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.ve-transitions__toolbar {
+  flex: none;
+}
+.ve-transitions__toolbar-label {
+  padding: 0 var(--sh-space-4);
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-muted);
+  white-space: nowrap;
+}
+.ve-transitions__grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--sh-space-48) + var(--sh-space-32)), 1fr));
+  gap: var(--sh-space-4);
+  padding: var(--sh-space-6);
+  align-content: start;
+}
+.ve-transition-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sh-space-4);
+  padding: var(--sh-space-6) var(--sh-space-4);
+  border: var(--sh-border-width) solid var(--sh-color-control-border);
+  background: var(--sh-gradient-bevel);
+  color: var(--sh-color-text);
+  font: inherit;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ve-transition-card:hover:not(:disabled) {
+  border-color: var(--sh-color-hover-edge);
+  background: var(--sh-color-hover);
+}
+.ve-transition-card:active:not(:disabled) {
+  cursor: grabbing;
+}
+.ve-transition-card:disabled {
+  color: var(--sh-color-text-disabled);
+  cursor: default;
+}
+.ve-transition-card:focus-visible {
+  outline: var(--sh-border-width) solid var(--sh-color-accent);
+  outline-offset: calc(-1 * var(--sh-border-width));
+}
+.ve-transition-card__label {
+  font-size: var(--sh-font-size-caption);
+  line-height: var(--sh-font-line-height-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ve-transitions__hint {
+  flex: none;
+  padding: var(--sh-space-4) var(--sh-space-6);
+  border-top: var(--sh-border-width) solid var(--sh-color-border);
+  font-size: var(--sh-font-size-caption);
+}
+
+/* 썸네일: A(나가는 클립)·B(들어오는 클립) 두 색 */
+.tr-icon {
+  display: block;
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-color-sunken);
+}
+.tr-icon__a {
+  fill: var(--sh-color-text-muted);
+}
+.tr-icon__b {
+  fill: var(--sh-color-accent);
+}
+.tr-icon__dark {
+  fill: var(--sh-color-canvas);
+}
+.tr-icon__light {
+  fill: var(--sh-color-text);
+}
+.tr-icon__line {
+  fill: var(--sh-color-text);
+}
+.tr-icon__warm {
+  fill: var(--sh-color-warning);
+}
+.ve-transition-card:disabled .tr-icon__a,
+.ve-transition-card:disabled .tr-icon__b {
+  fill: var(--sh-color-border-strong);
+}
+
+/* 타임라인 전환 블록: 레인 위쪽에 컷을 가운데 두고 걸친 작은 블록 */
+.tl-transition {
+  position: absolute;
+  top: var(--sh-space-2);
+  height: var(--sh-space-12);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: var(--sh-border-width) solid var(--sh-color-accent-pressed);
+  background: var(--sh-color-accent-subtle);
+  color: var(--sh-color-text);
+  font-size: var(--sh-font-size-caption);
+  line-height: var(--sh-font-line-height-tight);
+  cursor: default;
+}
+.tl-transition:hover {
+  border-color: var(--sh-color-accent);
+}
+.tl-transition.is-selected {
+  background: var(--sh-color-accent);
+  border-color: var(--sh-color-accent-pressed);
+  color: var(--sh-color-on-accent);
+}
+.tl-transition.is-ghost {
+  border-style: dashed;
+  border-color: var(--sh-color-accent);
+  background: var(--sh-color-accent-subtle);
+  pointer-events: none;
+}
+.tl-transition__name {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--sh-space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tl-transition__handle {
+  flex: none;
+  width: var(--sh-space-6);
+  align-self: stretch;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.tl-transition__handle:hover,
+.tl-transition.is-selected .tl-transition__handle {
+  background: var(--sh-color-accent-pressed);
+}
+
+/* 인스펙터 "전환" 탭 */
+.ve-transition-props {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+}
+.ve-transition-props__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  min-width: 0;
+}
+.ve-transition-props__label {
+  flex: none;
+  width: var(--sh-space-32);
+  color: var(--sh-color-text-secondary);
+}
+.ve-transition-props .sh-select {
+  flex: 1;
+  min-width: 0;
+}
+.ve-transition-props__frames {
+  width: calc(var(--sh-space-48) + var(--sh-space-16));
+}
+.ve-transition-props__unit {
+  color: var(--sh-color-text-secondary);
+}
+.ve-transition-props__seconds {
+  color: var(--sh-color-text-muted);
+  font-size: var(--sh-font-size-caption);
+}
+.ve-transition-props__segment {
+  background: none;
+  border: 0;
+  padding: 0;
+  height: auto;
+}
+.ve-transition-props__actions {
+  flex-wrap: wrap;
+  padding-top: var(--sh-space-4);
+  border-top: var(--sh-border-width) solid var(--sh-color-border);
+}
+.ve-transition-props__actions .ve-hint {
+  flex: 1 1 100%;
+  font-size: var(--sh-font-size-caption);
+}
+
+/* 모바일: 영상 트랙이 30 이라 블록을 더 낮게 */
+@media (max-width: 900px) {
+  .tl-transition {
+    height: var(--sh-space-8);
+    font-size: var(--sh-font-size-caption);
+  }
+  .tl-transition__name {
+    display: none;
+  }
+}

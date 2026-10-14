@@ -826,6 +826,12 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
   `aria-pressed`. 모든 편집은 엔진 커맨드로 보내고 `sequence.inspect` 를 다시 읽어 그린다.
 - 미디어 패널에서 끌어오기: `dataTransfer` 의 `application/x-sh-media-item` 에 미디어 항목 id(`project.inspect` 의 `item`).
   계약 파일 `features/timeline/dnd.ts`.
+- 전환 블록(`features/transitions/`, 2026-10-14): 레인 위쪽에 컷을 가운데 두고 걸친 작은 블록. 위 2px(`space.2`) 띄우고
+  높이 12(`space.12`), 1px accent-pressed 테두리 + `--sh-color-accent-subtle` 면, 11px 전환 이름 한 줄 말줄임, 클립보다 위에
+  놓인다. 선택 = `--sh-color-accent` 면 + on-accent 글자(`aria-pressed`). 양 끝 6px 길이 핸들은 hover·선택 때 accent-pressed
+  로 채우고 끌면 프레임 단위로 양쪽이 같이 늘어난다(두 클립 사이는 가운데 정렬 고정). 한쪽 편집점(페이드 인·아웃)은 컷 반대쪽
+  핸들만 보인다. 끌어다 놓을 때 놓일 자리는 점선 accent 고스트 블록. 모바일은 높이 8(`space.8`), 이름 숨김. 갤러리에서
+  끌어오기는 `application/x-sh-transition` 에 엔진 전환 id(`effects.list`), 편집점 24px 안에서만 받는다.
 
 ### 4.16 스플리터 (편집기 전용, 2026-10-14)
 

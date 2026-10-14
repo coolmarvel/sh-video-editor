@@ -23,10 +23,24 @@ export interface ClipInfo {
   link: number | null;
 }
 
+/** 트랙의 전환 하나(`sequence.inspect` 의 `transitions[]`). from/to 중 하나가 null 이면 한쪽 편집점(페이드 인·아웃) */
+export interface TransitionInfo {
+  id: number;
+  effect: string;
+  start: number;
+  duration: number;
+  from: number | null;
+  to: number | null;
+  reverse: boolean;
+  params: Record<string, unknown>;
+}
+
 export interface TrackInfo {
   id: number;
   name: string;
   items: ClipInfo[];
+  /** 엔진이 돌려주는 전환 목록. 오래된 가짜 엔진·테스트 데이터에는 없을 수 있다 */
+  transitions?: TransitionInfo[];
   enabled: boolean;
   locked: boolean;
   muted: boolean;

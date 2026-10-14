@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '../../store';
+import { transitionDragLeave, transitionDragOver, transitionDrop } from '../transitions/timeline-drop';
 import { hasMediaItem, readMediaItemId } from './dnd';
 import { DRAG_THRESHOLD_PX, TAIL_SECONDS, clampZoom, fpsOf, frameTicks, pxToTick, snapDelta, snapToFrame, tickToPx, timecodeAt } from './geometry';
 import { Ruler } from './Ruler';
@@ -318,6 +319,7 @@ export function Timeline() {
     return snapToFrame(tick, frameRate);
   };
   const onDragOver = (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
+    if (transitionDragOver(e, row, seq, tickAtClientX(e.clientX))) return;
     if (!hasMediaItem(e.dataTransfer) || row.track.locked) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
@@ -325,9 +327,11 @@ export function Timeline() {
     setDropHint((h) => (h && h.trackId === row.track.id && h.tick === tick ? h : { trackId: row.track.id, kind: row.kind, tick }));
   };
   const onDragLeave = (_e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
+    transitionDragLeave(row);
     setDropHint((h) => (h && h.trackId === row.track.id ? null : h));
   };
   const onDrop = (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => {
+    if (transitionDrop(e, row, seq, tickAtClientX(e.clientX))) return;
     const item = readMediaItemId(e.dataTransfer);
     setDropHint(null);
     if (item === null || row.track.locked) return;

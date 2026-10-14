@@ -6,8 +6,8 @@
 //!
 //! Video encoders implement [`VideoEncoder`]; codec crates register theirs with
 //! [`register_encoder`] (H.264, ProRes …). Built in: Motion-JPEG (MOV), HEVC (MP4 `hvc1`,
-//! `filmcraft-hevcenc`), WebM (VP9 + Opus, see [`webm_out`]), PNG / TIFF / BMP sequences, GIF, WAV
-//! and AIFF.
+//! `filmcraft-hevcenc`), AV1 (MP4 `av01`, `filmcraft-av1enc`), WebM (VP9 or AV1 + Opus, see
+//! [`webm_out`]), PNG / TIFF / BMP sequences, GIF, WAV and AIFF.
 //!
 //! [`ExportSettings`] carries every Export-mode setting (frame size, rate, bitrate encoding, audio
 //! format, multiplexer, captions, effects, metadata) as serde data; [`presets`] defines the
@@ -69,6 +69,10 @@ pub enum Format {
     /// registered with [`register_encoder`] is tried first and the built-in one takes what it declines.
     #[serde(rename = "hevc", alias = "Hevc")]
     Hevc,
+    /// MPEG-4 (or QuickTime, see [`Multiplexer`]), AV1 Main (8-bit 4:2:0) video (`av01` sample entry,
+    /// `filmcraft-av1enc`: key + inter frames, one tile, deblocking) + AAC audio. Software only.
+    #[serde(rename = "av1", alias = "Av1")]
+    Av1,
     /// QuickTime, Apple ProRes 422 (HQ unless the settings pick another flavour) + PCM.
     #[serde(rename = "prores", alias = "ProRes")]
     ProRes,
@@ -104,8 +108,9 @@ pub enum Format {
     /// audio channel ([`opatom_audio_paths`]).
     #[serde(rename = "mxf-opatom", alias = "MxfOpAtom")]
     MxfOpAtom,
-    /// WebM (Matroska): VP9 profile 0 video (`filmcraft-vp9enc`) + Opus audio (`filmcraft-opusenc`),
-    /// 48 kHz. Playable in browsers without plug-ins; `bitrate_kbps` / `keyframe_distance` apply.
+    /// WebM (Matroska): VP9 profile 0 video (`filmcraft-vp9enc`; or AV1 with [`ExportSettings::video_codec`],
+    /// `filmcraft-av1enc`) + Opus audio (`filmcraft-opusenc`), 48 kHz. Playable in browsers without
+    /// plug-ins; `bitrate_kbps` / `keyframe_distance` apply.
     #[serde(rename = "webm", alias = "WebM")]
     WebM,
 }
@@ -115,6 +120,7 @@ impl Format {
         Some(match s.to_ascii_lowercase().replace([' ', '-', '_', '.'], "").as_str() {
             "h264" | "mp4" | "avc" | "m4v" => Format::H264,
             "hevc" | "h265" | "hvc1" | "hev1" | "x265" => Format::Hevc,
+            "av1" | "av01" | "aom" | "av1mp4" => Format::Av1,
             "prores" | "mov" | "appleprores" => Format::ProRes,
             "dnxhr" | "dnxhd" | "dnx" | "avid" | "aviddnxhr" | "aviddnxhd" | "vc3" => Format::DnxHr,
             "apv" | "apv1" => Format::Apv,
@@ -136,6 +142,7 @@ impl Format {
         match self {
             Format::H264 => "h264",
             Format::Hevc => "hevc",
+            Format::Av1 => "av1",
             Format::ProRes => "prores",
             Format::DnxHr => "dnxhr",
             Format::Apv => "apv",
@@ -153,7 +160,7 @@ impl Format {
     }
     pub fn extension(self) -> &'static str {
         match self {
-            Format::H264 | Format::Hevc => "mp4",
+            Format::H264 | Format::Hevc | Format::Av1 => "mp4",
             Format::ProRes | Format::DnxHr | Format::Apv | Format::Mjpeg => "mov",
             Format::PngSequence => "png",
             Format::TiffSequence => "tif",
@@ -169,6 +176,7 @@ impl Format {
         match self {
             Format::H264 => "H.264",
             Format::Hevc => "H.265 (HEVC)",
+            Format::Av1 => "AV1",
             Format::ProRes => "Apple ProRes",
             Format::DnxHr => "Avid DNxHR",
             Format::Apv => "APV",
@@ -198,9 +206,15 @@ impl Format {
     pub fn is_h26x(self) -> bool {
         matches!(self, Format::H264 | Format::Hevc)
     }
-    pub const ALL: [Format; 15] = [
+    /// H.264, H.265 or AV1: the MPEG-4 (or QuickTime, [`Multiplexer`]) family with AAC audio and the
+    /// same bitrate controls.
+    pub fn is_mp4_video(self) -> bool {
+        matches!(self, Format::H264 | Format::Hevc | Format::Av1)
+    }
+    pub const ALL: [Format; 16] = [
         Format::H264,
         Format::Hevc,
+        Format::Av1,
         Format::ProRes,
         Format::DnxHr,
         Format::Apv,
@@ -260,6 +274,9 @@ pub struct ExportSettings {
     /// Video codec of the MXF formats (DNxHR unless set; the ProRes / DNxHR profile fields apply).
     #[serde(default)]
     pub mxf_video_codec: MxfVideoCodec,
+    /// Video codec of a WebM export (VP9 unless set). MP4 formats name their codec themselves.
+    #[serde(default)]
+    pub video_codec: WebmVideoCodec,
     /// Encode display-referred SDR (Rec. 709, tone mapped) even when the sequence works in
     /// Rec. 2100 PQ/HLG. Otherwise H.264 and ProRes exports of an HDR sequence are encoded in the
     /// sequence's HDR space and signal it (VUI / `colr` / `mdcv` / `clli` / SEI).
@@ -456,6 +473,7 @@ impl Default for ExportSettings {
             dnx_profile: String::new(),
             apv_profile: String::new(),
             mxf_video_codec: MxfVideoCodec::default(),
+            video_codec: WebmVideoCodec::default(),
             sdr: false,
             frame_size: None,
             frame_rate: None,
@@ -519,6 +537,9 @@ impl ExportSettings {
         }
         if self.format == Format::WebM && self.bitrate_mode == BitrateMode::Vbr2Pass {
             return Err(ExportError::Unsupported("WebM export has no two-pass mode: choose CBR or VBR, 1 pass".into()));
+        }
+        if self.format == Format::Av1 && self.bitrate_mode == BitrateMode::Vbr2Pass {
+            return Err(ExportError::Unsupported("AV1 export has no two-pass mode: choose CBR or VBR, 1 pass".into()));
         }
         Ok(())
     }
@@ -639,7 +660,7 @@ pub type AudioEncoderFactory = fn(format: Format, sample_rate: u32, channels: u3
 
 fn video_factories() -> &'static RwLock<Vec<EncoderFactory>> {
     static F: OnceLock<RwLock<Vec<EncoderFactory>>> = OnceLock::new();
-    F.get_or_init(|| RwLock::new(vec![h264_factory, hevc_factory, prores_factory, dnx_factory, apv_factory, mjpeg_factory, vp9_factory]))
+    F.get_or_init(|| RwLock::new(vec![h264_factory, hevc_factory, av1_factory, prores_factory, dnx_factory, apv_factory, mjpeg_factory, vp9_factory]))
 }
 fn audio_factories() -> &'static RwLock<Vec<AudioEncoderFactory>> {
     static F: OnceLock<RwLock<Vec<AudioEncoderFactory>>> = OnceLock::new();
@@ -1402,6 +1423,89 @@ fn hevc_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSetti
     )
 }
 
+/// AV1 Main (our encoder, `filmcraft-av1enc`): sRGB/709 RGBA8 → 8-bit limited-range BT.709 4:2:0, key +
+/// inter frames without reordering (one packet per frame, pts = dts), OBUs with size fields and no
+/// temporal delimiter as MP4 `av01` samples (the `av1C` carries the sequence header) or WebM `V_AV1`
+/// blocks (the `av1C` is the CodecPrivate). Always 8-bit SDR (the exporter never asks it for HDR).
+struct Av1Encoder {
+    enc: filmcraft_av1enc::Encoder,
+    w: u32,
+    h: u32,
+    rate: FrameRate,
+    y8: Vec<u8>,
+    u8: Vec<u8>,
+    v8: Vec<u8>,
+    y: Vec<u16>,
+    u: Vec<u16>,
+    v: Vec<u16>,
+    signal: ColorSignal,
+}
+
+impl VideoEncoder for Av1Encoder {
+    fn sample_entry(&self) -> SampleEntry {
+        let cfg = filmcraft_isobmff::Av1Config::parse(&self.enc.av1c()).unwrap_or_default();
+        let mut e = SampleEntry::video(filmcraft_isobmff::FourCc(*b"av01"), filmcraft_isobmff::CodecConfig::Av1(cfg), self.w as u16, self.h as u16);
+        self.signal.apply_to(&mut e, false);
+        e
+    }
+    fn matroska_codec(&self) -> Option<(&'static str, Vec<u8>)> {
+        Some(("V_AV1", self.enc.av1c()))
+    }
+    fn timescale(&self) -> u32 {
+        self.rate.num as u32
+    }
+    fn encode(&mut self, f: &EncoderFrame) -> Result<Vec<EncodedPacket>> {
+        rgba_to_yuv420_8(f.rgba, f.width as usize, f.height as usize, &mut self.y8, &mut self.u8, &mut self.v8);
+        widen(&self.y8, &mut self.y);
+        widen(&self.u8, &mut self.u);
+        widen(&self.v8, &mut self.v);
+        let cw = (f.width as usize).div_ceil(2);
+        let frame = filmcraft_av1enc::Frame { y: &self.y, u: &self.u, v: &self.v, y_stride: f.width as usize, uv_stride: cw };
+        let p = self.enc.encode(&frame);
+        Ok(vec![EncodedPacket { data: p.data, key: p.keyframe, duration: self.rate.den as u32, composition_offset: 0 }])
+    }
+    fn flush(&mut self) -> Result<Vec<EncodedPacket>> {
+        Ok(Vec::new())
+    }
+}
+
+/// AV1 in MP4 (`Format::Av1`) and in WebM when the settings ask for it (`video_codec: av1`).
+fn av1_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSettings) -> Option<Result<Box<dyn VideoEncoder>>> {
+    let wanted = format == Format::Av1 || (format == Format::WebM && s.video_codec == WebmVideoCodec::Av1);
+    if !wanted {
+        return None;
+    }
+    let (Ok(num), Ok(den)) = (u32::try_from(rate.num), u32::try_from(rate.den)) else {
+        return Some(Err(ExportError::Encode("AV1: frame rate out of range".into())));
+    };
+    let mut cfg = filmcraft_av1enc::EncoderConfig::new(w, h, num, den);
+    cfg.bit_depth = 8;
+    cfg.keyint = s.keyframe_distance.filter(|k| *k > 0).unwrap_or_else(|| (rate.num as f64 / rate.den.max(1) as f64 * 2.0).round().max(1.0) as u32);
+    // CBR and VBR both drive the encoder's frame-level rate control at the target; it has no
+    // separate maximum
+    cfg.rate = filmcraft_av1enc::RateControl::Bitrate { kbps: s.bitrate_kbps.max(100) };
+    cfg.full_range = false;
+    Some(
+        filmcraft_av1enc::Encoder::new(cfg)
+            .map(|enc| {
+                Box::new(Av1Encoder {
+                    enc,
+                    w,
+                    h,
+                    rate,
+                    y8: Vec::new(),
+                    u8: Vec::new(),
+                    v8: Vec::new(),
+                    y: Vec::new(),
+                    u: Vec::new(),
+                    v: Vec::new(),
+                    signal: s.signal,
+                }) as Box<dyn VideoEncoder>
+            })
+            .map_err(|e| ExportError::Encode(e.to_string())),
+    )
+}
+
 /// VP9 profile 0 (our encoder, WebM video): sRGB/709 RGBA8 → 8-bit limited-range BT.709 4:2:0, one
 /// packet per frame (no reordering), a key frame every `keyframe_distance` frames, rate controlled
 /// to the target bitrate.
@@ -1438,7 +1542,7 @@ impl VideoEncoder for Vp9Encoder {
 }
 
 fn vp9_factory(format: Format, w: u32, h: u32, rate: FrameRate, s: &ExportSettings) -> Option<Result<Box<dyn VideoEncoder>>> {
-    if format != Format::WebM {
+    if format != Format::WebM || s.video_codec != WebmVideoCodec::Vp9 {
         return None;
     }
     let fps = (rate.num as f64 / rate.den.max(1) as f64).max(1.0);
@@ -1618,7 +1722,16 @@ pub fn export(project: &Arc<Project>, seq: ItemId, settings: &ExportSettings, so
             }
             (total, count)
         }
-        Format::H264 | Format::Hevc | Format::ProRes | Format::DnxHr | Format::Apv | Format::Mjpeg | Format::MxfOp1a | Format::MxfOpAtom | Format::WebM => {
+        Format::H264
+        | Format::Hevc
+        | Format::Av1
+        | Format::ProRes
+        | Format::DnxHr
+        | Format::Apv
+        | Format::Mjpeg
+        | Format::MxfOp1a
+        | Format::MxfOpAtom
+        | Format::WebM => {
             // Handled by the stepped exporter above; reaching here would be a dispatch bug.
             return Err(ExportError::Unsupported(format!("{:?} must run as a stepped export", settings.format)));
         }

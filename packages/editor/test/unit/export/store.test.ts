@@ -28,7 +28,7 @@ describe('show', () => {
     const s = ex();
     expect(s.open).toBe(true);
     expect(s.loading).toBe(false);
-    expect(s.formats.map((f) => f.id)).toEqual(['h264', 'hevc', 'webm']);
+    expect(s.formats.map((f) => f.id)).toEqual(['h264', 'hevc', 'av1', 'webm']);
     expect(s.presets.map((p) => p.id)).toEqual(['1080p', '720p', '9x16', '1x1', 'source']);
     expect(s.formatId).toBe('h264');
     expect(s.presetId).toBe('1080p');

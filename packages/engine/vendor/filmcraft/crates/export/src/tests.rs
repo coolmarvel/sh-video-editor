@@ -195,6 +195,93 @@ fn hevc_export_roundtrip() {
     }
 }
 
+/// AV1 (filmcraft-av1enc) in MP4: `av01` sample entry with an `av1C` that carries the sequence header,
+/// AAC audio, read back with our demuxer and decoder; ffprobe (when installed) sees `av1` Main.
+#[test]
+fn av1_export_roundtrip() {
+    let (p, seq, m) = project();
+    let path = tmp("out-av1.mp4");
+    let prog = Progress::default();
+    let s = ExportSettings { format: Format::Av1, path: path.clone(), bitrate_kbps: 800, ..Default::default() };
+    assert_eq!((s.audio_codec(), s.extension()), (AudioCodec::Aac, "mp4"));
+    let r = export(&p, seq, &s, &m, &prog).unwrap();
+    assert_eq!(r.frames, 24);
+    assert!(r.bytes > 4_000, "{}", r.bytes);
+    let bytes: Arc<[u8]> = std::fs::read(&path).unwrap().into();
+    let src = filmcraft_codecs::open_bytes("out-av1.mp4", bytes.clone()).unwrap();
+    let info = src.info();
+    let v = info.video.as_ref().unwrap();
+    assert_eq!((v.width, v.height), (320, 180));
+    assert!(v.codec.to_ascii_lowercase().contains("av1"), "{}", v.codec);
+    let a = info.audio.as_ref().unwrap();
+    assert!(a.codec.to_ascii_lowercase().contains("aac"), "{}", a.codec);
+    assert!((info.duration.seconds() - 1.0).abs() < 0.03, "{}", info.duration.seconds());
+    let f = src.video_frame(FrameRequest::full(Tick(TICKS_PER_SECOND / 2))).unwrap().to_rgba8();
+    assert!(f[0] > 220 && f[1] < 40 && f[2] < 40, "{:?}", &f[..4]);
+    // the sample entry: av01 with an av1C (Main profile, 8-bit 4:2:0, the sequence header OBU inside)
+    let mp4 = filmcraft_isobmff::open(&bytes[..]).unwrap();
+    let vt = mp4.tracks.iter().find(|t| t.kind == filmcraft_isobmff::TrackKind::Video).unwrap();
+    let e = &vt.entries[0];
+    assert_eq!(&e.format.0, b"av01");
+    let filmcraft_isobmff::CodecConfig::Av1(cfg) = &e.codec else { panic!("av1C expected, got {:?}", e.codec) };
+    assert_eq!((cfg.seq_profile, cfg.high_bitdepth, cfg.chroma_subsampling_x, cfg.chroma_subsampling_y), (0, false, true, true));
+    assert_eq!(cfg.config_obus.first().map(|b| b >> 3 & 0x0F), Some(1), "the config OBUs start with the sequence header");
+    if let Some(ffprobe) = filmcraft_testkit::ffprobe_or_skip("export av1 stream") {
+        let out = std::process::Command::new(ffprobe)
+            .args([
+                "-v",
+                "error",
+                "-count_packets",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name,profile,nb_read_packets",
+                "-of",
+                "csv=p=0",
+                &path,
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "av1,Main,24");
+    }
+}
+
+/// WebM with `video_codec: av1`: a `V_AV1` track whose CodecPrivate is the `av1C`, Opus audio, read
+/// back with our demuxer and decoder; ffprobe (when installed) sees `av1`.
+#[test]
+fn webm_av1_export_roundtrip() {
+    let (p, seq, m) = project();
+    let path = tmp("out-av1.webm");
+    let s = ExportSettings { format: Format::WebM, video_codec: WebmVideoCodec::Av1, path: path.clone(), bitrate_kbps: 800, ..Default::default() };
+    assert_eq!(s.audio_codec(), AudioCodec::Opus);
+    let summary = s.summary(320, 180, FrameRate::FPS_24, 48_000, Tick(TICKS_PER_SECOND));
+    assert!(summary.video.contains(", AV1, "), "{}", summary.video);
+    let r = export(&p, seq, &s, &m, &Progress::default()).unwrap();
+    assert_eq!(r.frames, 24);
+    let bytes: Arc<[u8]> = std::fs::read(&path).unwrap().into();
+    let src = filmcraft_codecs::open_bytes("out-av1.webm", bytes.clone()).unwrap();
+    let info = src.info();
+    let v = info.video.as_ref().unwrap();
+    assert_eq!((v.width, v.height), (320, 180));
+    assert!(v.codec.to_ascii_lowercase().contains("av1"), "{}", v.codec);
+    let f = src.video_frame(FrameRequest::full(Tick(TICKS_PER_SECOND / 2))).unwrap().to_rgba8();
+    assert!(f[0] > 220 && f[1] < 40 && f[2] < 40, "{:?}", &f[..4]);
+    let mut d = filmcraft_matroska::Demuxer::from_slice(&bytes).unwrap();
+    assert_eq!(d.tracks()[0].codec_id, "V_AV1");
+    assert_eq!(d.tracks()[0].codec_private.first(), Some(&0x81), "CodecPrivate is the av1C (marker + version)");
+    assert_eq!(d.tracks()[1].codec_id, "A_OPUS");
+    let packets: Vec<_> = d.by_ref().map(|p| p.unwrap()).collect();
+    assert_eq!(packets.iter().filter(|p| p.track == 0).count(), 24);
+    assert!(packets[0].track == 0 && packets[0].keyframe);
+    if let Some(ffprobe) = filmcraft_testkit::ffprobe_or_skip("export webm av1 packet count") {
+        let out = std::process::Command::new(ffprobe)
+            .args(["-v", "error", "-count_packets", "-select_streams", "v:0", "-show_entries", "stream=codec_name,nb_read_packets", "-of", "csv=p=0", &path])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "av1,24");
+    }
+}
+
 #[test]
 fn prores_export_roundtrip() {
     let (p, seq, m) = project();

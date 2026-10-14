@@ -227,6 +227,9 @@ pub fn settings_from_params(s: &Session, p: &Value, cmd: &str) -> Result<(Option
     if let Some(v) = str_p(p, "mxfVideoCodec") {
         settings.mxf_video_codec = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "mxfVideoCodec: dnxhr | proRes | h264"))?;
     }
+    if let Some(v) = str_p(p, "videoCodec") {
+        settings.video_codec = serde_json::from_value(json!(v)).map_err(|_| bad(cmd, "videoCodec: vp9 | av1 (WebM)"))?;
+    }
     if let Some(v) = bool_p(p, "sdr") {
         settings.sdr = v;
     }

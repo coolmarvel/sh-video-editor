@@ -116,7 +116,7 @@ domain: development
 | 3    | soundcraft `dsp`               | 7,132  | WSOLA 타임스트레치(속도 바꿔도 음정 유지), 리버브·EQ 는 filmcraft 에 이미 있음                      | 중간(샘플 인덱스 -> Tick)        |
 | 3    | effectcraft `effects` 선별     | 49,745 | 전부 가져오지 않는다. `keying.rs`(Keylight), `textfx.rs`(텍스트 애니메이터), `warp_stab.rs` 만 후보 | 높음(PropGroup 모델)             |
 | 4    | effectcraft `gpu`              | 18,985 | filmcraft `gpu` 와 역할 겹침. Auto 백엔드 실측 선택 로직만 참고                                     | 참고만                           |
-| 4    | effectcraft `av1enc`           | 9,309  | AV1 은 v1.0 수요 낮음. VP9 다음                                                                     | 낮음                             |
+| 4    | effectcraft `av1enc`           | 9,309  | AV1 은 v1.0 수요 낮음. VP9 다음. 2026-10-15 이식 완료(`crates/av1enc`, M3-5)                        | 낮음                             |
 | -    | soundcraft `mix`               | 2,083  | filmcraft 믹서(`mixer.*` 20개)가 이미 있다. 실시간=바운스 구조만 참고                               | 가져오지 않음                    |
 
 ## 3. 로드맵
@@ -182,7 +182,7 @@ domain: development
   - (b) [x] 스티커 패널(분류 5개, 자체 제작 SVG 20종, `features/stickers/assets` + `.attribution` + `ATTRIBUTION.md`). 화면이 PNG 로 래스터해 웹은 `registerFiles`, 데스크톱은 `writeTempFile` 로 넘기고 엔진 `graphics.newFromFile {path, time}`(두 번째부터는 `timeline.place {duration}`). 엔진은 SVG 를 읽지 못한다(media: unrecognised format). 위치·크기는 모션 탭·변형 상자. 검색은 없음
   - (c) [ ] Lottie 샘플 10개 렌더 골든
   - (d) L
-- [x] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export + feat/hevc-export: WebM(VP9 + Opus)·HEVC(hevcenc) 소프트웨어 인코더, 프리셋 각 2종. 둘 다 단일 스레드라 1080p 는 H.264 의 5~9배 느림)
+- [x] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export + feat/hevc-export: WebM(VP9 + Opus)·HEVC(hevcenc) 소프트웨어 인코더, 프리셋 각 2종. 둘 다 단일 스레드라 1080p 는 H.264 의 5~9배 느림. 2026-10-15 feat/av1-export: AV1(av1enc) 형식 "AV1 (mp4)"·프리셋 2종, WebM 의 `videoCodec: av1`. 1080p 는 H.264 의 10배 느림, 파일은 46%)
   - (a) effectcraft `hevcenc`·`vp9enc`·`opusenc` 이식, `export::VideoEncoder`·`AudioEncoder` 구현, `export.formats` 에 hevc `available:true`, webm 포맷 신규(matroska 먹서는 디먹스만 있어 먹서 신규)
   - (b) 내보내기 프리셋에 "HEVC(용량 절반)"·"WebM(웹용)" 추가
   - (c) 인코드 -> 우리 디코더 -> 디코드 왕복 PSNR 35dB 이상, ffprobe 로 재생 가능, Windows Movies & TV·Chrome 재생

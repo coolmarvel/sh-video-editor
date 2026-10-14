@@ -37,6 +37,7 @@ filmcraft-h264enc = { path = "crates/h264enc" }
 filmcraft-vp9enc = { path = "crates/vp9enc" }
 filmcraft-opusenc = { path = "crates/opusenc" }
 filmcraft-hevcenc = { path = "crates/hevcenc" }
+filmcraft-av1enc = { path = "crates/av1enc" }
 filmcraft-audio-dsp = { path = "crates/audio-dsp" }
 filmcraft-frame = { path = "crates/frame" }
 filmcraft-media = { path = "crates/media" }
@@ -133,4 +134,7 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package.filmcraft-hevcenc]
+opt-level = 3
+
+[profile.dev.package.filmcraft-av1enc]
 opt-level = 3

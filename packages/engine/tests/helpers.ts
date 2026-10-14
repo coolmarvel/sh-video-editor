@@ -107,6 +107,8 @@ export interface ClipInfo {
   sourceIn: number;
   sourceOut: number;
   speed: number;
+  /** 역방향(clip.speedDuration reverse) */
+  reverse?: boolean;
   enabled: boolean;
   link: number | null;
 }

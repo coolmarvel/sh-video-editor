@@ -102,6 +102,7 @@ export const MENUS: MenuDef[] = [
     items: [
       item('모든 트랙 자르기', 'clip.razorAll', { enabledBy: 'sequence.addEditAllTracks' }),
       item('트랙 추가', 'sequence.addTracks', { enabledBy: 'sequence.addTracks' }),
+      item('화면 비율...', 'sequence.ratio', { enabledBy: 'sequence.settings' }),
       sep,
       item('인 점 표시', 'markers.in', { enabledBy: 'markers.markIn' }),
       item('아웃 점 표시', 'markers.out', { enabledBy: 'markers.markOut' }),

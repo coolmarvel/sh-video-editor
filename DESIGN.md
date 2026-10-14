@@ -844,6 +844,33 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
   "미리보기와 타임라인 높이 조절"). 툴팁 title 에 "더블클릭하면 기본 크기".
 - 저장: `localStorage` 키 `sh-video-editor.layout.v1` 에 `{ mediaWidth, timelineHeight }`(px, null 은 기본값). 읽기·쓰기는 try/catch.
 
+### 4.17 속도 탭·속도 배지 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/speed/` (`SpeedForm.tsx`, `SpeedTab.tsx`, `SpeedBadge.tsx`, `speed.css`). 값은 전부 `--sh-*` 토큰이다.
+클립 메뉴 "속도, 길이" 대화상자(`features/shortcuts/SpeedDialog.tsx`)도 같은 폼과 같은 store 를 쓴다.
+
+- 폼 한 줄: 슬라이더(브라우저 기본 range, `accent-color` 만 accent, 높이 24) + 배속 숫자 입력(4.5, 폭 72, 오른쪽 정렬 tabular) + "x".
+  슬라이더는 로그 스케일(왼쪽 끝 0.1x, 가운데 1x, 오른쪽 끝 10x). 그 아래 빠른 선택 세그먼트(4.6) 0.5x 1x 2x 4x,
+  보간 콤보(프레임 샘플링, 프레임 블렌딩, 옵티컬 플로), 체크박스(4.6) "역방향 재생" 과 "리플".
+- 적용 후 길이 줄: secondary 글자, "적용 후 길이 00:00:08:00 (지금 00:00:16:00)". 클립이 없으면 안내 문장.
+- 버튼 줄: 주 버튼 "적용" 하나 + 기본 버튼 "이 프레임 고정"(플레이헤드가 선택 클립 위에 없으면 비활성, 툴팁에 이유).
+- 속도 배지: 클립 블록(4.15) 이름 오른쪽, 오른쪽 트림 핸들 앞에 붙는 11px tabular 글자. accent-subtle 면 + 1px accent-pressed
+  테두리 + accent-pressed 글자, 좌우 패딩 4, 줄 높이 16, 반경 0. 원래 속도·정방향이면 그리지 않는다. 문구는 "2x", "0.5x", "역",
+  둘 다면 "2x 역". 포인터 이벤트를 받지 않는다(클립 선택·드래그를 막지 않는다).
+
+### 4.18 화면 비율·SNS 프리셋 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/ratio/` (`RatioDialog.tsx`, `RatioBar.tsx`, `SnsPresets.tsx`, `ratio.css`).
+
+- 화면 비율 대화상자(4.9, 시퀀스 메뉴): 안내 문장("지금 1920 x 1080 (16:9). ...") + 그룹 박스 "비율"(라디오 4개: 가로 16:9, 세로 9:16,
+  정사각 1:1, 세로 4:5. 라벨 600 + 11px secondary 로 크기와 용도) + 그룹 박스 "클립 맞춤"(라디오 채우기, 맞추기). 버튼 취소, 적용(주).
+- 내보내기 대화상자 상단 비율 막대: "화면 비율 1920 x 1080 (16:9)" 글자 + 세그먼트(4.6) 16:9 9:16 1:1 4:5(현재 비율이 선택) +
+  클립 맞춤 콤보. 누르면 바로 적용하고 결과 줄을 다시 해석한다. 내보내는 중에는 비활성.
+- SNS 프리셋: 그룹 박스 "SNS 프리셋" 안 2열 격자의 선택 버튼(카드가 아니라 세그먼트 항목의 세로 확장이다). 각 버튼은 베벨 면 + 1px
+  border-strong, 패딩 4 8, 왼쪽 정렬 세 줄: 이름 600("YouTube 1080p", "Shorts, Reels", "Instagram 정사각", "YouTube 4K"),
+  11px secondary tabular "1920 x 1080, 30 fps, 16 Mbps"(엔진 export.resolve 값), 11px secondary 용도. 선택 = accent-subtle 면 +
+  1px accent-pressed(4.7 선택과 같음). hover = 흰 면 + hover-edge. 반경 0, 그림자 없음. 고르면 프리셋 콤보도 같은 값이 된다.
+
 ## 5. Elevation
 
 그림자는 세 가지뿐이고 짧고 옅다. 다른 곳에는 그림자가 없다.

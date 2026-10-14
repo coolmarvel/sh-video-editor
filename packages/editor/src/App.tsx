@@ -12,6 +12,8 @@ import { ProjectStatus } from './features/project/ProjectStatus';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
 import { InspectorPanel } from './features/inspector';
 import { useShortcuts } from './features/shortcuts';
+import './features/speed';
+import { RatioDialog } from './features/ratio';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';
@@ -100,6 +102,7 @@ export function App({ bridge, host }: AppProps) {
       </div>
       <ProjectHost />
       <ExportDialog />
+      <RatioDialog />
     </div>
   );
 }

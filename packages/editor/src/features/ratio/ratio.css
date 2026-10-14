@@ -1,0 +1,86 @@
+/* 화면 비율 대화상자·내보내기 비율 막대·SNS 프리셋 버튼 배치. 부품 모양은 sh-classic.css, 값은 --sh-* 토큰만. DESIGN.md 4.18 */
+.ve-ratio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-8);
+}
+.ve-ratio__group {
+  align-self: stretch;
+  gap: var(--sh-space-2);
+}
+.ve-ratio__option {
+  align-items: baseline;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ve-ratio__option input {
+  align-self: center;
+}
+.ve-ratio__label {
+  font-weight: var(--sh-font-weight-semibold);
+}
+.ve-ratio__meta {
+  color: var(--sh-color-text-secondary);
+  font-size: var(--sh-font-size-caption);
+}
+.ve-ratio-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sh-space-8);
+  margin-bottom: var(--sh-space-8);
+}
+.ve-ratio-bar__label {
+  display: inline-flex;
+  gap: var(--sh-space-6);
+  white-space: nowrap;
+}
+.ve-dialog .ve-ratio-bar__fit {
+  width: auto;
+}
+.ve-sns {
+  align-self: stretch;
+  margin-bottom: var(--sh-space-8);
+}
+.ve-sns__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sh-space-6);
+  align-self: stretch;
+}
+.ve-sns__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sh-space-2);
+  min-width: 0;
+  padding: var(--sh-space-4) var(--sh-space-8);
+  border: var(--sh-border-width) solid var(--sh-color-border-strong);
+  background: var(--sh-gradient-bevel);
+  color: var(--sh-color-text);
+  text-align: left;
+  cursor: default;
+}
+.ve-sns__card:hover:not(:disabled) {
+  border-color: var(--sh-color-hover-edge);
+  background: var(--sh-color-canvas);
+}
+.ve-sns__card[aria-checked='true'] {
+  border-color: var(--sh-color-accent-pressed);
+  background: var(--sh-color-accent-subtle);
+}
+.ve-sns__card:disabled {
+  color: var(--sh-color-text-disabled);
+}
+.ve-sns__name {
+  font-weight: var(--sh-font-weight-semibold);
+}
+.ve-sns__meta,
+.ve-sns__hint {
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}

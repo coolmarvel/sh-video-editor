@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    SH Video Editor 앱 아이콘 (자체 제작, 글자 없음).
+    sh-classic dark 토큰 값만 쓴다: 바탕 sunken #212328, 크롬 그라데이션 #33353c-#2a2c32, 프레임 #17181c,
+    헤어라인 #3a3d45, 베벨 테두리 #7a808b, 글자 #dde0e5, 강조 #3c71df, 강조 눌림 #2f5fc4, 강조 hover #4f80e8.
+    모서리 반지름 112 = 22% (Windows 11 아이콘 꼴). id="detail" 그룹(스프로킷 구멍·헤어라인)은
+    scripts/gen-icons.mjs 가 32px 미만 래스터에서 뺀다. 16px 에서는 어두운 바탕 + 파란 재생 삼각형만 남는다.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#33353c" />
+      <stop offset="1" stop-color="#212328" />
+    </linearGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f80e8" />
+      <stop offset="1" stop-color="#3c71df" />
+    </linearGradient>
+  </defs>
+
+  <!-- 바탕: 둥근 사각, 바깥 1px 꼴의 프레임 선 -->
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="url(#bg)" stroke="#17181c" stroke-width="12" />
+
+  <!-- 필름 프레임: 오목한 어두운 칸, 베벨 테두리 -->
+  <rect x="88" y="88" width="336" height="336" rx="20" fill="#17181c" />
+  <rect x="88" y="88" width="336" height="336" rx="20" fill="none" stroke="#7a808b" stroke-width="10" />
+
+  <g id="detail">
+    <!-- 프레임 안쪽 헤어라인 -->
+    <rect x="104" y="104" width="304" height="304" rx="12" fill="none" stroke="#3a3d45" stroke-width="6" />
+    <!-- 스프로킷 구멍: 양옆 4개씩 -->
+    <g fill="#dde0e5" fill-opacity="0.85">
+      <rect x="32" y="116" width="28" height="44" rx="6" />
+      <rect x="32" y="190" width="28" height="44" rx="6" />
+      <rect x="32" y="264" width="28" height="44" rx="6" />
+      <rect x="32" y="338" width="28" height="44" rx="6" />
+      <rect x="452" y="116" width="28" height="44" rx="6" />
+      <rect x="452" y="190" width="28" height="44" rx="6" />
+      <rect x="452" y="264" width="28" height="44" rx="6" />
+      <rect x="452" y="338" width="28" height="44" rx="6" />
+    </g>
+    <!-- 바닥의 타임라인 띠: 클립 두 조각과 자르기 선 -->
+    <rect x="128" y="372" width="256" height="20" rx="4" fill="#2a2c32" stroke="#3a3d45" stroke-width="4" />
+    <rect x="132" y="376" width="140" height="12" rx="2" fill="#3c71df" />
+    <rect x="286" y="376" width="94" height="12" rx="2" fill="#7a808b" />
+    <rect x="276" y="364" width="6" height="36" rx="2" fill="#dde0e5" />
+  </g>
+
+  <!-- 재생 삼각형: 강조색, 눌림색 외곽선 -->
+  <path d="M188 136 L364 236 L188 336 Z" fill="url(#play)" stroke="#2f5fc4" stroke-width="12" stroke-linejoin="round" />
+</svg>

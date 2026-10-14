@@ -18,6 +18,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "prettier --check . && cargo clippy --manifest-path packages/engine/Cargo.toml --workspace --all-targets -- -D warnings",
     "format": "prettier --write . && cargo fmt --manifest-path packages/engine/Cargo.toml",
+    "icons": "node scripts/gen-icons.mjs",
     "test": "cargo test --manifest-path packages/engine/Cargo.toml --workspace",
     "build": "npm run build -w apps/web -w apps/desktop",
     "verify": "npm run lint && npm run build:engine && npm run typecheck && npm run test && npm run build",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "prettier": "^3.9.10",
+    "sharp": "^0.34.5",
     "typescript": "^5.9.0"
   }
 }

@@ -57,6 +57,7 @@
       "**/*.node"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": "nsis",
       "files": [
         "out/**/*",
@@ -66,6 +67,9 @@
       ]
     },
     "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
@@ -76,8 +80,12 @@
       "artifactName": "SH-Video-Editor-Setup-${version}.${ext}"
     },
     "mac": {
+      "icon": "build/icon.png",
       "target": "dmg",
       "category": "public.app-category.video"
+    },
+    "linux": {
+      "icon": "build/icons"
     }
   }
 }

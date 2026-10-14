@@ -5,6 +5,7 @@
  */
 import { useEditor } from '../../store';
 import { useExport } from '../export/store';
+import { selectedVideoClipIds, useEffects } from '../effects/store';
 import { useMedia } from '../media/store';
 import { DEMO_SCENES, type DemoScene } from '../media/types';
 import { monitorController } from '../monitor/registry';
@@ -161,6 +162,17 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
   'play.end': () => monitor()?.goToEnd(),
   'play.rate': (p) => monitor()?.setRate(Number(p?.['rate'] ?? 1)),
   'help.about': () => useShortcutsUi.getState().setAboutOpen(true),
+  'effects.add': (p) => {
+    const clips = selectedVideoClipIds();
+    if (clips.length === 0) {
+      useEditor.setState({ status: '효과를 넣을 영상 클립을 먼저 선택하세요' });
+      return;
+    }
+    return useEffects.getState().applyEffect(clips, String(p?.['effect'] ?? ''));
+  },
+  'effects.resetColor': () => useEffects.getState().resetColor(selectedVideoClipIds()),
+  'effects.clearFilter': () => useEffects.getState().clearFilter(selectedVideoClipIds()),
+  'effects.compare': () => useEffects.getState().toggleCompare(selectedVideoClipIds()),
 };
 
 /** 동작 id 를 실행한다. 표에 없으면 엔진 커맨드로 본다 */

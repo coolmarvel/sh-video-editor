@@ -162,3 +162,17 @@ body {
     max-height: 42vh;
   }
 }
+/* 속성 패널(모바일): 본문의 세 번째 행으로 두고, 미리보기는 자기 최소 높이(스테이지 160 + 조작 줄)를 지킨다. 세 패널이 화면보다
+   길면 본문이 세로로 스크롤한다(겹치지 않게). 효과·색 탭(features/effects)이 여기서 열린다 */
+@media (max-width: 900px) {
+  .ve-body {
+    grid-template-rows: auto minmax(min-content, 1fr) auto;
+    overflow-y: auto;
+  }
+  .ve-media {
+    max-height: 32vh;
+  }
+  .ve-inspector {
+    max-height: 26vh;
+  }
+}

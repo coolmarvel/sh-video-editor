@@ -12,6 +12,7 @@ import { ProjectStatus } from './features/project/ProjectStatus';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
 import { InspectorPanel } from './features/inspector';
 import { useShortcuts } from './features/shortcuts';
+import './features/effects';
 import './shell/layout.css';
 
 export type HostKind = 'desktop' | 'web';

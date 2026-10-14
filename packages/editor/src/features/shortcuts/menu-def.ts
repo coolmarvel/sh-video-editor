@@ -5,6 +5,8 @@
  */
 import type { HostKind } from '../../App';
 import { DEMO_SCENES } from '../media/types';
+import { USER_EFFECTS } from '../effects/catalog';
+import { useEffects } from '../effects/store';
 import { PLAYBACK_RATES, useMonitor } from '../monitor/store';
 import { useTimeline } from '../timeline/store';
 
@@ -94,6 +96,15 @@ export const MENUS: MenuDef[] = [
       sep,
       item('켜기, 끄기', 'clip.enable', { enabledBy: 'clip.enable' }),
       item('영상, 소리 연결, 연결 해제', 'clip.link', { enabledBy: 'clip.link' }),
+      sep,
+      {
+        kind: 'sub',
+        label: '효과 추가',
+        items: USER_EFFECTS.map((d) => item(d.label, 'effects.add', { params: { effect: d.id } })),
+      },
+      item('색 보정 초기화', 'effects.resetColor'),
+      item('필터 해제', 'effects.clearFilter'),
+      item('비교(원본 보기)', 'effects.compare', { checked: () => useEffects.getState().compare !== null }),
     ],
   },
   {

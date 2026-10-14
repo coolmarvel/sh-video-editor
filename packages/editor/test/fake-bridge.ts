@@ -20,6 +20,70 @@ export interface FakeClip {
   sourceIn: number;
   link: number | null;
   enabled: boolean;
+  /** 적용된 효과. 영상 클립은 고정 효과(motion, opacity, time_remap)로 시작한다 */
+  effects?: FakeEffect[];
+}
+
+/** 실제 엔진처럼 값은 Debug 표기 문자열("Float(0.0)")로 둔다 */
+export interface FakeEffect {
+  effect: string;
+  enabled: boolean;
+  masks: number;
+  params: Record<string, { keyframes: number; value: string }>;
+}
+
+/** 가짜 엔진이 아는 효과 카탈로그(실제 effects.list 의 일부). 값은 기본값 */
+export const FAKE_EFFECT_DEFAULTS: Record<string, Record<string, string>> = {
+  motion: {
+    position: 'Vec2(Vec2 { x: 960.0, y: 540.0 })',
+    scale: 'Float(100.0)',
+    scale_width: 'Float(100.0)',
+    uniform_scale: 'Bool(true)',
+    rotation: 'Float(0.0)',
+    anchor: 'Vec2(Vec2 { x: 960.0, y: 540.0 })',
+    anti_flicker: 'Float(0.0)',
+  },
+  opacity: { opacity: 'Float(100.0)', blend: 'Choice(0)' },
+  time_remap: { speed: 'Float(100.0)' },
+  brightness_contrast: { brightness: 'Float(0.0)', contrast: 'Float(0.0)' },
+  gaussian_blur: { blurriness: 'Float(0.0)', dimensions: 'Choice(0)', repeat_edge: 'Bool(false)' },
+  sharpen: { amount: 'Float(0.0)' },
+  vignette: { amount: 'Float(-50.0)', midpoint: 'Float(50.0)', roundness: 'Float(0.0)', feather: 'Float(50.0)', color: 'Color([0.0, 0.0, 0.0, 1.0])' },
+  mosaic: { horizontal: 'Float(10.0)', vertical: 'Float(10.0)', sharp: 'Bool(false)', softness: 'Float(0.0)' },
+  black_white: {},
+  tint: { black: 'Color([0.0, 0.0, 0.0, 1.0])', white: 'Color([1.0, 1.0, 1.0, 1.0])', amount: 'Float(100.0)' },
+  noise: { amount: 'Float(0.0)', color: 'Bool(true)', clip: 'Bool(true)', grain_size: 'Float(1.0)' },
+  drop_shadow: {
+    color: 'Color([0.0, 0.0, 0.0, 1.0])',
+    opacity: 'Float(50.0)',
+    direction: 'Float(135.0)',
+    distance: 'Float(5.0)',
+    softness: 'Float(0.0)',
+    only: 'Bool(false)',
+  },
+  lumetri: { exposure: 'Float(0.0)', contrast: 'Float(0.0)', saturation: 'Float(100.0)', temperature: 'Float(0.0)', tint: 'Float(0.0)' },
+};
+
+export const FAKE_LUMETRI_PRESETS = ['Teal Shadows, Warm Skin', 'Neutral Mono', 'Sepia Tone', 'Faded Print'];
+
+export function fakeEffect(id: string): FakeEffect {
+  const defaults = FAKE_EFFECT_DEFAULTS[id];
+  if (!defaults) throw new FakeEngineError(`invalid parameters for \`effects.apply\`: unknown effect \`${id}\``);
+  const params: FakeEffect['params'] = {};
+  for (const [k, v] of Object.entries(defaults)) params[k] = { keyframes: 0, value: v };
+  return { effect: id, enabled: true, masks: 0, params };
+}
+
+/** 화면 값(num | [x,y] | "#rrggbb" | bool)을 Debug 표기로 */
+export function fakeParamValue(value: unknown): string {
+  if (typeof value === 'boolean') return `Bool(${value})`;
+  if (typeof value === 'number') return `Float(${Number.isInteger(value) ? `${value}.0` : value})`;
+  if (Array.isArray(value)) return `Vec2(Vec2 { x: ${Number(value[0]).toFixed(1)}, y: ${Number(value[1]).toFixed(1)} })`;
+  if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) {
+    const c = [1, 3, 5].map((i) => (Number.parseInt(value.slice(i, i + 2), 16) / 255).toFixed(1));
+    return `Color([${c.join(', ')}, 1.0])`;
+  }
+  return `Text("${String(value)}")`;
 }
 
 export interface FakeTrack {
@@ -190,6 +254,8 @@ export class FakeEngine {
   readonly bridge: EngineBridge;
   private nextId = 100;
   private nextLink = 1;
+  /** effects.setParam merge 묶음: 같은 clip/effect/param 의 연속 변경은 스냅샷을 하나만 남긴다 */
+  private mergeKey: string | null = null;
   private nextQueue = 1;
   private readonly exportStep: number;
 
@@ -344,6 +410,7 @@ export class FakeEngine {
     });
     const out: FakeClip[] = [];
     const v = mkClip();
+    v.effects = ['motion', 'opacity', 'time_remap'].map(fakeEffect);
     this.insertClip(video, v, insert);
     out.push(v);
     if (item.hasAudio) {
@@ -471,6 +538,7 @@ export class FakeEngine {
       speed: 1,
       enabled: c.enabled,
       link: c.link,
+      effects: clone(c.effects ?? []),
     });
     const toTrack = (t: FakeTrack) => ({
       id: t.id,
@@ -935,6 +1003,97 @@ export class FakeEngine {
       case 'file.discardRecovery':
         this.recovery = this.recovery.filter((x) => x.id !== p['id']);
         return null;
+      case 'effects.list':
+        return Object.keys(FAKE_EFFECT_DEFAULTS).map((id) => ({ id, kind: 'Video', name: id, params: Object.keys(FAKE_EFFECT_DEFAULTS[id] ?? {}) }));
+      case 'effects.apply': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        const effectId = String(p['effect']);
+        const made = fakeEffect(effectId);
+        this.snapshot(`Apply ${effectId}`);
+        for (const id of ids) {
+          const { clip } = this.findClip(seq, id);
+          const list = clip.effects ?? (clip.effects = []);
+          // 실제 엔진처럼 고정 효과 앞에 끼운다
+          const at = list.findIndex((e) => ['motion', 'opacity', 'time_remap'].includes(e.effect));
+          list.splice(at < 0 ? list.length : at, 0, clone(made));
+        }
+        this.mergeKey = null;
+        this.touch();
+        return null;
+      }
+      case 'effects.setParam': {
+        const seq = this.sequence;
+        const { clip } = this.findClip(seq, p['clip'] as number);
+        const list = clip.effects ?? [];
+        const ref = p['effect'];
+        const fx = typeof ref === 'number' ? list[ref] : list.filter((e) => e.effect === ref).pop();
+        if (!fx) throw new FakeEngineError(`invalid parameters for \`effects.setParam\`: no such effect ${String(ref)}`);
+        const param = String(p['param']);
+        if (!(param in fx.params)) throw new FakeEngineError(`invalid parameters for \`effects.setParam\`: no param \`${param}\``);
+        const key = `${clip.clip}/${list.indexOf(fx)}/${param}`;
+        const merge = p['merge'] === true && p['begin'] !== true && this.mergeKey === key;
+        if (!merge) this.snapshot('Change Effect Parameter');
+        this.mergeKey = p['merge'] === true ? key : null;
+        fx.params[param] = { keyframes: 0, value: fakeParamValue(p['value']) };
+        this.touch();
+        return null;
+      }
+      case 'effects.toggleEnabled':
+      case 'effects.remove':
+      case 'effects.reset': {
+        const seq = this.sequence;
+        const { clip } = this.findClip(seq, p['clip'] as number);
+        const list = clip.effects ?? [];
+        const index = p['index'] as number;
+        const fx = list[index];
+        if (!fx) throw new FakeEngineError(`invalid parameters for \`${id}\`: no such effect index ${index}`);
+        this.snapshot(id === 'effects.toggleEnabled' ? 'Toggle Effect' : id === 'effects.remove' ? 'Remove Effect' : 'Reset Effect');
+        if (id === 'effects.toggleEnabled') fx.enabled = !fx.enabled;
+        else if (id === 'effects.remove') list.splice(index, 1);
+        else list[index] = fakeEffect(fx.effect);
+        this.mergeKey = null;
+        this.touch();
+        return null;
+      }
+      case 'lumetri.presets':
+        return {
+          folders: ['Cinematic', 'Monochrome', 'Film Emulation'],
+          presets: FAKE_LUMETRI_PRESETS.map((name) => ({ name, folder: 'Cinematic', description: '' })),
+        };
+      case 'lumetri.applyPreset': {
+        const seq = this.sequence;
+        const name = String(p['name']);
+        if (!FAKE_LUMETRI_PRESETS.includes(name)) throw new FakeEngineError(`invalid parameters for \`lumetri.applyPreset\`: unknown preset ${name}`);
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        this.snapshot(`Apply ${name}`);
+        for (const cid of ids) {
+          const { clip } = this.findClip(seq, cid);
+          const list = clip.effects ?? (clip.effects = []);
+          const fx = fakeEffect('lumetri');
+          if (name === 'Neutral Mono') fx.params['saturation'] = { keyframes: 0, value: 'Float(0.0)' };
+          if (name === 'Sepia Tone') fx.params['temperature'] = { keyframes: 0, value: 'Float(40.0)' };
+          const at = list.findIndex((e) => ['motion', 'opacity', 'time_remap'].includes(e.effect));
+          list.splice(at < 0 ? list.length : at, 0, fx);
+        }
+        this.mergeKey = null;
+        this.touch();
+        return { clips: ids.length, preset: name };
+      }
+      case 'presets.apply': {
+        const seq = this.sequence;
+        const ids = (p['clips'] as number[] | undefined) ?? seq.selection;
+        this.snapshot(`Apply Preset ${String(p['preset'])}`);
+        for (const cid of ids) {
+          const { clip } = this.findClip(seq, cid);
+          const op = (clip.effects ?? []).find((e) => e.effect === 'opacity');
+          if (op) op.params['opacity'] = { keyframes: 2, value: 'Float(100.0)' };
+        }
+        this.touch();
+        return { applied: ids.length };
+      }
+      case 'scopes.read':
+        return { frame: 0, time: s.playhead, stats: { y: { mean: 50, min: 0, max: 100 }, r: { mean: 50 }, g: { mean: 50 }, b: { mean: 50 }, saturation: 10 } };
       default:
         throw new FakeEngineError(`unknown command \`${id}\``);
     }

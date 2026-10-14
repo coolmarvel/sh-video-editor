@@ -135,7 +135,7 @@ domain: development
   - (b) features/transitions: 전환 패널(썸네일은 `renderFrame` 축소본 캐시), 클립 경계로 드롭, 길이 핸들
   - (c) 전환 뒤 리플 트림 시 전환이 따라오는지(filmcraft #7 회귀), 내보내기 길이 불변
   - (d) M
-- [ ] **M2-4 기본 효과·필터**
+- [~] **M2-4 기본 효과·필터** (2026-10-14 feat/effects-filters: (a)(b) 구현, (c) 엔진 테스트의 scopes·renderFrame 대조까지. GPU 패리티 golden 은 미착수)
   - (a) `effects.apply`, `effects.setParam`, `effects.remove`, `presets.apply`(Fade In·Out), `lumetri.applyPreset`. 사용자용 효과 10종: brightness_contrast, lumetri(노출·대비·채도·온도만 노출), gaussian_blur, sharpen, vignette, mosaic, black_white, tint, noise, drop_shadow
   - (b) features/effects: 클립 인스펙터 탭, 슬라이더, 필터 프리셋 갤러리(Lumetri 프리셋 14종을 썸네일로)
   - (c) 효과 적용 전후 `scopes.read` 히스토그램 차이, GPU·CPU 패리티(엔진 golden)

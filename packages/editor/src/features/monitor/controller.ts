@@ -267,6 +267,11 @@ export class MonitorController {
     }
   }
 
+  /** 다른 화면(효과 패널 등)이 엔진을 바꾼 직후 부른다. 폴링을 기다리지 않고 revision 을 다시 읽어 바뀐 프레임을 그린다. */
+  refreshNow(): Promise<void> {
+    return this.poll();
+  }
+
   private async poll(): Promise<void> {
     if (this.polling || this.disposed) return;
     const now = performance.now();

@@ -2,6 +2,14 @@
  * 엔진 `sequence.inspect` 결과 중 타임라인이 읽는 부분. 모양은 filmcraft 의 inspect JSON 과 1:1 이고
  * 여기서 가공하지 않는다(편집 로직은 엔진 커맨드로만). 시간 값은 전부 tick(engine/time.ts).
  */
+/** 클립에 적용된 효과 하나(sequence.inspect 의 effects[]). 값 문자열은 엔진 Debug 표기("Float(0.0)") 그대로, features/effects 가 읽는다 */
+export interface ClipEffectInfo {
+  effect: string;
+  enabled: boolean;
+  masks: number;
+  params: Record<string, { keyframes: number; value: string }>;
+}
+
 export interface ClipInfo {
   /** 시퀀스 안 클립 id. 커맨드의 "clip" 파라미터에 넣는 값 */
   clip: number;
@@ -21,6 +29,8 @@ export interface ClipInfo {
   enabled: boolean;
   /** 영상·음성이 연결된 클립끼리 같은 link id */
   link: number | null;
+  /** 적용된 효과(고정 효과 motion, opacity, time_remap 포함). 엔진이 주지 않으면 없다 */
+  effects?: ClipEffectInfo[];
 }
 
 export interface TrackInfo {

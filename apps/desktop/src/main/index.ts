@@ -5,6 +5,7 @@ import { runDiagnostics } from './diagnostics';
 import { EngineSupervisor } from './engine-supervisor';
 import { registerPickFilesIpc } from './pickFiles';
 import { registerCacheIpc } from './cache-db';
+import { registerTemplatesIpc, TEMPLATES_DIR } from './templates-store';
 import { CRASH_REPORT_DIR } from './crash-report';
 
 // 엔진(.node)은 utility process(src/engine-host)에 산다. main 은 띄우고 감시하고 렌더러를 포트로 이어 줄 뿐이다.
@@ -77,6 +78,8 @@ void app.whenReady().then(() => {
   registerDialogIpc();
   // 호스트 캐시(썸네일·파형·최근 프로젝트): userData/cache.sqlite (node:sqlite, ADR-0004)
   registerCacheIpc(join(app.getPath('userData'), 'cache.sqlite'));
+  // 사용자 템플릿(JSON + 썸네일 PNG): userData/templates
+  registerTemplatesIpc(join(app.getPath('userData'), TEMPLATES_DIR));
   const win = createWindow();
   runDiagnostics(win, engine);
   app.on('activate', () => {

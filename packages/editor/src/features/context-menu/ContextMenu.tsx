@@ -166,7 +166,7 @@ function PromptDialog() {
   }, [prompt]);
 
   if (!prompt) return null;
-  const valid = value.trim().length > 0;
+  const valid = prompt.allowEmpty === true || value.trim().length > 0;
   const submit = () => {
     if (valid) answer(value.trim());
   };

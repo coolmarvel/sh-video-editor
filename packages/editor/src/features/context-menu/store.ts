@@ -34,6 +34,8 @@ export interface PromptRequest {
   label: string;
   value: string;
   submitLabel: string;
+  /** 빈 값도 허용(설명처럼 비워도 되는 칸). 기본은 비면 제출 불가 */
+  allowEmpty?: boolean;
   resolve: (value: string | null) => void;
 }
 

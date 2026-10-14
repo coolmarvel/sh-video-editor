@@ -4,7 +4,7 @@
  * 편집 의미는 단순화한다(클립 배치·razor·이동·트림·삭제·undo). 호출 기록(`calls`)과 실패 주입(`failNext`)으로
  * store 의 경로를 검증한다. 실제 엔진의 불변식은 packages/engine/tests 가 본다.
  */
-import type { CacheStore, CommandSpec, EngineBridge, EngineEvent, FileFilter, Frame, OpfsStore } from '../src/engine/bridge';
+import type { CacheStore, CommandSpec, EngineBridge, EngineEvent, FileFilter, Frame, OpfsStore, TemplateStore } from '../src/engine/bridge';
 import { TICKS_PER_SECOND } from '../src/engine/time';
 import { formatSrt, parseSrt } from '../src/features/text/srt';
 
@@ -373,6 +373,8 @@ export interface FakeBridgeOptions {
   web?: boolean;
   /** 호스트 캐시(bridge.cache) */
   cache?: CacheStore;
+  /** 사용자 템플릿 저장소(bridge.templates). 없으면 화면이 메모리 저장소를 쓴다 */
+  templates?: TemplateStore;
   /** 믹스 정점(dBFS, 마스터 0 dB 기준). sequence.normalizeMixTrack 이 "잰다". 기본 -6 */
   mixPeakDb?: number;
 }
@@ -591,6 +593,7 @@ export class FakeEngine {
       bridge.opfs = this.opfs;
     }
     if (opts.cache) bridge.cache = opts.cache;
+    if (opts.templates) bridge.templates = opts.templates;
     this.bridge = bridge;
   }
 
@@ -1207,8 +1210,14 @@ export class FakeEngine {
       ...speedFields(c),
       ...(c.gainDb !== undefined ? { gainDb: c.gainDb } : {}),
       effects: clone(c.effects ?? []),
+      // 실제 엔진처럼 텍스트 클립은 고정 효과(motion, opacity, time_remap) 뒤에 graphic_text 레이어가 보인다
       ...(this.state.graphics[c.clip]
-        ? { effects: [{ effect: 'graphic_text', enabled: true, params: FakeEngine.debugParams(this.state.graphics[c.clip] as FakeGraphic) }] }
+        ? {
+            effects: [
+              ...clone(c.effects ?? []),
+              { effect: 'graphic_text', enabled: true, masks: 0, params: FakeEngine.debugParams(this.state.graphics[c.clip] as FakeGraphic) },
+            ],
+          }
         : {}),
     });
     const toTrack = (t: FakeTrack) => ({

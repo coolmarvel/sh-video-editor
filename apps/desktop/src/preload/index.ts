@@ -6,6 +6,7 @@ type FileFilter = { name: string; extensions: string[] };
 type ThumbKey = { path: string; tick: number; width: number };
 type PeaksKey = { path: string; perSecond: number };
 type RecentProject = { path: string; name: string; openedAt: number };
+type StoredTemplate = { template: unknown; thumb: Uint8Array | null };
 
 /** 렌더러의 EngineBridge 가 부르는 원시 API. 모양은 packages/engine/bindings/napi 와 같다. 엔진은 utility process 에 있고 MessagePort 로 직접 부른다. */
 const shEngine = {
@@ -58,6 +59,12 @@ const shEngine = {
     recentProjects: (limit?: number) => ipcRenderer.invoke('cache:recentProjects', limit) as Promise<RecentProject[]>,
     touchProject: (path: string, name: string) => ipcRenderer.invoke('cache:touchProject', path, name) as Promise<void>,
     forgetProject: (path: string) => ipcRenderer.invoke('cache:forgetProject', path) as Promise<void>,
+  },
+  // 사용자 템플릿(main 의 userData/templates). 모양은 packages/editor 의 TemplateStore 와 같다
+  templates: {
+    list: () => ipcRenderer.invoke('templates:list') as Promise<StoredTemplate[]>,
+    put: (id: string, template: unknown, thumb: Uint8Array | null) => ipcRenderer.invoke('templates:put', id, template, thumb) as Promise<void>,
+    remove: (id: string) => ipcRenderer.invoke('templates:remove', id) as Promise<void>,
   },
 };
 

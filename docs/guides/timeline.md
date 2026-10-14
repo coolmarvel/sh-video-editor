@@ -1,7 +1,7 @@
 ---
 title: 타임라인 (트랙·클립·razor·이동·트림·끌어다 놓기)
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 domain: editor
 ---
 
@@ -59,3 +59,72 @@ domain: editor
 
 `npm run build -w apps/web` 후 `npm run preview -w apps/web -- --port 4182`, Playwright 로 1440·390 스크린샷과
 데모 프로젝트(파일 > Demo Project) 에서 razor·이동·트림·삭제·실행 취소·DnD 를 돌려 본다.
+
+## 템플릿 JSON (features/templates)
+
+사용자 템플릿(미디어 패널 템플릿 탭 "지금 편집본을 템플릿으로 저장")은 편집본의 구조를 미디어 파일과 떼어 적은 JSON 이다. 타입과 검증은
+`packages/editor/src/features/templates/format.ts`(`TemplateFile`, `parseTemplateFile`), 쓰기는 `serialize.ts`(`sequence.inspect` + 키프레임이 있는
+파라미터마다 `effects.keyframes`), 읽기(적용)는 `apply.ts`(엔진 커맨드 순서). 저장소는 `EngineBridge.templates`(데스크톱 `<userData>/templates/<id>.json` +
+`<id>.png`, 웹 IndexedDB `sh-video-editor-templates`, 없으면 메모리). 시간은 전부 tick.
+
+```json
+{
+  "format": "sh-video-editor-template",
+  "version": 1,
+  "id": "tpl-m2abc-1f3a9e",
+  "name": "내 인트로",
+  "description": "데모 영상 위 큰 제목",
+  "createdAt": 1760486400000,
+  "settings": { "width": 1920, "height": 1080, "fps": 30 },
+  "duration": 4064256000000,
+  "slots": [{ "kind": "video", "label": "c.mp4", "duration": 1016064000000 }],
+  "video": [
+    {
+      "clips": [
+        { "kind": "slot", "slot": 0, "start": 0, "duration": 1016064000000, "speed": 1, "reverse": false, "enabled": true, "effects": [], "keyframes": [] }
+      ]
+    },
+    {
+      "clips": [
+        {
+          "kind": "text",
+          "start": 0,
+          "duration": 1270080000000,
+          "enabled": true,
+          "text": "제목을 입력하세요",
+          "font": "Pretendard",
+          "fontStyle": "Bold",
+          "size": 140,
+          "props": { "align": "center", "fill_color": "#ffffff", "shadow": true, "shadow_color": "#000000", "position": [960, 475] },
+          "effects": [],
+          "keyframes": [
+            {
+              "effect": "opacity",
+              "param": "opacity",
+              "points": [
+                { "time": 0, "value": 0, "interpolation": "linear" },
+                { "time": 254016000000, "value": 100, "interpolation": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "audio": [],
+  "transitions": [{ "track": 0, "effect": "cross_dissolve", "frames": 30, "from": 0, "to": null, "reverse": false }]
+}
+```
+
+| 필드                                   | 뜻                                                                                               | 쓸 때(serialize)                                                                                                                        | 읽을 때(apply)                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settings`                             | 편집본 크기와 fps(소수 셋째 자리)                                                                | `sequence.inspect.settings`                                                                                                             | `file.newSequence {width, height, fps, video, audio}` (트랙 수는 템플릿 트랙 수, 최소 3)                                                                         |
+| `slots[]`                              | 미디어 자리. `kind` video, image, audio. 같은 항목을 쓰던 클립은 슬롯 하나                       | 클립의 `item` 별로 번호. 영상에 붙은 소리 클립(같은 `link`)은 적지 않는다                                                               | 고른 항목을 영상·사진은 video·image 슬롯에, 음악은 audio 슬롯에 순서대로. 모자라면 그 클립은 건너뛰고 수를 알린다                                                |
+| `video[i].clips[]`, `audio[i].clips[]` | 트랙별 클립(시작 순). `kind` slot, text, matte                                                   | 텍스트 = `graphic_text` 효과가 있는 클립(`features/text/params.ts readTextStyle`), 매트 = `Synthetic` 항목 "Color Matte", 나머지 = 슬롯 | slot: `timeline.place {item, track: "V1"                                                                                                                         | "A1", time, duration, insert: false}`(사진은 길이 그대로, 영상은 길이 x 속도 배수를 놓고`clip.speedDuration {clips, speed: 배수 x 100, reverse}`), 마지막에 슬롯 영상 전부 `clip.fillFrame`. text: `graphics.newText {text, size, font, fontStyle, seconds, time, track: i}`(그 트랙이 비어 있지 않으면 track 없이 다시) 뒤`graphics.set {clip, props}`. matte: `file.newColorMatte {color, seconds}`+`timeline.place` |
+| `clips[].effects[]`                    | 사용자 효과(id + 정적 파라미터)와 고정 효과의 기본값과 다른 값(opacity.opacity, motion.rotation) | inspect `effects[]` 의 `{kind, value}` 를 숫자·불·"#rrggbb"·[x, y]·문자열로. 키프레임이 있는 파라미터는 뺀다                            | 사용자 효과는 `effects.apply {clips, effect}` 뒤 파라미터마다 `effects.setParam`, 고정 효과는 `effects.setParam` 만                                              |
+| `clips[].keyframes[]`                  | 파라미터별 키프레임(`time` 은 클립 시작 기준 미디어 시각)                                        | `keyframes > 0` 인 파라미터마다 `effects.keyframes {clip, effect, param}`                                                               | `effects.addKeyframe {time: start + 첫 time}` 뒤 점마다 `effects.setParam {value, time}`, 선형이 아닌 점은 `effects.setInterpolation {mediaTime, interpolation}` |
+| `transitions[]`                        | 영상 트랙의 전환. `from`·`to` 는 그 트랙 `clips` 의 색인(한쪽 null 이면 페이드 인·아웃)          | `tracks[].transitions[]` 의 `from`·`to` 클립 id 를 색인으로, 길이는 프레임 수로                                                         | `from` 이 있으면 `sequence.applyVideoTransition {clip: from, edge: "out", effect, frames, reverse}`, 없으면 `{clip: to, edge: "in"}`. 실패(핸들 없음)는 건너뛴다 |
+
+적지 않는 것: 미디어 파일 경로와 소스 시작점(sourceIn), 클립 비활성, 색 매트의 색(읽을 수 없어 `#1b1f2a`), 트랙 잠금·음소거, 마커, 자막 트랙.
+`parseTemplateFile` 은 모르는 필드를 버리고 비어 있어도 되는 필드(설명, 효과, 키프레임, `enabled`, 글꼴)는 기본값으로 채우며, 형식·버전·설정·슬롯 번호·전환 색인이
+틀리면 이유를 담아 던진다(가져오기 토스트에 그대로 보인다).

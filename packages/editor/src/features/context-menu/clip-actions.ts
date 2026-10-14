@@ -18,7 +18,7 @@ export function linkGroups(clips: ClipInfo[]): number {
   return links.size;
 }
 
-/** 연결된 상대 클립(같은 link id)까지 넓힌 목록. 엔진 clip.link / clip.enable 은 준 클립만 바꾸므로 화면에서 넓힌다 */
+/** 연결된 상대 클립(같은 link id)까지 넓힌 목록. 엔진 clip.link / clip.enable 은 상대까지 함께 바꾸므로(`linked` 기본 true) 안내 문구의 수에만 쓴다 */
 export function withPartners(clips: ClipInfo[]): ClipInfo[] {
   const seq = useTimeline.getState().sequence;
   if (!seq) return clips;
@@ -56,7 +56,7 @@ export async function toggleLink(selected: ClipInfo[]): Promise<void> {
   const allLinked = clips.every((c) => c.link !== null);
   const r = (await execCommand(
     'clip.link',
-    { clips: clips.map((c) => c.clip) },
+    { clips: selected.map((c) => c.clip) },
     allLinked ? '소리를 분리했습니다. 영상과 소리를 따로 움직일 수 있습니다' : '영상과 소리를 다시 연결했습니다',
   )) as { linked?: boolean } | undefined;
   if (r && typeof r.linked === 'boolean') {
@@ -69,7 +69,7 @@ export async function toggleEnabled(selected: ClipInfo[]): Promise<void> {
   const clips = withPartners(selected);
   if (clips.length === 0) return;
   const anyOn = clips.some((c) => c.enabled);
-  await execCommand('clip.enable', { clips: clips.map((c) => c.clip) }, anyOn ? `클립 ${clips.length}개를 껐습니다` : `클립 ${clips.length}개를 켰습니다`);
+  await execCommand('clip.enable', { clips: selected.map((c) => c.clip) }, anyOn ? `클립 ${clips.length}개를 껐습니다` : `클립 ${clips.length}개를 켰습니다`);
 }
 
 export async function renameClip(clip: ClipInfo): Promise<void> {

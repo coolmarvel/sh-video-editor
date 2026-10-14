@@ -1,7 +1,8 @@
 /**
  * 전환(M2-3) 엔진 기능 테스트: 단색 매트 두 클립 사이에 디졸브를 넣고 inspect 의 transitions 모양, 전환 구간의
  * renderFrame 혼합, 길이 교체, 리플 트림 추종, 클립 삭제·이동 때 정리, 내보내기 길이 불변을 본다.
- * 엔진 사실(2026-10-14): 전환 삭제·정렬 변경 커맨드가 없다. 일반 트림으로 틈이 생겨도 전환이 남는다(보고).
+ * 삭제(`sequence.removeTransition`)·길이와 정렬(`sequence.setTransitionLength`)·일반 트림의 틈 정리는 우리가 보강한 커맨드다
+ * (docs/guides/engine-commands.md).
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -261,10 +262,10 @@ d('편집 뒤 전환의 운명', () => {
     expect(inspect(engine).video[0]!.items).toHaveLength(2);
   });
 
-  it('edit.clear 는 전환 id 를 받지 않는다(삭제 커맨드 없음, 보고 대상)', () => {
+  it('edit.clear 는 전환 id 를 클립 id 로 보지 않고 거부한다(삭제는 sequence.removeTransition)', () => {
     const { engine, red } = withMattes();
     const r = exec<{ transition: number }>(engine, 'sequence.applyVideoTransition', { clip: red, effect: 'cross_dissolve', frames: 30, edge: 'out' });
-    exec(engine, 'edit.clear', { clips: [r.transition] });
+    expect(() => exec(engine, 'edit.clear', { clips: [r.transition] })).toThrow(/no clip/);
     expect(transitionsOf(engine)).toHaveLength(1);
   });
 });
@@ -337,5 +338,66 @@ d('내보내기', () => {
     } finally {
       engine.free();
     }
+  });
+});
+
+d('삭제, 길이와 정렬 (보강 커맨드)', () => {
+  it('removeTransition 은 전환이나 페이드를 지우고 실행 취소 한 단계다', () => {
+    const { engine, red } = withMattes();
+    const t = exec<{ transition: number }>(engine, 'sequence.applyVideoTransition', { clip: red, effect: 'cross_dissolve', frames: 30, edge: 'out' });
+    const fade = exec<{ transition: number }>(engine, 'sequence.applyVideoTransition', { clip: red, effect: 'dip_to_black', frames: 15, edge: 'in' });
+    expect(transitionsOf(engine)).toHaveLength(2);
+    const r = exec<{ transition: number; track: number }>(engine, 'sequence.removeTransition', { transition: t.transition });
+    expect(r.transition).toBe(t.transition);
+    expect(transitionsOf(engine).map((x) => x.id)).toEqual([fade.transition]);
+    expect(() => exec(engine, 'sequence.removeTransition', { transition: t.transition })).toThrow(/no transition/);
+    expect(() => exec(engine, 'sequence.removeTransition', {})).toThrow();
+    expect(engine.undo()).toBe('Remove Transition');
+    expect(transitionsOf(engine)).toHaveLength(2);
+    assertInvariants(inspect(engine));
+  });
+
+  it('setTransitionLength 는 id 를 유지한 채 길이와 정렬을 바꾸고 0 프레임은 거부한다', () => {
+    const { engine, red, blue, ft } = withMattes();
+    const t = exec<{ transition: number }>(engine, 'sequence.applyVideoTransition', { clip: red, effect: 'cross_dissolve', frames: 30, edge: 'out' });
+    const span = () => {
+      const x = transitionsOf(engine).find((y) => y.id === t.transition)!;
+      return [x.start, x.duration, x.from, x.to];
+    };
+    expect(span()).toEqual([4 * T - 15 * ft, 30 * ft, red, blue]);
+    const r = exec<{ align: string; start: number; duration: number }>(engine, 'sequence.setTransitionLength', { transition: t.transition, frames: 60 });
+    expect(r.align).toBe('center');
+    expect(span()).toEqual([4 * T - 30 * ft, 60 * ft, red, blue]);
+    exec(engine, 'sequence.setTransitionLength', { transition: t.transition, frames: 20, align: 'start' });
+    expect(span()).toEqual([4 * T, 20 * ft, red, blue]);
+    exec(engine, 'sequence.setTransitionLength', { transition: t.transition, frames: 20, align: 'end' });
+    expect(span()).toEqual([4 * T - 20 * ft, 20 * ft, red, blue]);
+    // 정렬은 기억된다
+    exec(engine, 'sequence.setTransitionLength', { transition: t.transition, frames: 10 });
+    expect(span()).toEqual([4 * T - 10 * ft, 10 * ft, red, blue]);
+    for (const bad of [{ frames: 0 }, { frames: -3 }, {}, { frames: 10, align: 'middle' }]) {
+      expect(() => exec(engine, 'sequence.setTransitionLength', { transition: t.transition, ...bad })).toThrow();
+    }
+    expect(span()).toEqual([4 * T - 10 * ft, 10 * ft, red, blue]);
+    expect(engine.undo()).toBe('Set Transition Length');
+    expect(span()).toEqual([4 * T - 20 * ft, 20 * ft, red, blue]);
+    // 가운데 정렬 전환 구간의 렌더는 두 색이 섞인다
+    exec(engine, 'sequence.setTransitionLength', { transition: t.transition, frames: 30, align: 'center' });
+    const fr = engine.renderFrame(4 * T, 0.25)!;
+    const i = (fr.width * Math.floor(fr.height / 2) + Math.floor(fr.width / 2)) * 4;
+    expect(Math.abs(fr.rgba[i]! - fr.rgba[i + 2]!)).toBeLessThanOrEqual(12);
+    assertInvariants(inspect(engine));
+  });
+
+  it('일반 트림으로 틈이 생기면 전환이 사라지고, 리플 트림은 남긴다', () => {
+    const { engine, red } = withMattes();
+    exec(engine, 'sequence.applyVideoTransition', { clip: red, effect: 'cross_dissolve', frames: 30, edge: 'out' });
+    exec(engine, 'timeline.trim', { clip: red, edge: 'out', mode: 'ripple', deltaFrames: -10 });
+    expect(transitionsOf(engine)).toHaveLength(1);
+    exec(engine, 'timeline.trim', { clip: red, edge: 'out', mode: 'regular', deltaFrames: -10 });
+    expect(transitionsOf(engine)).toHaveLength(0);
+    assertInvariants(inspect(engine));
+    expect(engine.undo()).toBe('Trim');
+    expect(transitionsOf(engine)).toHaveLength(1);
   });
 });

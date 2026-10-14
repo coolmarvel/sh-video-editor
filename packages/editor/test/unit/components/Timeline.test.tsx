@@ -90,8 +90,8 @@ describe('Timeline (클립)', () => {
       await flush();
     });
     // 60px/s 기본 줌에서 30px = 0.5초 = 15프레임
-    expect(engine.callsOf('timeline.trim')).toEqual([{ clip: clips[1]!.clip, edge: 'in', mode: 'regular', deltaFrames: 15 }]);
-    expect(engine.callsOf('sequence.linkedSelection')).toEqual([{ on: false }, { on: true }]);
+    expect(engine.callsOf('timeline.trim')).toEqual([{ clip: clips[1]!.clip, edge: 'in', mode: 'regular', deltaFrames: 15, linked: false }]);
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([]);
     expect(engine.state.sequence!.audio[0]!.items[0]!.start).toBe(15 * FT30);
     expect(engine.state.sequence!.video[0]!.items[0]!.start).toBe(0);
     // Alt 없이 끌면 둘 다 움직인다
@@ -103,7 +103,7 @@ describe('Timeline (클립)', () => {
       await flush();
     });
     expect(engine.callsOf('timeline.trim')[1]).toEqual({ clip: clips[0]!.clip, edge: 'out', mode: 'regular', deltaFrames: -15 });
-    expect(engine.callsOf('sequence.linkedSelection')).toHaveLength(2);
+    expect(engine.callsOf('sequence.linkedSelection')).toEqual([]);
     expect(engine.state.sequence!.video[0]!.items[0]!.end).toBe(engine.state.sequence!.audio[0]!.items[0]!.end);
   });
 

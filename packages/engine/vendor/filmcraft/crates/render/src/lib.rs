@@ -485,11 +485,22 @@ fn plain_layer(frame: &VideoFrame, n: usize, opacity: f32, blend: Blend) -> Laye
     }
 }
 
+/// The media time to decode a clip's picture at for timeline `t`. A reversed clip's first frame
+/// is its last source frame, whose last tick the mapping names (`source_out - 1`): a floor lookup
+/// finds that frame, but a container with a coarse timescale (MP4 at 1000 units a second) looks
+/// up the nearest sample time and lands on the frame after it. Reversed clips therefore ask for
+/// a time well inside the frame (half of a 120 fps frame earlier), never before their source In.
+/// Audio and effect times keep the exact mapping.
+pub fn frame_time(item: &TrackItem, t: Tick) -> Tick {
+    let ft = item.source_time_at(t);
+    if item.reverse && item.frame_hold.is_none() { (ft - Tick(filmcraft_time::TICKS_PER_SECOND / 240)).max(item.source_in.min(ft)) } else { ft }
+}
+
 /// The source frame of a media clip at timeline `t` (at `want` of its size), and the decimation to
 /// convert it with.
 fn media_frame(item: &TrackItem, t: Tick, sources: &dyn SourceProvider, want: f32, src_size: (u32, u32)) -> Option<(SharedSource, Arc<VideoFrame>, usize)> {
     let src = sources.source(item.item)?;
-    let frame = src.video_frame(FrameRequest { time: item.source_time_at(t), scale: want }).ok()?;
+    let frame = src.video_frame(FrameRequest { time: frame_time(item, t), scale: want }).ok()?;
     let n = decimation(frame.width as f32, src_size.0 as f32 * want);
     Some((src, frame, n))
 }

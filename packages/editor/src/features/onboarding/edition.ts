@@ -4,6 +4,7 @@
  * 커맨드이며 여기서는 순서만 정한다. 끝나면 모든 패널이 다시 읽도록 refreshAll 을 부르고 토스트로 알린다.
  */
 import { useEditor } from '../../store';
+import { withTransaction } from '../../engine/transaction';
 import { useMedia } from '../media/store';
 import { DEMO_SCENES, findItem, isClipLike, walkItems, type MediaItem } from '../media/types';
 import { useProject } from '../project/store';
@@ -74,10 +75,14 @@ async function startEdition(name: string, items: MediaItem[]): Promise<AddResult
   if (!bridge || !first) return { sequence: null, placed: 0 };
   useMedia.setState({ busy: true });
   try {
-    const r = (await bridge.execute('file.newSequence', { name, fromItem: first.id })) as { sequence: number };
-    const placed = 1 + (await appendItems(items.slice(1)));
-    // 놓인 클립이 선택된 채로 시작하지 않게 한다(다음 자르기·삭제가 뜻밖의 대상을 잡지 않도록)
-    await bridge.execute('edit.deselectAll').catch(() => undefined);
+    // 편집본 만들기와 항목 놓기가 실행 취소 한 단계가 되게 묶는다(실패하면 엔진이 처음 상태로 되돌린다)
+    const { r, placed } = await withTransaction(bridge, `편집본 "${name}"`, async () => {
+      const r = (await bridge.execute('file.newSequence', { name, fromItem: first.id })) as { sequence: number };
+      const placed = 1 + (await appendItems(items.slice(1)));
+      // 놓인 클립이 선택된 채로 시작하지 않게 한다(다음 자르기·삭제가 뜻밖의 대상을 잡지 않도록)
+      await bridge.execute('edit.deselectAll').catch(() => undefined);
+      return { r, placed };
+    });
     await refreshAll(`편집본 "${name}" 을 만들고 ${label(items)} 을 타임라인에 넣었습니다`);
     useProject.getState().notify('success', `${label(items)} 으로 편집을 시작합니다. 타임라인에서 자르고 다듬어 보세요.`);
     return { sequence: r.sequence, placed };
@@ -103,7 +108,7 @@ export async function addToTimeline(ids: number[]): Promise<AddResult> {
   if (!(await activeSequence())) return startEdition(editionName(existingEditionNames()), items);
   useMedia.setState({ busy: true });
   try {
-    const placed = await appendItems(items);
+    const placed = items.length > 1 ? await withTransaction(bridge, `${label(items)} 추가`, () => appendItems(items)) : await appendItems(items);
     await refreshAll(`${label(items)} 을 타임라인 끝에 넣었습니다`);
     useProject.getState().notify('success', `${label(items)} 을 타임라인 끝에 넣었습니다.`);
     return { sequence: null, placed };

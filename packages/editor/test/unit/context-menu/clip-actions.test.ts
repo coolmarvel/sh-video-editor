@@ -36,12 +36,11 @@ describe('linkGroups / selectedClips', () => {
 });
 
 describe('toggleLink', () => {
-  it('영상 클립 하나만 주어도 연결 상대(소리)까지 함께 푼다', async () => {
+  it('영상 클립 하나만 주어도 연결 상대(소리)까지 함께 푼다(엔진 clip.link 의 linked 기본값)', async () => {
     const { engine } = await ready();
     const video = tl().sequence!.video[0]!.items[0]!;
-    const audio = tl().sequence!.audio[0]!.items[0]!;
     await toggleLink([video]);
-    expect(engine.callsOf('clip.link')).toEqual([{ clips: [video.clip, audio.clip] }]);
+    expect(engine.callsOf('clip.link')).toEqual([{ clips: [video.clip] }]);
     expect(tl().sequence!.video[0]!.items[0]!.link).toBeNull();
     expect(tl().sequence!.audio[0]!.items[0]!.link).toBeNull();
   });

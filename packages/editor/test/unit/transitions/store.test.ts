@@ -95,20 +95,19 @@ describe('applyToSelectedClips', () => {
 });
 
 describe('setDuration / replaceEffect / setReverse', () => {
-  it('길이 변경은 같은 편집점에 다시 적용해 교체한다(새 id 선택, 파라미터·반전 유지)', async () => {
+  it('길이 변경은 sequence.setTransitionLength 로 제자리에서 바꾼다(같은 id, 반전·종류 유지)', async () => {
     const { engine, clips } = await ready();
     const first = (await ts().applyAtPoint({ cut: 4 * T, from: clips[0]!.clip, to: clips[2]!.clip }, 'push'))!;
     await ts().setReverse(first, true);
     engine.calls.length = 0;
     await ts().setDuration(first, 15);
-    expect(engine.callsOf('sequence.applyVideoTransition')).toEqual([
-      { clip: clips[0]!.clip, edge: 'out', effect: 'push', frames: 15, params: {}, reverse: true },
-    ]);
+    expect(engine.callsOf('sequence.setTransitionLength')).toEqual([{ transition: first, frames: 15 }]);
+    expect(engine.callsOf('sequence.applyVideoTransition')).toEqual([]);
     expect(videoTransitions()).toHaveLength(1);
     const tr = videoTransitions()[0]!;
-    expect(tr.id).not.toBe(first);
-    expect(tr).toMatchObject({ duration: 15 * FT30, start: 4 * T - 7.5 * FT30, reverse: true });
-    expect(ts().selected).toBe(tr.id);
+    expect(tr.id).toBe(first);
+    expect(tr).toMatchObject({ effect: 'push', duration: 15 * FT30, start: 4 * T - 7.5 * FT30, reverse: true });
+    expect(ts().selected).toBe(first);
     expect(useEditor.getState().status).toBe('전환 길이: 15프레임');
   });
 
@@ -117,7 +116,7 @@ describe('setDuration / replaceEffect / setReverse', () => {
     const id = (await ts().applyAtPoint({ cut: 4 * T, from: clips[0]!.clip, to: clips[2]!.clip }, 'cross_dissolve'))!;
     engine.calls.length = 0;
     await ts().setDuration(id, 0);
-    expect(engine.callsOf('sequence.applyVideoTransition')[0]?.['frames']).toBe(1);
+    expect(engine.callsOf('sequence.setTransitionLength')[0]?.['frames']).toBe(1);
     engine.calls.length = 0;
     await ts().setDuration(9999, 10);
     expect(engine.calls).toHaveLength(0);
@@ -147,14 +146,18 @@ describe('setDuration / replaceEffect / setReverse', () => {
     expect(useEditor.getState().error).toContain('sequence.setTransition failed');
   });
 
-  it('삭제는 엔진 커맨드가 없어 안내만 한다', async () => {
+  it('삭제는 sequence.removeTransition 으로 보내고 선택을 푼다, 없는 id 는 무시', async () => {
     const { engine, clips } = await ready();
     const id = (await ts().applyAtPoint({ cut: 4 * T, from: clips[0]!.clip, to: clips[2]!.clip }, 'push'))!;
+    expect(ts().selected).toBe(id);
     engine.calls.length = 0;
-    await ts().remove(id);
+    await ts().remove(9999);
     expect(engine.calls).toHaveLength(0);
-    expect(useEditor.getState().status).toContain('전환 삭제는 엔진 커맨드가 아직 없습니다');
-    expect(videoTransitions()).toHaveLength(1);
+    await ts().remove(id);
+    expect(engine.callsOf('sequence.removeTransition')).toEqual([{ transition: id }]);
+    expect(videoTransitions()).toHaveLength(0);
+    expect(ts().selected).toBeNull();
+    expect(useEditor.getState().status).toBe('전환 삭제: 밀기');
   });
 });
 

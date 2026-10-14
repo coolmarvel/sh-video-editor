@@ -1,8 +1,10 @@
 /**
- * 엔진 파라미터 값 변환. `sequence.inspect` 의 효과 파라미터 값은 Rust Debug 표기 문자열("Float(50.0)", "Bool(true)",
- * "Choice(0)", "Vec2(Vec2 { x: 960.0, y: 540.0 })", "Color([1.0, 0.5, 0.0, 1.0])", "Text(\"\")")로 온다. 여기서 숫자·불·점·색으로
- * 읽고, 화면 값을 `effects.setParam` 의 value(num | [x,y] | "#rrggbb" | bool)로 되돌린다. 편집 의미는 넣지 않는다.
+ * 엔진 파라미터 값 변환. `sequence.inspect` 의 효과 파라미터는 `{kind, value}` 로 온다(float: 숫자, point: [x, y](auto 는 null),
+ * color: [r, g, b, a], bool, choice: 색인, text: 문자열). 이전 엔진의 Rust Debug 문자열("Float(50.0)", "Bool(true)", "Choice(0)",
+ * "Vec2(Vec2 { x: 960.0, y: 540.0 })", "Color([1.0, 0.5, 0.0, 1.0])", "Text(\"\")")도 잠시 읽는다. 화면 값은
+ * `effects.setParam` 의 value(num | [x,y] | "#rrggbb" | bool)로 되돌린다. 편집 의미는 넣지 않는다.
  */
+import type { EffectParamInfo } from '../timeline/types';
 import type { ClipEffectInfo, ParamDef, ParamValue } from './types';
 
 const num = (s: string): number | null => {
@@ -10,8 +12,40 @@ const num = (s: string): number | null => {
   return Number.isFinite(v) ? v : null;
 };
 
-export function parseParamValue(raw: string | undefined | null): ParamValue {
+/** 새 모양(`{kind, value}`)을 읽는다. kind 가 없거나 모르는 값이면 null */
+function parseTyped(p: { kind?: string; value?: unknown }): ParamValue | null {
+  const v = p.value;
+  switch (p.kind) {
+    case 'float':
+      return typeof v === 'number' && Number.isFinite(v) ? { kind: 'float', value: v } : null;
+    case 'bool':
+      return typeof v === 'boolean' ? { kind: 'bool', value: v } : null;
+    case 'choice':
+      return typeof v === 'number' ? { kind: 'choice', value: Math.round(v) } : null;
+    case 'text':
+      return typeof v === 'string' ? { kind: 'text', value: v } : null;
+    case 'point': {
+      if (!Array.isArray(v)) return null;
+      const c = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+      return { kind: 'point', x: c(v[0]), y: c(v[1]) };
+    }
+    case 'color': {
+      if (!Array.isArray(v)) return null;
+      const [r = 0, g = 0, b = 0, a = 1] = v.map((x) => (typeof x === 'number' ? x : 0));
+      return { kind: 'color', rgba: [r, g, b, a] };
+    }
+    default:
+      return null;
+  }
+}
+
+export function parseParamValue(raw: string | EffectParamInfo | { kind?: string; value?: unknown } | undefined | null): ParamValue {
   if (raw == null) return { kind: 'other', raw: '' };
+  if (typeof raw !== 'string') {
+    const typed = parseTyped(raw);
+    if (typed) return typed;
+    return typeof raw.value === 'string' ? parseParamValue(raw.value) : { kind: 'other', raw: JSON.stringify(raw.value ?? null) };
+  }
   const s = raw.trim();
   let m = /^Float\((.*)\)$/.exec(s);
   if (m) {
@@ -55,7 +89,7 @@ export function numberOf(v: ParamValue): number | null {
 /** 효과의 파라미터 값을 읽는다. 없으면 null */
 export function readParam(effect: ClipEffectInfo | undefined, param: string): ParamValue | null {
   const p = effect?.params[param];
-  return p ? parseParamValue(p.value) : null;
+  return p ? parseParamValue(p) : null;
 }
 
 export function readNumber(effect: ClipEffectInfo | undefined, param: string, fallback: number): number {

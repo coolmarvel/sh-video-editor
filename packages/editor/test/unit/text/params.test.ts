@@ -5,6 +5,12 @@ import { FakeEngine } from '../../fake-bridge';
 
 describe('엔진 효과 파라미터(Debug 문자열) 읽기', () => {
   it('Text, Float, Bool, Choice, Color, Vec2 를 구분한다', () => {
+    expect(parseParamValue({ kind: 'text', value: '안녕하세요 Hello' })).toEqual({ kind: 'text', text: '안녕하세요 Hello' });
+    expect(parseParamValue({ kind: 'float', value: 120 })).toEqual({ kind: 'float', value: 120 });
+    expect(parseParamValue({ kind: 'choice', value: 2 })).toEqual({ kind: 'choice', index: 2 });
+    expect(parseParamValue({ kind: 'color', value: [1, 0, 0, 1] })).toEqual({ kind: 'color', hex: '#ff0000', alpha: 1 });
+    expect(parseParamValue({ kind: 'point', value: [960, 540] })).toEqual({ kind: 'vec2', x: 960, y: 540 });
+    expect(parseParamValue({ value: 'Float(1.0)' })).toEqual({ kind: 'float', value: 1 });
     expect(parseParamValue('Text("안녕하세요 Hello")')).toEqual({ kind: 'text', text: '안녕하세요 Hello' });
     expect(parseParamValue('Text("줄1\\n줄2 \\"따옴표\\"")')).toEqual({ kind: 'text', text: '줄1\n줄2 "따옴표"' });
     expect(parseParamValue('Float(120.0)')).toEqual({ kind: 'float', value: 120 });

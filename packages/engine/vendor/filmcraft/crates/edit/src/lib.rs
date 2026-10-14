@@ -24,7 +24,7 @@ pub mod transcript;
 
 use std::collections::HashMap;
 
-use filmcraft_project::{ClipId, ItemId, Sequence, Track, TrackId, TrackItem, Transition, TransitionId};
+use filmcraft_project::{ClipId, ItemId, Sequence, Track, TrackId, TrackItem, Transition, TransitionAlign, TransitionId};
 use filmcraft_time::{Tick, TimeRange};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -180,7 +180,13 @@ pub fn remove_orphan_transitions(track: &mut Track) {
     track.transitions.retain(|tr| {
         let from_ok = tr.from.is_none_or(|f| ids.contains_key(&f));
         let to_ok = tr.to.is_none_or(|t| ids.contains_key(&t));
-        from_ok && to_ok && (tr.from.is_some() || tr.to.is_some())
+        // a two-sided transition needs its clips on a cut: a gap or an overlap between them (a
+        // trim, an insert) leaves nothing to dissolve across
+        let on_cut = match (tr.from, tr.to) {
+            (Some(f), Some(t)) => ids.get(&f).zip(ids.get(&t)).is_some_and(|(a, b)| a.1 == b.0),
+            _ => true,
+        };
+        from_ok && to_ok && on_cut && (tr.from.is_some() || tr.to.is_some())
     });
 }
 
@@ -613,6 +619,9 @@ pub fn trim(seq: &mut Sequence, clip: ClipId, edge: Edge, mode: TrimMode, delta:
             }
         }
         transitions_follow_cuts(seq, &mut work);
+    } else if let Some(t) = work.track_mut(tid) {
+        // a regular trim opens a gap at the cut: the transition that sat on it goes
+        remove_orphan_transitions(t);
     }
     work.check().map_err(EditError::Other)?;
     *seq = work;
@@ -938,6 +947,56 @@ pub fn add_transition(seq: &mut Sequence, track: TrackId, mut tr: Transition, ct
     t.transitions.push(tr);
     t.sort();
     Ok(id)
+}
+
+/// Remove transition `id` from whichever track holds it (a transition between clips, a fade
+/// in / out). Returns the track.
+pub fn remove_transition(seq: &mut Sequence, id: TransitionId) -> Result<TrackId> {
+    for t in seq.all_tracks_mut() {
+        let Some(i) = t.transitions.iter().position(|x| x.id == id) else { continue };
+        if t.locked {
+            return Err(EditError::Locked);
+        }
+        t.transitions.remove(i);
+        return Ok(t.id);
+    }
+    Err(EditError::Other(format!("no transition {}", id.0)))
+}
+
+/// Change a transition's duration and where it sits on its cut, in place (same id). `align`
+/// applies to a transition between two clips (`None` keeps its alignment); a fade in always starts
+/// at its clip, a fade out always ends at its clip. The start snaps down to a frame
+/// (`ctx.min_duration`).
+pub fn set_transition_span(seq: &mut Sequence, id: TransitionId, duration: Tick, align: Option<TransitionAlign>, ctx: &EditCtx) -> Result<()> {
+    if duration <= Tick::ZERO {
+        return Err(EditError::Other("a transition needs a positive duration".into()));
+    }
+    let Some(track) = seq.all_tracks_mut().find(|t| t.transitions.iter().any(|x| x.id == id)) else {
+        return Err(EditError::Other(format!("no transition {}", id.0)));
+    };
+    if track.locked {
+        return Err(EditError::Locked);
+    }
+    let Some(i) = track.transitions.iter().position(|x| x.id == id) else { return Err(EditError::Nothing) };
+    let cut = track.transitions.get(i).and_then(|tr| transition_anchor(track, tr)).ok_or_else(|| EditError::Other("the transition's clips are gone".into()))?;
+    let tr = track.transitions.get_mut(i).ok_or(EditError::Nothing)?;
+    let align = match (tr.from, tr.to) {
+        (Some(_), Some(_)) => align.unwrap_or(tr.align),
+        (None, Some(_)) => TransitionAlign::StartAtCut,
+        (Some(_), None) => TransitionAlign::EndAtCut,
+        (None, None) => return Err(EditError::Other("the transition's clips are gone".into())),
+    };
+    let start = match align {
+        TransitionAlign::CenterAtCut => cut - duration.mul_ratio(1, 2),
+        TransitionAlign::StartAtCut => cut,
+        TransitionAlign::EndAtCut => cut - duration,
+    };
+    let frame = ctx.min_duration.0.max(1);
+    tr.start = Tick(start.0 - start.0.rem_euclid(frame));
+    tr.duration = duration;
+    tr.align = align;
+    track.sort();
+    Ok(())
 }
 
 #[cfg(test)]

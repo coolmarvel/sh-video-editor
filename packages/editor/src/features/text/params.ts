@@ -1,6 +1,7 @@
 /**
- * 엔진 `sequence.inspect` 가 돌려주는 효과 파라미터 값(filmcraft 의 Debug 문자열: `Text("...")`, `Float(120.0)`,
- * `Bool(true)`, `Choice(1)`, `Color([r, g, b, a])`, `Vec2(Vec2 { x: 960.0, y: 540.0 })`)을 화면 값으로 읽는다.
+ * 엔진 `sequence.inspect` 가 돌려주는 효과 파라미터 값(`{kind, value}`: text 문자열, float 숫자, bool, choice 색인,
+ * color [r, g, b, a], point [x, y])을 화면 값으로 읽는다. 이전 엔진의 Debug 문자열(`Text("...")`, `Float(120.0)`, `Bool(true)`,
+ * `Choice(1)`, `Color([r, g, b, a])`, `Vec2(Vec2 { x: 960.0, y: 540.0 })`)도 잠시 받는다.
  * 쓰기는 전부 `graphics.set` 커맨드로 하고 여기서는 읽기만 한다(편집 로직은 엔진에).
  */
 import type { ClipInfo } from '../timeline/types';
@@ -39,7 +40,35 @@ function channel(v: number): string {
     .padStart(2, '0');
 }
 
+function parseTyped(kind: unknown, v: unknown): ParamValue | null {
+  switch (kind) {
+    case 'text':
+      return typeof v === 'string' ? { kind: 'text', text: v } : null;
+    case 'float':
+      return typeof v === 'number' && Number.isFinite(v) ? { kind: 'float', value: v } : null;
+    case 'bool':
+      return typeof v === 'boolean' ? { kind: 'bool', value: v } : null;
+    case 'choice':
+      return typeof v === 'number' ? { kind: 'choice', index: Math.round(v) } : null;
+    case 'color': {
+      if (!Array.isArray(v)) return null;
+      const [r = 0, g = 0, b = 0, a = 1] = v.map((x) => (typeof x === 'number' ? x : 0));
+      return { kind: 'color', hex: `#${channel(r)}${channel(g)}${channel(b)}`, alpha: a };
+    }
+    case 'point':
+      return Array.isArray(v) && typeof v[0] === 'number' && typeof v[1] === 'number' ? { kind: 'vec2', x: v[0], y: v[1] } : null;
+    default:
+      return null;
+  }
+}
+
 export function parseParamValue(raw: unknown): ParamValue {
+  if (raw !== null && typeof raw === 'object') {
+    const p = raw as { kind?: unknown; value?: unknown };
+    const typed = parseTyped(p.kind, p.value);
+    if (typed) return typed;
+    return typeof p.value === 'string' ? parseParamValue(p.value) : { kind: 'unknown', raw: JSON.stringify(p.value ?? null) };
+  }
   if (typeof raw !== 'string') return { kind: 'unknown', raw: String(raw) };
   let m = /^Text\("((?:[^"\\]|\\.)*)"\)$/s.exec(raw);
   if (m) return { kind: 'text', text: unescapeDebugString(m[1] ?? '') };
@@ -88,7 +117,7 @@ export interface TextLayerStyle {
   scale: number;
 }
 
-type RawParams = Record<string, { value?: unknown } | undefined>;
+type RawParams = Record<string, { kind?: unknown; value?: unknown } | undefined>;
 
 export function isTextClip(clip: ClipInfo): boolean {
   return (clip.effects ?? []).some((e) => e.effect === 'graphic_text');
@@ -99,7 +128,7 @@ export function readTextStyle(clip: ClipInfo): TextLayerStyle | null {
   const fx = (clip.effects ?? []).find((e) => e.effect === 'graphic_text');
   if (!fx) return null;
   const p = (fx.params ?? {}) as RawParams;
-  const get = (k: string) => parseParamValue(p[k]?.value);
+  const get = (k: string) => parseParamValue(p[k]);
   const text = (k: string, d: string) => {
     const v = get(k);
     return v.kind === 'text' ? v.text : d;

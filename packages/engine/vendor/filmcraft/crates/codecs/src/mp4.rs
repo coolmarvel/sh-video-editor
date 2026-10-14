@@ -374,6 +374,22 @@ impl MediaSource for Mp4Source {
     fn info(&self) -> &MediaInfo {
         &self.info
     }
+    /// A file cut short after its index (`moov` first, `mdat` missing or partial): the samples
+    /// past the end of the file cannot be decoded.
+    fn warnings(&self) -> Vec<String> {
+        use filmcraft_isobmff::ByteSource;
+        let len = self.bytes.len();
+        let mut out = Vec::new();
+        for (ti, what) in [(self.vtrack, "video"), (self.atrack, "audio")] {
+            let Some(t) = ti.and_then(|i| self.file.tracks.get(i)) else { continue };
+            let total = t.samples.len();
+            let missing = t.samples.iter().filter(|s| s.offset.saturating_add(u64::from(s.size)) > len).count();
+            if missing > 0 {
+                out.push(format!("the file is truncated: {missing} of {total} {what} samples are past its end and cannot be decoded"));
+            }
+        }
+        out
+    }
 
     fn video_frame(&self, req: FrameRequest) -> Result<Arc<VideoFrame>, MediaError> {
         let f = self.video_at(req.time.max(Tick::ZERO))?;

@@ -126,9 +126,9 @@ describe('TransitionBlocks', () => {
     engine.calls.length = 0;
     fireEvent.pointerUp(out, { pointerId: 2, clientX: 115 });
     await flush();
-    const call = engine.callsOf('sequence.applyVideoTransition')[0]!;
-    expect(call['frames']).toBe(120);
-    expect(ts().selected).not.toBe(id);
+    const call = engine.callsOf('sequence.setTransitionLength')[0]!;
+    expect(call).toEqual({ transition: id, frames: 120 });
+    expect(ts().selected).toBe(id);
     expect(tl().sequence!.video[0]!.transitions![0]!.duration).toBe(120 * FT30);
   });
 
@@ -149,7 +149,7 @@ describe('TransitionBlocks', () => {
     expect(container.querySelector<HTMLElement>('.tl-transition')!.style.left).toBe('0px');
     fireEvent.pointerUp(out, { pointerId: 4, clientX: -100 });
     await flush();
-    expect(engine.callsOf('sequence.applyVideoTransition')[0]!['frames']).toBe(1);
+    expect(engine.callsOf('sequence.setTransitionLength')[0]!['frames']).toBe(1);
   });
 });
 
@@ -176,12 +176,18 @@ describe('TransitionInspector', () => {
     expect(frames.value).toBe('30');
     expect(screen.getByText('1.00초')).toBeTruthy();
     expect(screen.getByRole('button', { name: '가운데' }).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByRole('button', { name: '삭제' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '삭제' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '앞' }));
+    await flush();
+    expect(engine.callsOf('sequence.setTransitionLength').at(-1)).toEqual({ transition: id, frames: 30, align: 'start' });
+    rerender(<TransitionInspector {...ctx()} />);
+    expect(screen.getByRole('button', { name: '앞' }).getAttribute('aria-pressed')).toBe('true');
+    engine.calls.length = 0;
 
     fireEvent.change(frames, { target: { value: '12' } });
     fireEvent.keyDown(frames, { key: 'Enter' });
     await flush();
-    expect(engine.callsOf('sequence.applyVideoTransition').at(-1)!['frames']).toBe(12);
+    expect(engine.callsOf('sequence.setTransitionLength').at(-1)).toEqual({ transition: id, frames: 12 });
     rerender(<TransitionInspector {...ctx()} />);
     expect((screen.getByRole('spinbutton', { name: '전환 길이(프레임)' }) as HTMLInputElement).value).toBe('12');
     expect(screen.getByText('0.40초')).toBeTruthy();

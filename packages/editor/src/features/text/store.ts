@@ -4,6 +4,7 @@
  * 캐시뿐이다(모니터 오버레이가 상자를 그리는 데 쓴다).
  */
 import { create } from 'zustand';
+import { withTransaction } from '../../engine/transaction';
 import { useEditor } from '../../store';
 import { TICKS_PER_SECOND } from '../../engine/time';
 import { useInspectorRegistry } from '../inspector/registry';
@@ -162,24 +163,30 @@ export const useText = create<TextState>((set, get) => {
       }
       const preset = titlePreset(presetId);
       const time = useTimeline.getState().playhead;
-      const made = (await exec('graphics.newText', {
-        text: preset.text,
-        size: preset.size,
-        font: DEFAULT_FONT,
-        fontStyle: preset.fontStyle,
-        seconds: DEFAULT_SECONDS,
-        time,
-      })) as { clip?: number } | undefined;
-      const clip = made?.clip;
-      if (clip === undefined) return null;
-      await exec('graphics.set', { clip, props: { ...preset.props, align: anchorAlign(preset.anchor) } });
-      const info = await get().refreshLayer(clip);
-      const layer = info?.layers[0];
-      if (info && layer) {
-        const pos = presetPosition(preset.anchor, info.canvas, quadBounds(layer.quad), layer.position);
-        await exec('graphics.set', { clip, props: { position: pos } });
-      }
-      await exec('timeline.select', { clips: [clip] }, `${preset.label}: 텍스트 클립을 만들었습니다`);
+      // 만들기, 스타일, 위치, 선택이 실행 취소 한 단계가 되게 묶는다(exec 가 실패를 삼키므로 부분 결과도 한 단계)
+      const clip = await withTransaction(b, `${preset.label} 추가`, async () => {
+        const made = (await exec('graphics.newText', {
+          text: preset.text,
+          size: preset.size,
+          font: DEFAULT_FONT,
+          fontStyle: preset.fontStyle,
+          seconds: DEFAULT_SECONDS,
+          time,
+        })) as { clip?: number } | undefined;
+        const clip = made?.clip;
+        if (clip === undefined) return null;
+        await exec('graphics.set', { clip, props: { ...preset.props, align: anchorAlign(preset.anchor) } });
+        const info = await get().refreshLayer(clip);
+        const layer = info?.layers[0];
+        if (info && layer) {
+          const pos = presetPosition(preset.anchor, info.canvas, quadBounds(layer.quad), layer.position);
+          await exec('graphics.set', { clip, props: { position: pos } });
+        }
+        await exec('timeline.select', { clips: [clip] });
+        return clip;
+      }).catch(() => null);
+      if (clip === null) return null;
+      await refreshAll(`${preset.label}: 텍스트 클립을 만들었습니다`);
       useInspectorRegistry.getState().setActive('text');
       await get().refreshLayer(clip);
       return clip;

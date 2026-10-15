@@ -363,7 +363,11 @@ fn raw_channels(item: &TrackItem, src: SourceAudio, x0: i64, len: usize, sr: u32
         // join seamlessly whatever their size (see `filmcraft_audio_dsp::timestretch`)
         let base = item.source_in.to_units_floor(sr as i64);
         let pull = |p: i64, len: usize| src(base + p, len).map(|b| b.channels);
-        filmcraft_audio_dsp::timestretch::Stretcher::new(sr).render(speed, a0 - item_s0, n, &pull).map(|channels| AudioBuffer { sample_rate: sr, channels })
+        // the input sound: the media item from this in-point, at this rate and channel layout
+        let key = [item.item.0, base as u64, u64::from(sr), w as u64].iter().fold(0xcbf2_9ce4_8422_2325u64, |h, v| (h ^ v).wrapping_mul(0x0100_0000_01b3));
+        filmcraft_audio_dsp::timestretch::Stretcher::new(sr)
+            .render_keyed(Some(key), speed, a0 - item_s0, n, &pull)
+            .map(|channels| AudioBuffer { sample_rate: sr, channels })
     } else {
         // varispeed: read a longer span and resample linearly
         let span = ((n as f64) * speed).ceil() as usize + 2;

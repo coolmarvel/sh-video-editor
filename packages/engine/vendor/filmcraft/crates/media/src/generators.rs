@@ -298,17 +298,7 @@ pub fn render(g: &Generator, w: u32, h: u32, t: f32, frame: i64, rate: FrameRate
         Generator::BlackVideo => px.as_chunks_mut::<4>().0.iter_mut().for_each(|p| p.copy_from_slice(&[0, 0, 0, 255])),
         Generator::TransparentVideo | Generator::Tone { .. } => {}
         Generator::CountingLeader => leader(&mut px, wu, hu, t, frame, rate),
-        Generator::Demo(scene) => {
-            let scene = *scene;
-            px.par_chunks_mut(wu * 4).enumerate().for_each(|(y, row)| {
-                let v = y as f32 / hu as f32;
-                for x in 0..wu {
-                    let u = x as f32 / wu as f32;
-                    let c = demo_pixel(scene, u, v, wu as f32 / hu as f32, t);
-                    row[x * 4..x * 4 + 4].copy_from_slice(&to8(c));
-                }
-            });
-        }
+        Generator::Demo(scene) => demo_frame(*scene, &mut px, wu, hu, t),
     }
     px
 }
@@ -403,6 +393,242 @@ fn leader(px: &mut [u8], w: usize, h: usize, t: f32, _frame: i64, _rate: FrameRa
     draw_text(px, w, h, (w as i32 - tw) / 2, (h as i32 - dh) / 2, dh, &s, [20, 20, 20, 255]);
 }
 
+/// Fill a row band for each row: `f(v, row)` with `v = y / h` (rows in parallel on native hosts).
+fn each_row(px: &mut [u8], w: usize, h: usize, f: impl Fn(f32, &mut [u8]) + Sync + Send) {
+    px.par_chunks_mut(w * 4).enumerate().for_each(|(y, row)| f(y as f32 / h as f32, row));
+}
+
+fn put(row: &mut [u8], x: usize, c: [f32; 3]) {
+    row[x * 4..x * 4 + 4].copy_from_slice(&to8(c));
+}
+
+/// A demo scene frame. The same arithmetic as [`demo_pixel`] (bit-identical, a test checks it) with the
+/// terms that depend only on the column (`u`) or the row (`v`) computed once per column or row, and the
+/// noise skipped where its weight is exactly zero (sh-video-editor: wasm renderFrame of demo footage
+/// was 90..220 ms at 960x540, mostly per-pixel fbm).
+fn demo_frame(scene: DemoScene, px: &mut [u8], w: usize, h: usize, t: f32) {
+    let aspect = w as f32 / h as f32;
+    let us: Vec<f32> = (0..w).map(|x| x as f32 / w as f32).collect();
+    match scene {
+        DemoScene::OceanSunset => {
+            let horizon = 0.58;
+            let sun = [0.5 + 0.02 * (t * 0.05).sin(), 0.42 + t * 0.006];
+            let dxs: Vec<f32> = us.iter().map(|&u| (u - sun[0]) * aspect).collect();
+            each_row(px, w, h, |v, row| {
+                if v < horizon {
+                    let k = v / horizon;
+                    let mut sky = lerp3([0.16, 0.10, 0.32], [0.98, 0.52, 0.28], k.powf(1.6));
+                    sky = lerp3(sky, [1.0, 0.82, 0.55], smoothstep(0.75, 1.0, k) * 0.6);
+                    let dy = v - sun[1];
+                    let (wa, wb) = (smoothstep(0.1, 0.45, v), 1.0 - smoothstep(0.45, 0.55, v));
+                    let clouds = wa != 0.0 && wb != 0.0;
+                    for (x, (&u, &dx)) in us.iter().zip(&dxs).enumerate() {
+                        let d = (dx * dx + dy * dy).sqrt();
+                        let glow = (-d * 9.0).exp();
+                        let mut c = lerp3(sky, [1.0, 0.93, 0.75], glow * 0.8);
+                        if d < 0.055 {
+                            c = [1.0, 0.95, 0.82];
+                        }
+                        if clouds {
+                            let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, 4);
+                            let cm = smoothstep(0.15, 0.45, cl) * wa * wb;
+                            c = lerp3(c, [0.55, 0.28, 0.35], cm * 0.55);
+                        }
+                        put(row, x, c);
+                    }
+                } else {
+                    let k = (v - horizon) / (1.0 - horizon);
+                    let water = lerp3([0.35, 0.18, 0.28], [0.03, 0.05, 0.12], k.powf(0.7));
+                    let wy = (v - horizon) * 90.0 / (0.3 + k) - t * 1.4;
+                    for (x, (&u, &dx)) in us.iter().zip(&dxs).enumerate() {
+                        let path = (-dx * dx * 160.0 / (0.2 + k * 2.0)).exp();
+                        let mut c = water;
+                        if path != 0.0 {
+                            let wave = fbm(u * 18.0 * (1.0 - k * 0.6) + t * 0.3, wy, 3);
+                            let sparkle = smoothstep(0.05, 0.4, wave) * path;
+                            c = lerp3(c, [1.0, 0.78, 0.5], sparkle * (1.0 - k * 0.5));
+                            c = lerp3(c, [0.9, 0.5, 0.35], path * 0.25 * (1.0 - k));
+                        }
+                        put(row, x, c);
+                    }
+                }
+            });
+        }
+        DemoScene::Aurora => {
+            const CURTAINS: [[f32; 3]; 3] = [[0.2, 1.0, 0.55], [0.55, 0.3, 1.0], [0.1, 0.9, 0.8]];
+            struct Col {
+                sx: f32,
+                base: [f32; 3],
+                ray: [f32; 3],
+                m: f32,
+            }
+            let cols: Vec<Col> = us
+                .iter()
+                .map(|&u| {
+                    let (mut base, mut ray) = ([0.0; 3], [0.0; 3]);
+                    for i in 0..3 {
+                        let fi = i as f32;
+                        base[i] = 0.28 + 0.08 * fi + 0.06 * (u * 3.0 + t * 0.15 + fi).sin() + 0.05 * fbm(u * 3.0 + t * 0.05, fi, 3);
+                        ray[i] = 0.5 + 0.5 * fbm(u * 40.0 + t * 0.4 + fi * 10.0, fi, 2);
+                    }
+                    Col { sx: (u * 900.0).floor(), base, ray, m: 0.72 + 0.08 * fbm(u * 3.0, 3.3, 5) + 0.05 * (u * 5.0).sin() }
+                })
+                .collect();
+            each_row(px, w, h, |v, row| {
+                let bg = lerp3([0.01, 0.02, 0.08], [0.02, 0.1, 0.18], v);
+                let sy = (v * 500.0).floor();
+                let lake = (v > 0.9).then(|| 0.3 * (1.0 + (v * 400.0 + t * 4.0).sin()) * 0.5);
+                for (x, col) in cols.iter().enumerate() {
+                    let mut c = bg;
+                    let st = hash((col.sx as i64) * 7919 + sy as i64 * 104_729);
+                    if st > 0.994 && v < 0.7 {
+                        let tw = 0.6 + 0.4 * (t * 3.0 + st * 100.0).sin();
+                        c = lerp3(c, [0.9, 0.95, 1.0], tw);
+                    }
+                    for (i, curtain) in CURTAINS.iter().enumerate() {
+                        let dy = v - col.base[i];
+                        let a = (-dy * dy * 90.0).exp() * if dy > 0.0 { 1.0 } else { (dy * 12.0).exp() } * col.ray[i];
+                        c = lerp3(c, *curtain, (a * 0.8).min(1.0));
+                    }
+                    if v > col.m {
+                        let snow = smoothstep(0.02, 0.0, v - col.m) * 0.3;
+                        c = lerp3([0.02, 0.03, 0.05], [0.4, 0.5, 0.6], snow);
+                    }
+                    if let Some(a) = lake {
+                        c = lerp3(c, [0.05, 0.25, 0.2], a);
+                    }
+                    put(row, x, c);
+                }
+            });
+        }
+        DemoScene::CityNight => {
+            const LAYERS: [(f32, f32, [f32; 3], f32); 3] =
+                [(0.15, 0.55, [0.12, 0.08, 0.2], 0.02), (0.28, 0.62, [0.07, 0.05, 0.12], 0.05), (0.45, 0.7, [0.03, 0.02, 0.06], 0.12)];
+            /// Per column and layer: building index, roof height, window column, whether the column is inside a window.
+            type Building = (f32, f32, f32, bool);
+            let cols: Vec<[Building; 3]> = us
+                .iter()
+                .map(|&u| {
+                    std::array::from_fn(|li| {
+                        let (bw, base, _, speed) = LAYERS[li];
+                        let x = u * aspect / bw + t * speed;
+                        let bi = x.floor();
+                        let hgt = base - 0.32 * (0.5 + 0.5 * hash(bi as i64 * 31 + li as i64));
+                        let f = x.fract();
+                        (bi, hgt, (f * 6.0).floor(), (f * 6.0).fract() < 0.55 && f > 0.08 && f < 0.92)
+                    })
+                })
+                .collect();
+            let streaks: Vec<[f32; 6]> =
+                us.iter().map(|&u| std::array::from_fn(|k| smoothstep(0.0, 0.8, (u * 6.0 - t * (1.5 + k as f32 * 0.4) + k as f32).fract()))).collect();
+            each_row(px, w, h, |v, row| {
+                let sky = lerp3([0.05, 0.02, 0.15], [0.55, 0.2, 0.35], v.powf(2.2));
+                let road: Option<[f32; 6]> = (v > 0.86).then(|| std::array::from_fn(|k| (-(v - (0.88 + k as f32 * 0.02)).abs() * 900.0).exp()));
+                for x in 0..w {
+                    let mut c = sky;
+                    for (li, &(bi, hgt, wx, in_window)) in cols[x].iter().enumerate() {
+                        if v > hgt {
+                            c = LAYERS[li].2;
+                            let wy = ((v - hgt) * 70.0).floor();
+                            let lit = hash((bi as i64) * 1000 + wx as i64 * 37 + wy as i64 * 101 + li as i64);
+                            if in_window && ((v - hgt) * 70.0).fract() < 0.5 && lit > 0.35 {
+                                let warm = [1.0, 0.8 + 0.1 * lit, 0.45];
+                                c = lerp3(c, warm, 0.35 + 0.35 * (li as f32 / 2.0));
+                            }
+                        }
+                    }
+                    if let Some(glow) = &road {
+                        c = [0.04, 0.03, 0.06];
+                        for k in 0..6 {
+                            let col = if k % 2 == 0 { [1.0, 0.25, 0.2] } else { [1.0, 0.9, 0.7] };
+                            c = lerp3(c, col, glow[k] * streaks[x][k]);
+                        }
+                    }
+                    put(row, x, c);
+                }
+            });
+        }
+        DemoScene::Dunes => {
+            let cols: Vec<([f32; 4], [[f32; 3]; 4])> = us
+                .iter()
+                .map(|&u| {
+                    let (mut ridge, mut base) = ([0.0; 4], [[0.0; 3]; 4]);
+                    for k in 0..4 {
+                        let fk = k as f32;
+                        let x = u * (1.0 + fk * 0.6) + t * 0.01 * (fk + 1.0);
+                        ridge[k] = 0.45 + fk * 0.12 + 0.06 * (x * 6.0 + fk).sin() + 0.03 * fbm(x * 4.0, fk, 3);
+                        let shade = 0.5 + 0.5 * ((x * 6.0 + fk).cos());
+                        base[k] = lerp3([0.78, 0.45, 0.22], [0.98, 0.72, 0.45], shade);
+                    }
+                    (ridge, base)
+                })
+                .collect();
+            each_row(px, w, h, |v, row| {
+                let sky = lerp3([0.35, 0.6, 0.9], [0.98, 0.85, 0.65], smoothstep(0.0, 0.5, v));
+                for (x, (&u, (ridge, base))) in us.iter().zip(&cols).enumerate() {
+                    let sun_d = ((u - 0.75) * aspect).hypot(v - 0.22);
+                    let mut c = lerp3(sky, [1.0, 0.97, 0.85], (-sun_d * 14.0).exp());
+                    for k in 0..4 {
+                        if v > ridge[k] {
+                            c = lerp3(base[k], [0.55, 0.28, 0.15], (v - ridge[k]).min(0.2) * 2.0 * (k as f32 / 3.0));
+                        }
+                    }
+                    put(row, x, c);
+                }
+            });
+        }
+        DemoScene::Plasma => {
+            let xs: Vec<(f32, f32)> = us.iter().map(|&u| u * aspect * 3.0).map(|x| (x, (x + t).sin())).collect();
+            each_row(px, w, h, |v, row| {
+                let y = v * 3.0;
+                let sy = (y * 1.3 - t * 0.7).sin();
+                for (i, &(x, sx)) in xs.iter().enumerate() {
+                    let p = sx + sy + ((x + y + t * 0.5).sin()) + ((x * x + y * y).sqrt() * 2.0 - t * 1.2).sin();
+                    let h = p * 0.25 + t * 0.05;
+                    put(row, i, [0.5 + 0.5 * (PI * h).sin(), 0.5 + 0.5 * (PI * h + 2.1).sin() * 0.6, 0.5 + 0.5 * (PI * h + 4.2).sin()]);
+                }
+            });
+        }
+        DemoScene::Forest => {
+            // trunks: which of the 5 depth layers cover each column, and each layer's colour
+            let dark: [[f32; 3]; 5] = std::array::from_fn(|k| lerp3([0.45, 0.5, 0.48], [0.05, 0.07, 0.05], 1.0 - (1.0 - k as f32 / 5.0) * 0.8));
+            let trunks: Vec<[bool; 5]> = us
+                .iter()
+                .map(|&u| {
+                    std::array::from_fn(|k| {
+                        let fk = k as f32;
+                        let depth = 1.0 - fk / 5.0;
+                        let spacing = 0.12 + fk * 0.03;
+                        let x = u / spacing + t * 0.03 * (fk + 1.0) + fk * 3.3;
+                        let tw = 0.08 + 0.05 * (1.0 - depth);
+                        (x.fract() - 0.5).abs() < tw && hash(x.floor() as i64 * 13 + k as i64) > -0.2
+                    })
+                })
+                .collect();
+            each_row(px, w, h, |v, row| {
+                let base = lerp3([0.75, 0.82, 0.8], [0.35, 0.45, 0.4], v);
+                let mist_w = smoothstep(0.55, 1.0, v);
+                for (x, (&u, cover)) in us.iter().zip(&trunks).enumerate() {
+                    let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, 2);
+                    let mut c = lerp3(base, [1.0, 0.97, 0.85], ray * (1.0 - v) * 0.35);
+                    for k in 0..5 {
+                        if cover[k] {
+                            c = lerp3(c, dark[k], 0.85);
+                        }
+                    }
+                    if mist_w != 0.0 {
+                        let mist = mist_w * (0.6 + 0.4 * fbm(u * 3.0 + t * 0.1, v * 5.0, 3));
+                        c = lerp3(c, [0.85, 0.88, 0.86], mist * 0.6);
+                    }
+                    put(row, x, c);
+                }
+            });
+        }
+    }
+}
+
+/// The per-pixel reference [`demo_frame`] must match bit for bit.
+#[cfg(test)]
 fn demo_pixel(scene: DemoScene, u: f32, v: f32, aspect: f32, t: f32) -> [f32; 3] {
     match scene {
         DemoScene::OceanSunset => {
@@ -567,6 +793,53 @@ mod tests {
         let a = g.audio(0, 480, 48000).unwrap();
         let peak = a.peaks()[0];
         assert!((peak - db(-20.0)).abs() < 1e-3);
+    }
+
+    #[test]
+    fn demo_frame_matches_the_per_pixel_reference() {
+        for s in DemoScene::ALL {
+            for (w, h, t) in [(96, 54, 0.0), (160, 90, 1.5), (123, 77, 7.25), (64, 112, 33.3)] {
+                let fast = render(&Generator::Demo(s), w, h, t, 0, FrameRate::FPS_24);
+                let (wu, hu) = (w as usize, h as usize);
+                let mut slow = vec![0u8; wu * hu * 4];
+                for y in 0..hu {
+                    for x in 0..wu {
+                        let c = demo_pixel(s, x as f32 / wu as f32, y as f32 / hu as f32, wu as f32 / hu as f32, t);
+                        slow[(y * wu + x) * 4..(y * wu + x) * 4 + 4].copy_from_slice(&to8(c));
+                    }
+                }
+                assert!(fast == slow, "{s:?} {w}x{h} t={t}");
+            }
+        }
+    }
+
+    /// `cargo test -p filmcraft-media --release demo_frame_timing -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn demo_frame_timing() {
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(1).build().unwrap();
+        pool.install(|| {
+            for s in DemoScene::ALL {
+                let t0 = std::time::Instant::now();
+                for f in 0..5 {
+                    std::hint::black_box(render(&Generator::Demo(s), 960, 540, f as f32 * 0.4, f, FrameRate::FPS_24));
+                }
+                let fast = t0.elapsed().as_secs_f64() * 200.0;
+                let t0 = std::time::Instant::now();
+                for f in 0..5 {
+                    let mut px = vec![0u8; 960 * 540 * 4];
+                    for y in 0..540 {
+                        for x in 0..960 {
+                            let c = demo_pixel(s, x as f32 / 960.0, y as f32 / 540.0, 960.0 / 540.0, f as f32 * 0.4);
+                            px[(y * 960 + x) * 4..(y * 960 + x) * 4 + 4].copy_from_slice(&to8(c));
+                        }
+                    }
+                    std::hint::black_box(px);
+                }
+                let slow = t0.elapsed().as_secs_f64() * 200.0;
+                println!("{s:?}: per-pixel {slow:.1} ms, hoisted {fast:.1} ms (960x540, one thread)");
+            }
+        });
     }
 
     #[test]

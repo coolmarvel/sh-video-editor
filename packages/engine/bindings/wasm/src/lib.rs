@@ -543,6 +543,16 @@ impl Engine {
         Ok(out.to_string())
     }
 
+    /// 미디어 항목 `item` 의 소리(모노 16 kHz, Float32Array). 웹 자동 자막이 음성 Worker 로 넘긴다. 규칙은 데스크톱과 같다
+    /// (엔진 `transcript::host_item_audio`: 서브클립은 원본 미디어로, 소리가 없거나 3시간보다 길면 오류).
+    #[wasm_bindgen(js_name = itemAudio16k)]
+    pub fn item_audio_16k(&self, item: f64) -> Result<Vec<f32>, JsError> {
+        if !(item.is_finite() && item >= 0.0 && item.fract() == 0.0) {
+            return Err(JsError::new("item id must be a non-negative integer"));
+        }
+        filmcraft_engine::transcript::host_item_audio(&self.session, filmcraft_project::ItemId(item as u64)).map_err(|e| JsError::new(&e))
+    }
+
     #[wasm_bindgen(js_name = isEnabled)]
     pub fn is_enabled(&self, id: &str) -> bool {
         self.session.is_enabled(id)

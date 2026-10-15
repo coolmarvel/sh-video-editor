@@ -1,8 +1,9 @@
 /**
  * 자동 자막(M2-2) 상태. 흐름: 모델 확인(`transcript.models`) -> 없으면 동의 대화상자 -> 내려받기(bridge.stt.downloadModel,
  * 진행률 폴링) -> 클립마다 인식(bridge.stt.transcribeItem) 뒤 `transcript.set` -> (선택) 군말 제거·무음 자르기 ->
- * `transcript.createCaptions` 로 자막 트랙 -> 자막 탭 목록으로. 편집은 전부 엔진 커맨드, 인식·다운로드는 데스크톱
- * 호스트(bridge.stt)가 libuv 스레드에서 돌린다. 호스트가 없으면(웹) `supported` 가 false 다.
+ * `transcript.createCaptions` 로 자막 트랙 -> 자막 탭 목록으로. 편집은 전부 엔진 커맨드, 인식·다운로드는 호스트(bridge.stt)가
+ * 편집과 따로 돌린다: 데스크톱은 libuv 스레드, 웹은 음성 Worker(모델은 브라우저 저장소, 목록은 호스트의 `models`).
+ * 호스트가 없으면(SharedArrayBuffer·OPFS 가 없는 브라우저) `supported` 가 false 다.
  */
 import { create } from 'zustand';
 import type { SttHost, SttProgress } from '../../engine/bridge';
@@ -36,7 +37,7 @@ interface SttNotice {
 }
 
 interface SttState {
-  /** 호스트가 자동 자막을 지원하는가(bridge.stt). 웹은 false */
+  /** 호스트가 자동 자막을 지원하는가(bridge.stt). SharedArrayBuffer·OPFS 가 없는 브라우저는 false */
   supported: boolean;
   catalog: SpeechModelCatalog | null;
   model: string;
@@ -207,7 +208,8 @@ export const useStt = create<SttState>((set, get) => {
       const b = bridge();
       if (!b) return null;
       try {
-        const catalog = (await b.execute('transcript.models')) as SpeechModelCatalog;
+        const h = host();
+        const catalog = (h?.models ? await h.models() : await b.execute('transcript.models')) as SpeechModelCatalog;
         set({ catalog });
         return catalog;
       } catch (e) {
@@ -255,7 +257,7 @@ export const useStt = create<SttState>((set, get) => {
     async generate(scope) {
       const h = host();
       if (!h) {
-        set({ notice: { tone: 'info', text: '자동 자막은 데스크톱 앱에서만 쓸 수 있습니다.' } });
+        set({ notice: { tone: 'info', text: '이 브라우저에서는 자동 자막을 쓸 수 없습니다. 데스크톱 앱이나 최신 Chrome·Edge 를 쓰세요.' } });
         return;
       }
       if (get().phase !== 'idle') return;

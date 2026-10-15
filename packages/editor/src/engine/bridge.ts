@@ -113,6 +113,11 @@ export interface SttProgress {
  * `transcript.set` 으로 넣는다. 한 번에 작업 하나만 돈다(`progress` 는 그 작업의 것, 없으면 null).
  */
 export interface SttHost {
+  /**
+   * 호스트가 자기 모델을 관리하면(웹: 브라우저 저장소의 tiny·base) 그 목록. 모양은 엔진 `transcript.models` 와 같고 `dir` 이
+   * null 이면 브라우저 저장소다. 없으면 화면은 엔진 `transcript.models` 를 쓴다(데스크톱)
+   */
+  models?(): Promise<unknown>;
   /** 카탈로그 모델을 엔진의 모델 디렉토리에 내려받는다(검증 포함). 취소하면 거부된다 */
   downloadModel(model: string): Promise<void>;
   /** 미디어 항목의 소리를 인식해 엔진 `Transcript` JSON 객체를 돌려준다. `language` 는 'ko' 같은 코드 또는 'auto' */

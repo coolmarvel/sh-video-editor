@@ -145,6 +145,44 @@ export async function copyIn(rel: string, blob: Blob): Promise<void> {
   await blob.stream().pipeTo(w);
 }
 
+/**
+ * `stream` 을 `rel` 에 처음부터 쓴다(음성 모델 내려받기). 조각마다 `onChunk` 를 부르고, 거짓을 돌려주면 멈추고 파일을 지운 뒤
+ * "stopped" 로 거부한다. 쓰다가 실패해도 파일을 지운다(반쯤 쓴 파일이 크기 검사로 설치된 것처럼 보이지 않게). 쓴 바이트 수.
+ */
+export async function writeStream(rel: string, stream: ReadableStream<Uint8Array>, onChunk: (chunk: Uint8Array) => boolean): Promise<number> {
+  const fh = await fileAt(rel, true);
+  if (!fh) throw new Error(`OPFS: ${rel} 을(를) 만들 수 없습니다`);
+  const reader = stream.getReader();
+  let at = 0;
+  const sync = fh.createSyncAccessHandle ? await fh.createSyncAccessHandle() : null;
+  const writable = sync ? null : await fh.createWritable();
+  try {
+    sync?.truncate(0);
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!onChunk(value)) throw new Error('stopped');
+      if (sync) {
+        const n = Number(sync.write(value, { at }));
+        if (n !== value.length) throw new Error(`OPFS: ${rel} 을(를) ${at} 바이트 뒤에서 더 쓰지 못했습니다(공간 부족)`);
+      } else {
+        await writable?.write(value as Uint8Array<ArrayBuffer>);
+      }
+      at += value.length;
+    }
+    sync?.flush();
+  } catch (e) {
+    await reader.cancel().catch(() => undefined);
+    sync?.close();
+    await writable?.abort().catch(() => undefined);
+    await remove(rel).catch(() => undefined);
+    throw e;
+  }
+  sync?.close();
+  await writable?.close();
+  return at;
+}
+
 export async function readText(rel: string): Promise<string | null> {
   const bytes = await read(rel);
   return bytes ? new TextDecoder().decode(bytes) : null;

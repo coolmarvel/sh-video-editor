@@ -242,8 +242,19 @@ describe('자동 자막 store', () => {
     await setup({ host: false });
     expect(useStt.getState().supported).toBe(false);
     await useStt.getState().generate('all');
-    expect(useStt.getState().notice?.text).toMatch(/데스크톱 앱에서만/);
+    expect(useStt.getState().notice?.text).toMatch(/이 브라우저에서는 자동 자막을 쓸 수 없습니다/);
     expect(fake.calls.filter((c) => c.id.startsWith('transcript.'))).toEqual([]);
+  });
+
+  it('호스트가 모델을 관리하면(웹) 엔진 transcript.models 대신 호스트 목록을 쓰고, 동의 문구는 브라우저 저장소', async () => {
+    const browserCatalog: SpeechModelCatalog = { ...fake.catalog, dir: null, models: fake.catalog.models.map((m) => ({ ...m })) };
+    const models = vi.fn(async () => JSON.parse(JSON.stringify(browserCatalog)) as unknown);
+    (fake.host as SttHost).models = models;
+    fake.calls.length = 0;
+    await useStt.getState().loadModels();
+    expect(models).toHaveBeenCalledTimes(1);
+    expect(fake.calls.some((c) => c.id === 'transcript.models')).toBe(false);
+    expect(useStt.getState().catalog?.dir).toBeNull();
   });
 
   it('대상 클립: 선택은 선택 클립의 항목, 전체는 켜진 클립 전부(중복 없이 타임라인 순)', () => {

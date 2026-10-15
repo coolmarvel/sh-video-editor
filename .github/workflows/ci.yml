@@ -105,6 +105,8 @@ jobs:
         run: npm run build:engine:node
       - name: wasm pkg
         run: npm run build:engine:wasm
+      - name: 음성 wasm pkg (웹 자동 자막)
+        run: npm run build:engine:speech
       - name: cargo test (바인딩 워크스페이스)
         run: npm run test:rust
       - name: 엔진 기능 테스트 (STT 모델이 없으면 그 테스트는 건너뛴다)
@@ -121,6 +123,7 @@ jobs:
             packages/engine/bindings/napi/index.d.ts
             packages/engine/bindings/napi/*.node
             packages/engine/bindings/wasm/pkg
+            packages/engine/bindings/speech-wasm/pkg
           retention-days: 3
           if-no-files-found: error
 

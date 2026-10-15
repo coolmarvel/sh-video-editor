@@ -13,7 +13,8 @@
   "scripts": {
     "build:engine:node": "npm run build -w @sh-video-editor/engine-node",
     "build:engine:wasm": "wasm-pack build packages/engine/bindings/wasm --target web --out-dir pkg --profile wasm-release",
-    "build:engine": "npm run build:engine:node && npm run build:engine:wasm",
+    "build:engine:speech": "wasm-pack build packages/engine/bindings/speech-wasm --target web --out-dir pkg --profile wasm-release",
+    "build:engine": "npm run build:engine:node && npm run build:engine:wasm && npm run build:engine:speech",
     "check:engine": "cargo check --manifest-path packages/engine/Cargo.toml --workspace",
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:tests",
     "typecheck:tests": "tsc -p packages/editor/test/tsconfig.json --noEmit && tsc -p packages/engine/tests/tsconfig.json --noEmit && tsc -p apps/web/e2e/tsconfig.json --noEmit && tsc -p apps/desktop/e2e/tsconfig.json --noEmit",

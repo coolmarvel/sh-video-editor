@@ -132,15 +132,15 @@ napi 바인딩은 Windows·macOS 타깃에서만 `filmcraft-platform` 에 의존
 자동 자막은 엔진의 Whisper(candle, CPU, 순수 Rust)를 쓴다. 결정(0002 로드맵 4절): **가중치는 인스톨러에 넣지 않고 첫 사용
 때 사용자 동의 뒤 내려받아 로컬에 보관**한다(인스톨러 크기 유지, 모델 교체 자유). 이후에는 인터넷 없이 동작한다.
 
-| 항목        | 값                                                                                                                                                                                                                                                 |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 빌드 플래그 | napi 바인딩 Cargo feature `stt`(기본 on) = `filmcraft-engine/whisper` + `filmcraft-engine/speech-download` + `filmcraft-speech`. wasm 은 `stt` 가 있지만 기본 off(아래 "웹")                                                                       |
-| 카탈로그    | 엔진 커맨드 `transcript.models`: whisper-tiny 153MB, whisper-base 293MB(기본), whisper-small 967MB. Hugging Face `openai/whisper-*` 의 특정 리비전에 고정, 파일마다 SHA-256 검증(`crates/speech/src/models.rs`)                                    |
-| 라이선스    | OpenAI Whisper 가중치 MIT, HF safetensors 변환 Apache-2.0. 동의 대화상자에 출처·라이선스를 그대로 보인다                                                                                                                                           |
-| 저장 위치   | `<userData>/engine/models/<id>/` (Windows `%APPDATA%/SH Video Editor/engine/models`). main 이 엔진 프로세스에 `FILMCRAFT_DATA_DIR=<userData>/engine` 을 주어 엔진의 `models_dir()` 가 자동 저장과 같은 디렉토리를 쓴다. `*.node`·모델은 gitignore  |
-| 다운로드    | 바인딩 `downloadSpeechModel(model, progress, signal)`: 엔진 `filmcraft_speech::models::download`(ureq + rustls + RustCrypto, OS 인증서) 를 libuv 스레드에서. `.part` 로 받아 검증 뒤 이름 변경, 취소(AbortSignal)·검증 실패 시 `.part` 삭제        |
-| 인식        | 바인딩 `Engine.transcribeItem(item, model, language, progress, signal)`: 소리는 세션에서 동기로 읽고(모노 16 kHz) 인식은 libuv 스레드. 결과 Transcript JSON 은 화면이 `transcript.set` 으로 넣고 `transcript.createCaptions` 로 자막 트랙을 만든다 |
-| 인스톨러    | 모델은 포함하지 않는다(electron-builder `files` 에 모델 경로 없음). exe 크기 증가는 `.node` 증가분(아래)뿐                                                                                                                                         |
+| 항목        | 값                                                                                                                                                                                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 빌드 플래그 | napi 바인딩 Cargo feature `stt`(기본 on) = `filmcraft-engine/whisper` + `filmcraft-engine/speech-download` + `filmcraft-speech`. 웹은 엔진 wasm 이 아니라 따로 빌드하는 음성 wasm(`bindings/speech-wasm`, `npm run build:engine:speech`, 아래 "웹") |
+| 카탈로그    | 엔진 커맨드 `transcript.models`: whisper-tiny 153MB, whisper-base 293MB(기본), whisper-small 967MB. Hugging Face `openai/whisper-*` 의 특정 리비전에 고정, 파일마다 SHA-256 검증(`crates/speech/src/models.rs`)                                     |
+| 라이선스    | OpenAI Whisper 가중치 MIT, HF safetensors 변환 Apache-2.0. 동의 대화상자에 출처·라이선스를 그대로 보인다                                                                                                                                            |
+| 저장 위치   | `<userData>/engine/models/<id>/` (Windows `%APPDATA%/SH Video Editor/engine/models`). main 이 엔진 프로세스에 `FILMCRAFT_DATA_DIR=<userData>/engine` 을 주어 엔진의 `models_dir()` 가 자동 저장과 같은 디렉토리를 쓴다. `*.node`·모델은 gitignore   |
+| 다운로드    | 바인딩 `downloadSpeechModel(model, progress, signal)`: 엔진 `filmcraft_speech::models::download`(ureq + rustls + RustCrypto, OS 인증서) 를 libuv 스레드에서. `.part` 로 받아 검증 뒤 이름 변경, 취소(AbortSignal)·검증 실패 시 `.part` 삭제         |
+| 인식        | 바인딩 `Engine.transcribeItem(item, model, language, progress, signal)`: 소리는 세션에서 동기로 읽고(모노 16 kHz) 인식은 libuv 스레드. 결과 Transcript JSON 은 화면이 `transcript.set` 으로 넣고 `transcript.createCaptions` 로 자막 트랙을 만든다  |
+| 인스톨러    | 모델은 포함하지 않는다(electron-builder `files` 에 모델 경로 없음). exe 크기 증가는 `.node` 증가분(아래)뿐                                                                                                                                          |
 
 ### 실측 (2026-10-14, WSL2 16코어, 메모리 7GB, `CARGO_BUILD_JOBS=3`, 다른 Rust 빌드와 동시)
 
@@ -156,18 +156,62 @@ napi 바인딩은 Windows·macOS 타깃에서만 `filmcraft-platform` 에 의존
   | ------------- | -------------------------------------------- | ---------- | ------------------ | ------------------------------------------------------------------------ |
   | whisper-tiny  | 3.5초 / 3.0초                                | 81%        | -                  | 고유명사·숫자 대부분 틀림                                                |
   | whisper-base  | 8.5초 / 6.0초                                | 64%        | 21.5초 / 32.5%     | 첫 문장은 거의 정확, 빠른 낭독 문장에서 오류. 재생 시간의 1/5~1/4 (추천) |
-  | whisper-small | 14.4초 / 15.2초                              | 60%        | 45.4초 / 24.6%     | 30초 샘플에서 둘째 창(30초 이후)을 통째로 건너뛴다(엔진 nospeech 판정)   |
+  | whisper-small | 14.4초 / 15.2초                              | 60%        | 45.4초 / 24.6%     | 30초 샘플의 둘째 문장이 빠졌다(2026-10-15 수정, 아래 "창 넘기기")        |
 
   30초 샘플의 CER 은 둘째 문장(숫자·속도) 하나가 좌우해 높고, 98초 세트가 실제 품질에 가깝다. 추천 기본값은 **whisper-base**:
   한국어에서 small 보다 8%p 나쁘지만 3배 가깝게 빠르고 크기가 1/3 이다. 품질이 더 필요한 사용자는 대화상자에서 small 을 고른다.
   진행률·취소가 있으므로 긴 영상도 괜찮지만, 기준은 "재생 시간의 1/5~1/3(base)". 98초 세트의 시간도 유휴 측정(base 자막 17개, small 13개). 30초 샘플은 base 로 단어 39개, 한 줄 20자·두 줄 규칙으로 자막 6개(12줄).
 
-### 웹
+### 창 넘기기: 문장 하나 뒤에서 멈추면 둘째 문장이 빠지던 것 (2026-10-15)
 
-`cargo check --target wasm32-unknown-unknown -p sh-video-engine-wasm --features stt` 는 통과한다(candle 이 wasm32 에서 컴파일됨,
-2분 34초). 그러나 실제 동작에는 (1) 가중치를 JS 가 fetch 해 OPFS 에 두고 wasm 에 바이트로 넘기는 `putModel` 바인딩, (2) 엔진
-`filmcraft_speech::load`/`Whisper::load` 가 `std::fs` 로 읽는 것을 바이트 입력으로 바꾸는 vendor 변경, (3) 다운로드 feature(ureq) 대체,
-(4) wasm 크기·추론 속도 측정이 더 필요해 M2-2 에서는 **데스크톱 전용**으로 두고 웹 자막 탭은 안내 문구만 보인다(로드맵 M4).
+whisper-small 이 "둘째 30초 창을 건너뛴다" 던 증상의 실제 원인은 no-speech 판정이 아니었다. 첫 창에서 모델이 `<0.00> 첫 문장 <13.40>`
+다음 바로 끝(end-of-text)을 내면, 상류 규칙(OpenAI 절차와 같음: 타임스탬프 하나로 끝나면 남은 말이 없다고 보고 창 전체 30초를 넘김)이
+13.4~30초의 둘째 문장을 디코드하지 않고 버렸다. 그 뒤 창은 1.5초 꼬리뿐이라 no-speech 로 건너뛰어 "둘째 창을 건너뛴다" 로 보였다.
+
+고친 규칙(`crates/speech/src/whisper/mod.rs` 의 `plan_advance`): 타임스탬프 하나로 끝났는데 그 뒤 창 안에 3초 이상이 남고 그중 1초
+이상이 말소리(`crate::vad` 에너지 문턱, 클립 전체의 바닥 소음과 말소리 수준 사이)면 다음 창을 그 타임스탬프에서 시작한다. 창 끝 3초
+안의 끝맺음은 그대로 넘긴다: 처음에 0.5초 기준으로 해 보니 29초에서 끝난 창의 1초 꼬리를 다시 디코드해 마지막 낱말이 겹치거나
+("하였습니다. 였습니다.") 없는 말을 지어냈다("감사합니다.").
+
+실측(zeroth-korean 한국어 + LibriSpeech 영어, 같은 입력을 고치기 전과 뒤에, `examples/transcribe` release, 다른 빌드와 동시):
+
+| 세트                                         | 모델  | WER 전 | WER 뒤 | 시간 전 / 뒤      | 바뀐 결과                                                    |
+| -------------------------------------------- | ----- | ------ | ------ | ----------------- | ------------------------------------------------------------ |
+| 두 문장 30.3~31.5초 12개(509단어)            | small | 32.6%  | 30.1%  | 284.3초 / 298.6초 | 1개(p9: 둘째 문장 18.7초가 살아남, 77.1% 에서 50.0%, +3.7초) |
+| 두 문장 12개                                 | base  | 49.1%  | 49.1%  | 104.5초 / 79.9초  | 없음(전사 바이트 단위로 같음)                                |
+| 한국어 31.7~72.3초 4개(301단어, 무음 꼬리 1) | small | 34.6%  | 34.6%  | 147.3초 / 157.8초 | 없음                                                         |
+| 같은 4개                                     | base  | 40.9%  | 40.9%  | 51.8초 / 42.7초   | 없음                                                         |
+| 영어 65초(151단어)                           | small | 8.6%   | 8.6%   | 39.6초 / 39.6초   | 없음                                                         |
+| 같은 것                                      | base  | 11.3%  | 11.3%  | 13.5초 / 11.1초   | 없음                                                         |
+
+바뀐 것은 실제로 말이 빠지던 p9 하나뿐이고 나머지 전사는 바이트 단위로 같다. 시간 차이는 같은 디코드 횟수에서 다른 빌드와 겹친 부하
+차이다(p9 만 창 하나를 더 디코드). 말소리 판정은 클립 전체 에너지 한 번(수 ms). 무음 꼬리(25초)는 전처럼 건너뛴다.
+
+### 웹 (2026-10-15)
+
+웹도 자동 자막을 쓴다. 엔진 wasm 에 Whisper 를 넣지 않고 **음성 전용 wasm**(`packages/engine/bindings/speech-wasm`, 1.3MB,
+`filmcraft-speech` + candle)을 따로 빌드해 **음성 Worker**(`apps/web/src/stt.worker.ts`)에서 돌린다. 인식은 30초에 십수 초 걸리는 동기
+계산이라 엔진 Worker 에서 돌리면 그동안 미리보기·편집이 멈추기 때문이다. 엔진 wasm 크기는 그대로다(기존 실험용 `stt` feature 는 지웠다).
+
+| 항목      | 값                                                                                                                                                                                                               |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 모델      | tiny·base 만(`WEB_MODELS`). small 은 가중치 967MB 에 적재 중 사본까지 2GB 를 넘고 단일 스레드로 재생 시간보다 느리다                                                                                             |
+| 내려받기  | 음성 Worker 가 Hugging Face 고정 리비전 URL 에서 받아 OPFS `models/<id>/` 에 바로 쓰고, 조각마다 SHA-256(`Sha256Stream`). 크기·해시가 틀리면 지운다. 동의 대화상자는 데스크톱과 같고 보관 문구만 "사이트 저장소" |
+| 소리      | 엔진 Worker 의 `itemAudio16k(item)`(엔진 `transcript::host_item_audio`, napi `transcribeItem` 과 같은 규칙)가 모노 16 kHz 를 꺼내 음성 Worker 로 transfer                                                        |
+| 모델 열기 | `WeightsBuffer` 에 가중치를 8MB 조각으로 붓고 `SpeechModel.fromBuffer`. JS 가 파일 전체를 ArrayBuffer 로 읽던 첫 구현보다 Chromium 최대 메모리가 280MB 적다                                                      |
+| 취소      | SharedArrayBuffer 한 칸(crossOriginIsolated). 진행 콜백이 매 단계 본다                                                                                                                                           |
+| 조건      | SharedArrayBuffer·OPFS 가 있는 브라우저(최신 Chrome·Edge). 없으면 `bridge.stt` 가 없고 화면은 안내 문구                                                                                                          |
+
+실측(30초 한국어 낭독, 단어 39개 수준, WSL2, Chromium headless, Playwright `apps/web/e2e/stt.spec.ts` "말소리 wav"):
+
+| 모델         | 인식 시간(모델 열기 포함) | Chromium 전체 RSS 최대   | 비교                                                                                  |
+| ------------ | ------------------------- | ------------------------ | ------------------------------------------------------------------------------------- |
+| whisper-tiny | 6.4초                     | -                        |                                                                                       |
+| whisper-base | 17.1~17.6초(2회)          | 1,655~1,667 MiB          | 같은 앱이 인식 없이 667 MiB. 첫 구현(파일 전체 ArrayBuffer) 18.1초·1,937 MiB          |
+| whisper-base | 15.1초                    | wasm 선형 메모리 659 MiB | 같은 코드를 wasm32-wasip1 로 Node WASI 에서(V8, 단일 스레드, SIMD128). 네이티브 7.4초 |
+
+재생 시간의 0.6배로 데스크톱 base(1/5~1/4)보다 느리지만 편집과 따로 돌아 기다리는 동안 다른 작업을 할 수 있다. 결과 전사는 네이티브와
+같은 글이다(30초 샘플에서 글자 단위로 같음).
 
 ## 호스트 캐시(SQLite)는 내장 모듈
 

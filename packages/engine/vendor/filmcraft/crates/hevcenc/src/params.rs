@@ -204,7 +204,7 @@ pub fn pps() -> Vec<u8> {
     w.put(0, 1); // weighted_bipred_flag
     w.put(0, 1); // transquant_bypass_enabled_flag
     w.put(0, 1); // tiles_enabled_flag
-    w.put(0, 1); // entropy_coding_sync_enabled_flag
+    w.put(1, 1); // entropy_coding_sync_enabled_flag (sh-video-editor: one substream per CTU row, coded in parallel)
     w.put(0, 1); // pps_loop_filter_across_slices_enabled_flag
     w.put(1, 1); // deblocking_filter_control_present_flag
     w.put(0, 1); // deblocking_filter_override_enabled_flag
@@ -229,7 +229,7 @@ pub fn hvcc(p: &SeqParams, sets: &[Vec<u8>; 3]) -> Vec<u8> {
     o.extend_from_slice(&[0x90, 0, 0, 0, 0, 0]);
     o.push(p.level_idc);
     o.extend_from_slice(&[0xf0, 0x00]); // reserved + min_spatial_segmentation_idc 0
-    o.push(0xfc); // reserved + parallelismType 0
+    o.push(0xfc | 3); // reserved + parallelismType 3 (wavefront: every picture uses entropy_coding_sync)
     o.push(0xfc | 1); // reserved + chroma_format_idc 1
     o.push(0xf8 | (p.bit_depth - 8) as u8);
     o.push(0xf8 | (p.bit_depth - 8) as u8);

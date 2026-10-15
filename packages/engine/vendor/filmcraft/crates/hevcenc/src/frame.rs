@@ -246,21 +246,58 @@ impl<'a> FrameCoder<'a> {
     // ---------------------------------------------------------------------------------------
     // picture loop
 
-    /// Code all CTUs of the picture into `enc` (one slice); the caller flushes the encoder.
-    pub fn encode(&mut self, enc: &mut CabacEncoder) {
-        let ctb = 1usize << LOG2_CTB;
-        let total = self.wctb * self.hctb;
-        for i in 0..total {
-            let (x, y) = ((i % self.wctb) * ctb, (i / self.wctb) * ctb);
-            let mut est = Estimator::new(enc.ctx);
-            let mut decs = Vec::with_capacity(64);
-            self.decide(x, y, LOG2_CTB, 0, &mut est, &mut decs);
-            let mut idx = 0;
-            self.write_cq(enc, x, y, LOG2_CTB, 0, &decs, &mut idx);
-            debug_assert_eq!(idx, decs.len());
-            debug_assert_eq!(est.ctx, enc.ctx);
-            enc.terminate((i + 1 == total) as u32); // end_of_slice_segment_flag
+    // ---------------------------------------------------------------------------------------
+    // wavefront parallel processing (sh-video-editor)
+
+    /// Copies what CTU (r, c) can read from the row above out of the shared picture: the last
+    /// sample line and the last row of 4x4 block state over CTUs c and c + 1 (c - 1 was copied
+    /// for the previous CTU, CTUs further right are never referenced: intra references reach
+    /// x + 2N with N <= 32, merge / AMVP candidates the block just above-right).
+    fn import_above(&mut self, pic: &Picture, r: usize, c: usize) {
+        if r == 0 {
+            return;
         }
+        let ctb = 1usize << LOG2_CTB;
+        for (p, (dst, src)) in self.rec.iter_mut().zip(&pic.rec).enumerate() {
+            let (stride, n) = if p == 0 { (self.w, ctb) } else { (self.cw, ctb / 2) };
+            let y = r * n - 1;
+            let (x0, x1) = (c * n, ((c + 2) * n).min(stride));
+            dst[y * stride + x0..y * stride + x1].copy_from_slice(&src[y * stride + x0..y * stride + x1]);
+        }
+        let by = r * (ctb / 4) - 1;
+        let (x0, x1) = (c * (ctb / 4), ((c + 2) * (ctb / 4)).min(self.w4));
+        self.blk[by * self.w4 + x0..by * self.w4 + x1].copy_from_slice(&pic.blk[by * self.w4 + x0..by * self.w4 + x1]);
+    }
+
+    /// Copies the coded CTU (r, c) into the shared picture.
+    fn export_ctu(&self, pic: &mut Picture, r: usize, c: usize) {
+        let ctb = 1usize << LOG2_CTB;
+        for (p, (dst, src)) in pic.rec.iter_mut().zip(&self.rec).enumerate() {
+            let (stride, height, n) = if p == 0 { (self.w, self.h, ctb) } else { (self.cw, self.ch, ctb / 2) };
+            let (x0, x1) = (c * n, ((c + 1) * n).min(stride));
+            for y in r * n..((r + 1) * n).min(height) {
+                dst[y * stride + x0..y * stride + x1].copy_from_slice(&src[y * stride + x0..y * stride + x1]);
+            }
+        }
+        let n4 = ctb / 4;
+        let (x0, x1) = (c * n4, ((c + 1) * n4).min(self.w4));
+        for by in r * n4..((r + 1) * n4).min(self.h / 4) {
+            pic.blk[by * self.w4 + x0..by * self.w4 + x1].copy_from_slice(&self.blk[by * self.w4 + x0..by * self.w4 + x1]);
+        }
+    }
+
+    /// Decides and codes CTU (r, c) into `enc` (the row's substream).
+    fn code_ctu(&mut self, enc: &mut CabacEncoder, r: usize, c: usize, last: bool) {
+        let ctb = 1usize << LOG2_CTB;
+        let (x, y) = (c * ctb, r * ctb);
+        let mut est = Estimator::new(enc.ctx);
+        let mut decs = Vec::with_capacity(64);
+        self.decide(x, y, LOG2_CTB, 0, &mut est, &mut decs);
+        let mut idx = 0;
+        self.write_cq(enc, x, y, LOG2_CTB, 0, &decs, &mut idx);
+        debug_assert_eq!(idx, decs.len());
+        debug_assert_eq!(est.ctx, enc.ctx);
+        enc.terminate(last as u32); // end_of_slice_segment_flag
     }
 
     fn write_split<S: Sink>(&self, s: &mut S, x: usize, y: usize, depth: u32, split: bool) {
@@ -1424,6 +1461,126 @@ fn satd8(src: &[u16], ss: usize, pred: &[u16], ps: usize) -> u32 {
         sum += col.iter().map(|v| v.abs()).sum::<i32>();
     }
     ((sum + 2) >> 2) as u32
+}
+
+/// The shared state of a picture coded with wavefront parallel processing.
+struct Picture {
+    rec: [Vec<u16>; 3],
+    blk: Vec<Blk>,
+    /// CTUs finished per row.
+    done: Vec<usize>,
+    /// CABAC contexts after the second CTU of each row (entropy_coding_sync storage, 9.3.2.4).
+    synced: Vec<Option<crate::cabac::Contexts>>,
+}
+
+/// A picture coded one CTU row per substream (entropy_coding_sync_enabled_flag = 1, 7.3.8.1):
+/// each row starts from the contexts the row above had after its second CTU, so rows can be
+/// decided and coded in parallel, CTU (r, c) once (r - 1, c + 1) is done (sh-video-editor). The
+/// rows are claimed in order by worker threads (one on wasm); the stream does not depend on the
+/// number of workers. Returns each row's substream (CABAC flushed, byte aligned) and the
+/// reconstruction with its block state, before deblocking.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_wpp<'a>(
+    bd: u32,
+    w: usize,
+    h: usize,
+    kind: SliceKind,
+    slice_qp: i32,
+    src: &'a [Vec<u16>; 3],
+    refp: Option<&'a [Vec<u16>; 3]>,
+    me: Option<&'a MeRef>,
+    init: crate::cabac::Contexts,
+) -> (Vec<Vec<u8>>, FrameCoder<'a>) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Condvar, Mutex};
+    let mut fc = FrameCoder::new(bd, w, h, kind, slice_qp, src, refp, me);
+    let (wctb, hctb) = (fc.wctb, fc.hctb);
+    let pic = Mutex::new(Picture { rec: std::mem::take(&mut fc.rec), blk: std::mem::take(&mut fc.blk), done: vec![0; hctb], synced: vec![None; hctb] });
+    let progress = Condvar::new();
+    let next_row = AtomicUsize::new(0);
+    let streams: Mutex<Vec<Vec<u8>>> = Mutex::new(vec![Vec::new(); hctb]);
+    let lock = || pic.lock().unwrap_or_else(|e| e.into_inner());
+    let worker = || {
+        let mut fc = FrameCoder::new(bd, w, h, kind, slice_qp, src, refp, me);
+        loop {
+            let r = next_row.fetch_add(1, Ordering::Relaxed);
+            if r >= hctb {
+                break;
+            }
+            let ctx = if r == 0 || wctb < 2 {
+                init
+            } else {
+                let mut st = lock();
+                while st.done[r - 1] < 2 {
+                    st = progress.wait(st).unwrap_or_else(|e| e.into_inner());
+                }
+                st.synced[r - 1].unwrap_or(init)
+            };
+            let mut enc = CabacEncoder::new(crate::bitstream::BitWriter::new(), ctx);
+            for c in 0..wctb {
+                {
+                    let need = (c + 2).min(wctb);
+                    let mut st = lock();
+                    while r > 0 && st.done[r - 1] < need {
+                        st = progress.wait(st).unwrap_or_else(|e| e.into_inner());
+                    }
+                    fc.import_above(&st, r, c);
+                }
+                let last_row = r + 1 == hctb;
+                fc.code_ctu(&mut enc, r, c, last_row && c + 1 == wctb);
+                {
+                    let mut st = lock();
+                    if c == 1 {
+                        st.synced[r] = Some(enc.ctx);
+                    }
+                    fc.export_ctu(&mut st, r, c);
+                    st.done[r] = c + 1;
+                }
+                progress.notify_all();
+            }
+            if r + 1 < hctb {
+                enc.terminate(1); // end_of_subset_one_bit, then byte_alignment() with the flush
+            }
+            let bytes = enc.finish().into_bytes();
+            streams.lock().unwrap_or_else(|e| e.into_inner())[r] = bytes;
+        }
+    };
+    let workers = worker_count(hctb);
+    if workers <= 1 {
+        worker();
+    } else {
+        spawn_workers(workers, &worker);
+    }
+    let pic = pic.into_inner().unwrap_or_else(|e| e.into_inner());
+    fc.rec = pic.rec;
+    fc.blk = pic.blk;
+    (streams.into_inner().unwrap_or_else(|e| e.into_inner()), fc)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn worker_count(_rows: usize) -> usize {
+    1
+}
+
+/// Workers: the size of the rayon pool the caller runs in (a one-thread pool gives the
+/// sequential path; the stream is the same either way).
+#[cfg(not(target_arch = "wasm32"))]
+fn worker_count(rows: usize) -> usize {
+    rayon::current_num_threads().min(rows)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn spawn_workers(_n: usize, worker: &(dyn Fn() + Sync)) {
+    worker();
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn spawn_workers(n: usize, worker: &(dyn Fn() + Sync)) {
+    std::thread::scope(|scope| {
+        for _ in 0..n {
+            scope.spawn(worker);
+        }
+    });
 }
 
 #[cfg(test)]

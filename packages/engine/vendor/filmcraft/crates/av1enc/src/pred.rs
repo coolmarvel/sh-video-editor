@@ -10,19 +10,33 @@ use crate::transform::round2;
 pub(crate) struct Plane {
     pub data: Vec<u16>,
     pub stride: usize,
+    /// First picture row held (`data` row 0). 0 for whole planes; a superblock's decision band
+    /// starts at the row above it (sh-video-editor, see `decide::Band`).
+    pub y0: usize,
 }
 
 impl Plane {
     pub fn new(w: usize, h: usize) -> Plane {
-        Plane { data: vec![0; w * h], stride: w }
+        Plane { data: vec![0; w * h], stride: w, y0: 0 }
+    }
+    /// Rows `y0..y0 + h` of a `w`-wide picture plane, zeroed.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn band(w: usize, y0: usize, h: usize) -> Plane {
+        Plane { data: vec![0; w * h], stride: w, y0 }
+    }
+    /// Offset of picture sample (x, y) in `data`.
+    #[inline(always)]
+    pub fn idx(&self, x: usize, y: usize) -> usize {
+        (y - self.y0) * self.stride + x
     }
     #[inline(always)]
     pub fn at(&self, x: usize, y: usize) -> u16 {
-        self.data[y * self.stride + x]
+        self.data[self.idx(x, y)]
     }
     #[inline(always)]
     pub fn row(&self, y: usize) -> &[u16] {
-        &self.data[y * self.stride..(y + 1) * self.stride]
+        let o = self.idx(0, y);
+        &self.data[o..o + self.stride]
     }
 }
 
@@ -295,31 +309,33 @@ pub(crate) fn predict_inter(
 /// (`fx`, `fy`) (1/16 units) with the EIGHTTAP filter, as `predict_inter` computes it for
 /// blocks wider and taller than 4. Used for motion search.
 pub(crate) fn subpel_plane(refp: &Plane, w: usize, h: usize, fx: usize, fy: usize, bit_depth: u32) -> Vec<u16> {
+    use rayon::prelude::*;
     let kh = &SUBPEL_FILTERS[EIGHTTAP][fx];
     let kv = &SUBPEL_FILTERS[EIGHTTAP][fy];
     let max = (1i32 << bit_depth) - 1;
     let (lx, ly) = (w as i32 - 1, h as i32 - 1);
+    // sh-video-editor: rows are independent in both passes, so they run in parallel (same values)
     let mut inter = vec![0i32; w * h];
-    for y in 0..h {
+    inter.par_chunks_mut(w).enumerate().for_each(|(y, out)| {
         let row = refp.row(y);
-        for x in 0..w {
+        for (x, o) in out.iter_mut().enumerate() {
             let mut s = 0i32;
             for t in 0..8 {
                 s += kh[t] as i32 * row[(x as i32 + t as i32 - 3).clamp(0, lx) as usize] as i32;
             }
-            inter[y * w + x] = round2(s, 3);
+            *o = round2(s, 3);
         }
-    }
+    });
     let mut out = vec![0u16; w * h];
-    for y in 0..h {
-        for x in 0..w {
+    out.par_chunks_mut(w).enumerate().for_each(|(y, out)| {
+        for (x, o) in out.iter_mut().enumerate() {
             let mut s = 0i32;
             for t in 0..8 {
                 s += kv[t] as i32 * inter[(y as i32 + t as i32 - 3).clamp(0, ly) as usize * w + x];
             }
-            out[y * w + x] = round2(s, 11).clamp(0, max) as u16;
+            *o = round2(s, 11).clamp(0, max) as u16;
         }
-    }
+    });
     out
 }
 

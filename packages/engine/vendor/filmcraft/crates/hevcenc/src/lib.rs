@@ -30,8 +30,8 @@ mod params;
 mod tables;
 mod transform;
 
-use bitstream::{BitWriter, NAL_IDR_N_LP, NAL_TRAIL_R, nal_unit};
-use frame::{FrameCoder, SliceKind};
+use bitstream::{BitWriter, NAL_IDR_N_LP, NAL_TRAIL_R, escaped_len, nal_unit};
+use frame::SliceKind;
 use params::{LOG2_MAX_POC_LSB, LOG2_MIN_CB, MAX_MERGE_CAND, SeqParams};
 
 /// Profile written in the parameter sets.
@@ -311,7 +311,10 @@ impl Encoder {
         let kind = if idr { SliceKind::I } else { SliceKind::P };
         let me = if idr { None } else { self.reference.as_ref().map(|r| me::MeRef::new(&r[0], w, h, bd)) };
         let refp = if idr { None } else { self.reference.as_ref() };
-        let mut fc = FrameCoder::new(bd, w, h, kind, qp, &src, refp, me.as_ref());
+        // sh-video-editor: CTU rows are coded as parallel substreams (frame::encode_wpp)
+        let ctx = cabac::init_contexts(qp, if idr { 0 } else { 1 });
+        let (streams, mut fc) = frame::encode_wpp(bd, w, h, kind, qp, &src, refp, me.as_ref(), ctx);
+        fc.deblock();
 
         // slice_segment_header() (7.3.6.1)
         let mut bw = BitWriter::new();
@@ -328,15 +331,27 @@ impl Encoder {
             bw.ue(5 - MAX_MERGE_CAND as u32); // five_minus_max_num_merge_cand
         }
         bw.se(qp - 26); // slice_qp_delta (init_qp = 26)
+        // entry points (entropy_coding_sync_enabled_flag): the size of every substream but the
+        // last, emulation prevention bytes included. Every substream (and the header) ends in a
+        // non-zero byte, so its emulation prevention does not depend on its neighbours.
+        bw.ue(streams.len() as u32 - 1); // num_entry_point_offsets
+        if streams.len() > 1 {
+            let sizes: Vec<u32> = streams[..streams.len() - 1].iter().map(|s| escaped_len(s) as u32).collect();
+            let max = sizes.iter().copied().max().unwrap_or(1).max(1) - 1;
+            let bits = (32 - max.leading_zeros()).max(1);
+            bw.ue(bits - 1); // offset_len_minus1
+            for sz in sizes {
+                bw.put(sz - 1, bits); // entry_point_offset_minus1
+            }
+        }
         // byte_alignment()
         bw.put(1, 1);
         bw.align_zero();
 
-        let ctx = cabac::init_contexts(qp, if idr { 0 } else { 1 });
-        let mut enc = cabac::CabacEncoder::new(bw, ctx);
-        fc.encode(&mut enc);
-        fc.deblock();
-        let rbsp = enc.finish().into_bytes();
+        let mut rbsp = bw.into_bytes();
+        for s in &streams {
+            rbsp.extend_from_slice(s);
+        }
         let nal = nal_unit(if idr { NAL_IDR_N_LP } else { NAL_TRAIL_R }, &rbsp);
         let mut data = Vec::with_capacity(nal.len() + 4);
         data.extend_from_slice(&(nal.len() as u32).to_be_bytes());

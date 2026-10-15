@@ -71,6 +71,7 @@ pub struct EncodedFrame {
 }
 
 /// A plane being coded: source and reconstruction at superblock-aligned size.
+#[derive(Clone)]
 pub(crate) struct Plane {
     /// Stride (superblock-aligned width).
     pub w: usize,
@@ -251,7 +252,11 @@ impl Vp9Encoder {
             max_log2 += 1;
         }
         max_log2 -= 1;
-        let tile_cols = 1usize << min_log2;
+        // sh-video-editor: as many tile columns as the width allows (at least 256 samples each;
+        // 4 at 720p and 1080p). Tiles are coded independently, in parallel where threads exist;
+        // the count depends only on the width, so every host writes the same stream.
+        let log2 = max_log2.max(min_log2);
+        let tile_cols = 1usize << log2;
         let quant = Quant { dcq: DC_QLOOKUP[qidx as usize], acq: AC_QLOOKUP[qidx as usize], lossless, round_dc: 0.5, round_ac: 0.38 };
         let step = AC_QLOOKUP[qidx as usize] as f64 / 8.0;
         let lambda_sse = 0.35 * step * step;
@@ -264,14 +269,9 @@ impl Vp9Encoder {
         let phases = refs.as_ref().map(|r| mc::PhasePlanes::new(&r[0], 48));
         let fp = tile::FrameParams { key, quant, mi_cols, mi_rows, refs, phases, prev_mvs: prev, lambda_sad: lambda_sse.sqrt(), lambda_sse };
         let mut mi = vec![Mi::default(); mi_cols * mi_rows];
-        let mut writers = vec![];
-        for t in 0..tile_cols {
-            let start = (((t * sb_cols) >> min_log2) * 8).min(mi_cols);
-            let end = ((((t + 1) * sb_cols) >> min_log2) * 8).min(mi_cols);
-            let mut tile = tile::Tile::new(&fp, &mut planes, &mut mi, start, end);
-            tile.code();
-            writers.push(tile.w);
-        }
+        let bounds: Vec<(usize, usize)> =
+            (0..tile_cols).map(|t| ((((t * sb_cols) >> log2) * 8).min(mi_cols), ((((t + 1) * sb_cols) >> log2) * 8).min(mi_cols))).collect();
+        let writers = code_tiles(&fp, &mut planes, &mut mi, &bounds);
         // Forward probability updates from this frame's counts.
         let defaults = Probs::defaults();
         let mut counts = vec![[0u32; 2]; probs::NPROBS];
@@ -283,7 +283,7 @@ impl Vp9Encoder {
         let tiles: Vec<Vec<u8>> = writers.iter().map(|wr| wr.emit(&used)).collect();
         drop(fp);
         // Loop filter: the level with the least error against the source.
-        let level = if lossless || !self.cfg.loop_filter { 0 } else { choose_level(&mut planes, &mi, mi_rows, mi_cols, qidx, key) };
+        let level = if lossless || !self.cfg.loop_filter { 0 } else { choose_level(&planes, &mi, mi_rows, mi_cols, qidx, key) };
         lf::filter_frame(&mut planes, &mi, mi_rows, mi_cols, level);
         // Uncompressed header.
         let mut bw = BitWriter::default();
@@ -327,8 +327,13 @@ impl Vp9Encoder {
         bw.put(0, 1); // delta_q_uv_dc
         bw.put(0, 1); // delta_q_uv_ac
         bw.put(0, 1); // segmentation_enabled
-        if min_log2 < max_log2 {
-            bw.put(0, 1); // no extra tile columns
+        // increment_tile_cols_log2: one 1 per column doubling above the minimum, then a 0 unless
+        // the maximum is reached
+        for _ in min_log2..log2 {
+            bw.put(1, 1);
+        }
+        if log2 < max_log2 {
+            bw.put(0, 1);
         }
         bw.put(0, 1); // tile_rows_log2 = 0
         bw.put(compressed.len() as u32, 16);
@@ -357,9 +362,51 @@ impl Vp9Encoder {
     }
 }
 
+/// Codes the tile columns `bounds` (mode-info column ranges). A tile reads and writes only its
+/// own columns of the planes and mode info (left neighbours and motion vector candidates stop at
+/// the tile edge), so each tile is coded on its own copy and its columns are copied back.
+fn code_tiles(fp: &tile::FrameParams<'_>, planes: &mut [Plane; 3], mi: &mut [Mi], bounds: &[(usize, usize)]) -> Vec<probs::Writer> {
+    use rayon::prelude::*;
+    if bounds.len() == 1 {
+        let (start, end) = bounds[0];
+        let mut tile = tile::Tile::new(fp, planes, mi, start, end);
+        tile.code();
+        return vec![tile.w];
+    }
+    let snapshot: &[Plane; 3] = planes;
+    let shared_mi: &[Mi] = mi;
+    let coded: Vec<(probs::Writer, [Plane; 3], Vec<Mi>)> = bounds
+        .par_iter()
+        .map(|&(start, end)| {
+            let mut own = snapshot.clone();
+            let mut own_mi = shared_mi.to_vec();
+            let mut tile = tile::Tile::new(fp, &mut own, &mut own_mi, start, end);
+            tile.code();
+            (tile.w, own, own_mi)
+        })
+        .collect();
+    let mut writers = Vec::with_capacity(coded.len());
+    for ((wr, own, own_mi), &(start, end)) in coded.into_iter().zip(bounds) {
+        for (p, (dst, src)) in planes.iter_mut().zip(&own).enumerate() {
+            let s = (p > 0) as usize;
+            let (x0, x1) = ((start * 8) >> s, ((end * 8) >> s).min(dst.w));
+            for row in 0..dst.rec.len() / dst.w {
+                let o = row * dst.w;
+                dst.rec[o + x0..o + x1].copy_from_slice(&src.rec[o + x0..o + x1]);
+            }
+        }
+        for row in 0..fp.mi_rows {
+            let o = row * fp.mi_cols;
+            mi[o + start..o + end].copy_from_slice(&own_mi[o + start..o + end]);
+        }
+        writers.push(wr);
+    }
+    writers
+}
+
 /// Try a few loop filter levels on the luma reconstruction; the one closest to the source
 /// (squared error over the visible area) wins (0 when filtering doesn't help).
-fn choose_level(planes: &mut [Plane; 3], mi: &[Mi], mi_rows: usize, mi_cols: usize, qidx: u8, key: bool) -> u8 {
+fn choose_level(planes: &[Plane; 3], mi: &[Mi], mi_rows: usize, mi_cols: usize, qidx: u8, key: bool) -> u8 {
     let guess = ((qidx as f64 * if key { 0.25 } else { 0.2 }).round() as u8).clamp(1, 63);
     let sse = |p: &Plane| -> u64 {
         let mut s = 0u64;
@@ -371,15 +418,21 @@ fn choose_level(planes: &mut [Plane; 3], mi: &[Mi], mi_rows: usize, mi_cols: usi
         }
         s
     };
+    use rayon::prelude::*;
     let mut best = (sse(&planes[0]), 0u8);
-    let saved = planes[0].rec.clone();
-    for level in [guess / 2, guess, (guess as u16 * 3 / 2).min(63) as u8] {
-        if level == 0 {
-            continue;
-        }
-        lf::filter_frame(&mut planes[..1], mi, mi_rows, mi_cols, level);
-        let s = sse(&planes[0]);
-        planes[0].rec.copy_from_slice(&saved);
+    // sh-video-editor: the candidate levels are filtered on copies in parallel; compared in the
+    // same order, so the same level wins
+    let levels: Vec<u8> = [guess / 2, guess, (guess as u16 * 3 / 2).min(63) as u8].into_iter().filter(|l| *l != 0).collect();
+    let luma = &planes[0];
+    let errors: Vec<u64> = levels
+        .par_iter()
+        .map(|&level| {
+            let mut one = [luma.clone()];
+            lf::filter_frame(&mut one, mi, mi_rows, mi_cols, level);
+            sse(&one[0])
+        })
+        .collect();
+    for (level, s) in levels.into_iter().zip(errors) {
         if s < best.0 {
             best = (s, level);
         }

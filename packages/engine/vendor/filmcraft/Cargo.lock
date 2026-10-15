@@ -802,6 +802,7 @@ version = "0.2.1"
 dependencies = [
  "filmcraft-av1",
  "filmcraft-testkit",
+ "rayon",
 ]
 
 [[package]]
@@ -1075,6 +1076,7 @@ version = "0.2.1"
 dependencies = [
  "filmcraft-hevc",
  "filmcraft-testkit",
+ "rayon",
 ]
 
 [[package]]
@@ -1318,6 +1320,7 @@ name = "filmcraft-vp9enc"
 version = "0.2.1"
 dependencies = [
  "filmcraft-vp9",
+ "rayon",
 ]
 
 [[package]]

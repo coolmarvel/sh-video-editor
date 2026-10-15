@@ -24,10 +24,12 @@ pub(crate) fn loop_filter(planes: &mut [Plane; 3], info: &LfInfo, level: [u32; 4
     if level[0] == 0 && level[1] == 0 {
         return;
     }
+    use rayon::prelude::*;
     let nplanes = if luma_only { 1 } else { 3 };
-    for (plane, pl) in planes.iter_mut().enumerate().take(nplanes) {
+    // sh-video-editor: the planes are filtered independently, so in parallel
+    planes.par_iter_mut().enumerate().take(nplanes).for_each(|(plane, pl)| {
         if plane > 0 && level[1 + plane] == 0 {
-            continue;
+            return;
         }
         for pass in 0..2 {
             let step = if plane == 0 { 1 } else { 2 };
@@ -45,7 +47,7 @@ pub(crate) fn loop_filter(planes: &mut [Plane; 3], info: &LfInfo, level: [u32; 4
                 row += step;
             }
         }
-    }
+    });
 }
 
 fn edge(pl: &mut Plane, info: &LfInfo, level: [u32; 4], bd: u32, plane: usize, pass: usize, row: usize, col: usize) {

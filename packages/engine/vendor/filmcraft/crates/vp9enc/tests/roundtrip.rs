@@ -231,6 +231,29 @@ fn inter_frames_with_tile_columns_decode_exactly() {
     run_sequence(cfg, 3, 0);
 }
 
+/// sh-video-editor: widths that now get 2 (512) and 4 (1024, 1280) tile columns coded in parallel
+/// must still decode exactly like the encoder's reconstruction, key and inter frames, every kind of
+/// content, with and without a target bitrate.
+#[test]
+fn parallel_tile_columns_decode_exactly() {
+    for (w, h) in [(520, 40), (1024, 72), (1280, 48)] {
+        for (q, kind) in [(40u8, 0u32), (75, 1), (90, 2)] {
+            let cfg = EncoderConfig { width: w as u32, height: h as u32, quality: q, keyframe_interval: 4, ..Default::default() };
+            run_sequence(cfg, 6, kind);
+        }
+        let cfg = EncoderConfig {
+            width: w as u32,
+            height: h as u32,
+            quality: 60,
+            keyframe_interval: 5,
+            target_kbps: Some(800),
+            frame_rate: 30.0,
+            ..Default::default()
+        };
+        run_sequence(cfg, 6, 1);
+    }
+}
+
 #[test]
 fn inter_psnr_rises_with_bitrate() {
     let (w, h) = (160, 96);

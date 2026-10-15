@@ -642,6 +642,9 @@ dependencies = [
 [[package]]
 name = "filmcraft-av1enc"
 version = "0.2.1"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "filmcraft-bitstream"
@@ -840,6 +843,9 @@ dependencies = [
 [[package]]
 name = "filmcraft-hevcenc"
 version = "0.2.1"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "filmcraft-interchange"
@@ -1041,6 +1047,9 @@ dependencies = [
 [[package]]
 name = "filmcraft-vp9enc"
 version = "0.2.1"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "find-msvc-tools"

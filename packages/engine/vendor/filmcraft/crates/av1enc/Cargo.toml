@@ -10,7 +10,9 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+rayon = { workspace = true }
 
 [dev-dependencies]
+rayon = { workspace = true }
 filmcraft-av1 = { workspace = true }
 filmcraft-testkit = { workspace = true }

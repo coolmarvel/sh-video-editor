@@ -22,15 +22,18 @@ pub fn filter_frame(planes: &mut [Plane], mi: &[Mi], mi_rows: usize, mi_cols: us
     let l = level as i32;
     let limit = l.max(1);
     let lim = Limits { limit, blimit: 2 * (l + 2) + limit, thresh: l >> 4 };
-    for sbr in 0..mi_rows.div_ceil(8) {
-        for sbc in 0..mi_cols.div_ceil(8) {
-            for (plane, p) in planes.iter_mut().enumerate() {
+    // sh-video-editor: planes never touch each other, so each is filtered on its own thread in
+    // the same superblock order as before (same result)
+    use rayon::prelude::*;
+    planes.par_iter_mut().enumerate().for_each(|(plane, p)| {
+        for sbr in 0..mi_rows.div_ceil(8) {
+            for sbc in 0..mi_cols.div_ceil(8) {
                 for pass in 0..2 {
                     sb_plane(p, mi, mi_rows, mi_cols, plane, pass, sbr * 8, sbc * 8, lim);
                 }
             }
         }
-    }
+    });
 }
 
 #[allow(clippy::too_many_arguments)]

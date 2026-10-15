@@ -43,6 +43,7 @@ export default defineConfig({
         'src/features/events/store.ts',
         'src/features/events/poller.ts',
         'src/features/events/revision-gate.ts',
+        'src/features/jobs/store.ts',
         'src/features/monitor/store.ts',
         'src/features/monitor/controller.ts',
         'src/features/project/store.ts',

@@ -314,6 +314,20 @@ export interface FakeRecovery {
   cleanExit: boolean;
 }
 
+/** 엔진 잡(jobs.list 한 항목의 축소판). 분석 잡은 pump() 가 jobStep 씩 나아간다 */
+export interface FakeJob {
+  id: number;
+  kind?: string;
+  label?: string;
+  finished: boolean;
+  result: { bytes?: number; seconds?: number; error?: string } | null;
+  /** 0..1 */
+  progress?: number;
+  cancelled?: boolean;
+  /** stabilizer 잡이 분석하는 클립 */
+  clip?: number;
+}
+
 interface FakeQueueItem {
   id: number;
   job: number | null;
@@ -363,6 +377,8 @@ export interface FakeBridgeOptions {
   autosave?: boolean;
   /** pumpJobs 한 번에 올라가는 내보내기 진행률(0..1) */
   exportStep?: number;
+  /** pumpJobs 한 번에 올라가는 분석 잡(흔들림·장면) 진행률(0..1, 기본 0.5). jobProgress 이벤트를 하나 낸다 */
+  jobStep?: number;
   /** file.recoveryList 가 돌려줄 후보 */
   recovery?: FakeRecovery[];
   /** drainEvents 를 노출할지(기본 true). false 면 화면이 project.inspect 폴백을 쓴다 */
@@ -484,7 +500,11 @@ export class FakeEngine {
   readonly undoStack: Array<{ label: string; state: State }> = [];
   readonly redoStack: Array<{ label: string; state: State }> = [];
   readonly queue: FakeQueueItem[] = [];
-  readonly jobs: Array<{ id: number; finished: boolean; result: { bytes: number; seconds: number } | null }> = [];
+  readonly jobs: FakeJob[] = [];
+  /** 흔들림 분석이 끝난(렌더 캐시에 있는) 클립 id. effects.analyzeStabilizer 가 `cached: true` 를 돌려준다 */
+  readonly stabilized = new Set<number>();
+  /** 끝나면 적용할 장면 찾기 결과(잡 id 별) */
+  private readonly pendingScenes = new Map<number, { report: Array<{ clip: number; cuts: number[] }>; applyCuts: boolean }>();
   recovery: FakeRecovery[];
   /** 다음 execute(id) 를 실패시킨다. 값이 'always' 면 계속 실패 */
   private readonly failures = new Map<string, { message: string; always: boolean }>();
@@ -518,9 +538,11 @@ export class FakeEngine {
   private mergeKey: string | null = null;
   private nextQueue = 1;
   private readonly exportStep: number;
+  private readonly jobStep: number;
 
   constructor(private readonly opts: FakeBridgeOptions = {}) {
     this.exportStep = opts.exportStep ?? 0.5;
+    this.jobStep = opts.jobStep ?? 0.5;
     this.recovery = opts.recovery ? clone(opts.recovery) : [];
     this.state = FakeEngine.freshState('제목 없음');
     const desktop = opts.desktop ?? false;
@@ -1150,6 +1172,16 @@ export class FakeEngine {
 
   pump(): boolean {
     let more = false;
+    // 분석 잡(흔들림·장면): 실제 wasm 엔진처럼 pumpJobs 마다 조금씩 나아가고 jobProgress 이벤트를 낸다
+    for (const j of this.jobs) {
+      if (j.finished || (j.kind !== 'stabilizer' && j.kind !== 'sceneDetect')) continue;
+      j.progress = Math.min(1, (j.progress ?? 0) + this.jobStep);
+      if (j.progress >= 1) this.finishJob(j);
+      else {
+        more = true;
+        this.pushJobProgress(j);
+      }
+    }
     for (const q of this.queue) {
       if (q.status !== 'encoding') continue;
       q.progress = Math.min(1, q.progress + this.exportStep);
@@ -1167,6 +1199,53 @@ export class FakeEngine {
       } else more = true;
     }
     return more;
+  }
+
+  private pushJobProgress(j: FakeJob): void {
+    this.events.push({
+      type: 'jobProgress',
+      id: j.id,
+      kind: j.kind ?? 'export',
+      label: j.label ?? '',
+      progress: j.progress ?? 0,
+      done: j.finished,
+      cancelled: j.cancelled === true,
+      error: j.result && 'error' in j.result ? (j.result.error ?? null) : null,
+    });
+  }
+
+  /** 분석 잡을 끝내고 결과를 적용한다(흔들림: 캐시에 넣기, 장면: 자르기) */
+  private finishJob(j: FakeJob): void {
+    j.finished = true;
+    j.progress = 1;
+    j.result = { bytes: 0, seconds: 0.5 };
+    if (j.kind === 'stabilizer' && j.clip !== undefined) this.stabilized.add(j.clip);
+    const scene = this.pendingScenes.get(j.id);
+    if (scene) {
+      this.pendingScenes.delete(j.id);
+      this.applyScenes(scene.report, scene.applyCuts);
+    }
+    this.pushJobProgress(j);
+  }
+
+  private applyScenes(report: Array<{ clip: number; cuts: number[] }>, applyCuts: boolean): void {
+    const seq = this.sequence;
+    const total = report.reduce((n, r) => n + r.cuts.length, 0);
+    if (total > 0 && applyCuts) {
+      this.snapshot('Scene Edit Detection');
+      for (const r of report) for (const t of [...r.cuts].reverse()) this.razorAt(seq, t, r.clip);
+      this.cleanTransitions(seq);
+      this.touch();
+      this.pushToast(`Scene Edit Detection: ${total} cut point(s)`);
+    } else if (total === 0) this.pushToast('Scene Edit Detection found no cut points');
+  }
+
+  /** 새 잡 id(실제 엔진처럼 가장 큰 id + 1) */
+  private newJob(kind: string, label: string, extra: Partial<FakeJob> = {}): FakeJob {
+    const id = this.jobs.reduce((m, j) => Math.max(m, j.id), 0) + 1;
+    const job: FakeJob = { id, kind, label, finished: false, result: null, progress: 0, cancelled: false, ...extra };
+    this.jobs.push(job);
+    return job;
   }
 
   renderFrame(tick: number, scale: number): Frame | null {
@@ -1900,7 +1979,7 @@ export class FakeEngine {
           sequenceName: seq.name,
         };
         this.queue.push(item);
-        if (jobId !== null) this.jobs.push({ id: jobId, finished: false, result: null });
+        if (jobId !== null) this.jobs.push({ id: jobId, kind: 'export', label: `Exporting ${String(p['path'])}`, finished: false, result: null, progress: 0 });
         return { added: [qid], items: clone(this.queue) };
       }
       case 'export.queue.list':
@@ -1921,6 +2000,45 @@ export class FakeEngine {
       }
       case 'jobs.list':
         return clone(this.jobs);
+      case 'jobs.cancel': {
+        const j = this.jobs.find((x) => x.id === p['job']);
+        if (!j) throw new FakeEngineError('invalid parameters for `jobs.cancel`: no such job');
+        if (!j.finished) {
+          j.cancelled = true;
+          j.finished = true;
+          j.result = { error: 'stopped' };
+          this.pendingScenes.delete(j.id);
+          this.pushJobProgress(j);
+        }
+        return null;
+      }
+      case 'effects.analyzeStabilizer': {
+        const seq = this.sequence;
+        const id = p['clip'];
+        if (typeof id !== 'number') throw new FakeEngineError('invalid parameters for `effects.analyzeStabilizer`: need `clip`');
+        const { clip, kind } = this.findClip(seq, id);
+        if (kind !== 'video') throw new FakeEngineError('invalid parameters for `effects.analyzeStabilizer`: the clip is not on a video track');
+        const list = clip.effects ?? (clip.effects = []);
+        const smoothness = p['smoothness'];
+        if (!list.some((e) => e.effect === 'warp_stabilizer') || typeof smoothness === 'number') {
+          this.snapshot('Warp Stabilizer');
+          if (!list.some((e) => e.effect === 'warp_stabilizer')) {
+            const at = list.findIndex((e) => ['motion', 'opacity', 'time_remap'].includes(e.effect));
+            list.splice(at < 0 ? list.length : at, 0, fakeEffect('warp_stabilizer'));
+          }
+          const fx = list.filter((e) => e.effect === 'warp_stabilizer').pop();
+          if (fx && typeof smoothness === 'number') fx.params['smoothness'] = { keyframes: 0, kind: 'float', value: smoothness };
+          this.mergeKey = null;
+          this.touch();
+        }
+        const frames = Math.max(1, Math.round((clip.end - clip.start) / frameTicksOf(seq)));
+        if (this.stabilized.has(clip.clip)) return { job: null, frames, cached: true };
+        const running = this.jobs.find((j) => j.kind === 'stabilizer' && j.clip === clip.clip && !j.finished);
+        if (running) return { job: running.id, frames, cached: false, running: true };
+        const job = this.newJob('stabilizer', `Analyzing ${clip.name} (Warp Stabilizer)`, { clip: clip.clip });
+        if (p['wait'] === true) this.finishJob(job);
+        return { job: job.id, frames, cached: false };
+      }
       case 'effects.list':
         return [
           'cross_dissolve',
@@ -2975,16 +3093,17 @@ export class FakeEngine {
           const mediaCuts = (item?.sceneCuts ?? []).filter((m) => m > c.sourceIn && m < c.sourceIn + (c.end - c.start)).sort((a, b) => a - b);
           report.push({ clip: c.clip, cuts: mediaCuts.map((m) => c.start + (m - c.sourceIn)), mediaCuts });
         }
-        const job = this.jobs.length + 1;
-        this.jobs.push({ id: job, finished: true, result: null });
-        const total = report.reduce((n, r) => n + r.cuts.length, 0);
-        if (total > 0 && applyCuts) {
-          this.snapshot('Scene Edit Detection');
-          for (const r of report) for (const t of [...r.cuts].reverse()) this.razorAt(seq, t, r.clip);
-          this.cleanTransitions(seq);
-          this.touch();
-        } else if (total === 0) this.pushToast('Scene Edit Detection found no cut points');
-        return { job, frames, clips: report };
+        const label = `Scene Edit Detection (${videos.length} clip${videos.length === 1 ? '' : 's'})`;
+        if (p['wait'] !== true) {
+          // 잡으로: pumpJobs 가 jobStep 씩 나아가고 끝나면 자른다
+          const job = this.newJob('sceneDetect', label);
+          this.pendingScenes.set(job.id, { report, applyCuts });
+          return { job: job.id, frames };
+        }
+        const job = this.newJob('sceneDetect', label);
+        this.pendingScenes.set(job.id, { report, applyCuts });
+        this.finishJob(job);
+        return { job: job.id, frames, clips: report };
       }
       default:
         throw new FakeEngineError(`unknown command \`${id}\``);

@@ -5,8 +5,9 @@
  * - 배경 지우기: `effects.apply ultra_key` + `effects.setParam {key_color, tolerance, soften}`. 스포이트는 효과를 잠시 끄고
  *   `renderFrame` 한 장에서 픽셀을 읽어 key_color 로 넣는다(트랜잭션 "키 색 고르기").
  * - 작은 화면: `motion` 효과 scale·position 을 모서리 프리셋 값으로(트랜잭션 한 단계).
- * - 흔들림 줄이기: `effects.apply warp_stabilizer`. 분석은 엔진이 첫 프레임 렌더 때 클립 전체를 작게 디코드해 돌린다(잡·이벤트가
- *   없어 진행률·취소는 없다). 화면은 그 렌더를 기다려 걸린 시간을 상태 줄에 적는다.
+ * - 흔들림 줄이기: `effects.analyzeStabilizer {clip}` 이 효과를 붙이고(없으면, 실행 취소 한 단계 "Warp Stabilizer") 분석 잡을 건다.
+ *   진행률은 features/jobs(상태 줄 진행 막대·취소)로 오고, 끝나면 걸린 시간을 상태 줄에 적는다. 취소하면 분석 없는 효과는 다음
+ *   렌더가 동기 분석을 돌리므로 효과를 뗀다.
  * 화면 전용 상태(스포이트 모드, 작은 화면 크기, 분석 중 표시)만 여기 둔다.
  */
 import { create } from 'zustand';
@@ -17,7 +18,9 @@ import { effectLabel } from '../effects/catalog';
 import { effectsOf, lastIndexOf, useEffects, type ParamInput, type SetParamOptions } from '../effects/store';
 import { parseVideoInfo } from '../keyframes/MonitorTransformOverlay';
 import { useKeyframes, type CurvePoint } from '../keyframes/store';
+import { useJobs } from '../jobs/store';
 import { useMedia } from '../media/store';
+import { useProject } from '../project/store';
 import { findItem } from '../media/types';
 import { monitorController } from '../monitor/registry';
 import { frameTicks } from '../timeline/geometry';
@@ -36,8 +39,8 @@ interface MotionFxState {
   picking: boolean;
   /** 작은 화면 크기(화면 폭 대비 %) */
   pipSize: number;
-  /** 흔들림 분석 중인 클립 */
-  analysis: { clip: number; startedAt: number } | null;
+  /** 흔들림 분석 중인 클립과 엔진 잡 id 들(features/jobs 의 진행률을 찾는 키) */
+  analysis: { clip: number; startedAt: number; jobs: number[] } | null;
   /** 마지막 흔들림 분석에 걸린 시간(ms) */
   lastAnalysisMs: number | null;
 
@@ -229,24 +232,43 @@ export const useMotionFx = create<MotionFxState>((set, get) => ({
       return false;
     }
     const first = targets[0] as ClipInfo;
-    set({ busy: true, analysis: { clip: first.clip, startedAt: Date.now() } });
-    useEditor.setState({ status: '흔들림을 분석하는 중입니다. 클립 길이에 따라 몇 초 걸립니다', error: null });
+    const startedAt = Date.now();
+    set({ busy: true, analysis: { clip: first.clip, startedAt, jobs: [] } });
+    useEditor.setState({ status: '흔들림을 분석하는 중입니다. 상태 줄의 진행 막대로 확인하고 취소할 수 있습니다', error: null });
     try {
-      const todo = targets.filter((c) => lastIndexOf(c, WARP_STABILIZER) < 0).map((c) => c.clip);
-      if (todo.length > 0) {
-        await withTransaction(bridge, '흔들림 줄이기', async () => {
-          await bridge.execute('effects.apply', { clips: todo, effect: WARP_STABILIZER });
-        });
+      // 효과가 없는 클립에는 엔진이 붙인다. 여러 클립이면 한 단계 "흔들림 줄이기" 로 묶는다
+      const needApply = targets.some((c) => lastIndexOf(c, WARP_STABILIZER) < 0);
+      const analyze = async () => {
+        const jobs: number[] = [];
+        for (const c of targets) {
+          const r = (await bridge.execute('effects.analyzeStabilizer', { clip: c.clip })) as { job: number | null; frames: number; cached: boolean };
+          if (typeof r.job === 'number') {
+            jobs.push(r.job);
+            useJobs.getState().track(bridge, { id: r.job, kind: 'stabilizer' });
+          }
+        }
+        return jobs;
+      };
+      const jobs = needApply && targets.length > 1 ? await withTransaction(bridge, '흔들림 줄이기', analyze) : await analyze();
+      set({ busy: false, analysis: { clip: first.clip, startedAt, jobs } });
+      await refreshViews();
+      const results = await useJobs.getState().waitFor(jobs);
+      const ms = Date.now() - startedAt;
+      if (results.some((j) => j.cancelled)) {
+        // 분석이 없는 효과는 다음 렌더가 동기 분석을 돌리므로 뗀다
+        await get().removeStabilizer(targets.map((c) => c.clip));
+        useEditor.setState({ status: '흔들림 분석을 취소하고 효과를 뗐습니다', error: null });
+        useProject.getState().notify('warning', '흔들림 분석을 취소했습니다.');
+        return false;
       }
-      // 엔진은 첫 렌더 때 클립 전체를 분석해 경로를 캐시한다. 여기서 한 장을 그려 분석을 끝내고 걸린 시간을 잰다
-      const t0 = performance.now();
-      await bridge.renderFrame(playheadIn(first), PICK_SCALE);
-      const ms = performance.now() - t0;
+      const failed = results.find((j) => j.error !== null);
+      if (failed) throw new Error(failed.error ?? '분석 실패');
       set({ lastAnalysisMs: ms });
       useEditor.setState({
         status: `흔들림 줄이기를 적용했습니다: 클립 ${targets.length}개 (${analysisNote(ms)}, 2D 근사라 심한 흔들림은 가장자리가 잘릴 수 있습니다)`,
         error: null,
       });
+      useProject.getState().notify('success', `흔들림 줄이기를 적용했습니다 (${analysisNote(ms)}).`);
       return true;
     } catch (e) {
       useEditor.setState({ error: `흔들림을 줄일 수 없습니다: ${message(e)}` });

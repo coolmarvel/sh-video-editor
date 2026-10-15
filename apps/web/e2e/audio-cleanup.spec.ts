@@ -166,7 +166,12 @@ test.describe('장면마다 자르기', () => {
     await expect(menu.getByRole('menuitem', { name: '장면마다 자르기' })).toBeEnabled();
     const t0 = Date.now();
     await menu.getByRole('menuitem', { name: '장면마다 자르기' }).click();
+    // 분석은 엔진 잡: 상태 줄 잡 칸에 "장면 찾기 N%" 와 취소가 보이고 끝나면 사라진다
+    const pane = app.getByTestId('jobs-pane');
+    await expect(pane.getByTestId('jobs-text')).toHaveText(/^장면 찾기 \d+%$/);
+    await expect(pane.getByRole('progressbar', { name: '장면 찾기' })).toBeVisible();
     await expect(toasts(app).filter({ hasText: /장면/ })).toBeVisible({ timeout: 60_000 });
+    await expect(pane).toHaveCount(0);
     // 상태 줄은 우리 문구이거나, 엔진이 보낸 toast 이벤트(찾지 못했을 때 영어 문구)가 뒤이어 덮을 수 있다
     await expect(ui.status(app)).toHaveText(
       /^(장면 \d+곳에서 잘랐습니다 \(클립 1개\)|장면이 바뀌는 곳을 찾지 못했습니다|Scene Edit Detection found no cut points)$/,

@@ -194,7 +194,7 @@ domain: development
   - (d) M
 - [x] **M3-7 텍스트 기반 편집·정리 도구** (2026-10-14 feat/audio-cleanup: 전사 탭, 문장 지우기, 무음·군말 제거, 장면마다 자르기): `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M
 - [x] **M3-8 오디오 정리** (2026-10-14 feat/timestretch + feat/audio-cleanup: 음정 유지, 음성 깨끗하게(denoise·dereverb·enhance), 소리 크기 맞추기 -14/-16/-23 LUFS): `denoise`·`dereverb`·`speech_enhance` 를 "음성 깨끗하게" 한 버튼으로(`essentialSound.applyPreset`), `sequence.normalizeMixTrack`(-14 LUFS 유튜브). soundcraft `dsp` WSOLA 는 속도 변경 시 음정 유지가 필요할 때. (d) S
-- [x] **M3-9 손떨림 보정** (2026-10-14 feat/motion-fx: 흔들림 줄이기 버튼. 분석이 렌더 안 동기라 진행률 없음, wasm 16초 클립 40~50초): `warp_stabilizer`(2D 근사) 를 "흔들림 줄이기" 버튼으로. 분석 시간이 길어 `jobs.*` 진행률 필요. (d) S
+- [x] **M3-9 손떨림 보정** (2026-10-14 feat/motion-fx: 흔들림 줄이기 버튼. 2026-10-15 feat/jobs-progress: 분석을 엔진 잡 `effects.analyzeStabilizer` 로 빼고 `jobProgress` 이벤트로 상태 줄 작업 칸에 진행률·취소. 장면마다 자르기도 같은 잡 경로(`wait: false`), 웹은 `pump_jobs` 가 프레임 몇 장씩): `warp_stabilizer`(2D 근사) 를 "흔들림 줄이기" 버튼으로. (d) S
 - [ ] **M3-10 macOS dmg**(0001 이월). (d) M
 
 ### 마일스톤 4 - 품질·성능·호환성

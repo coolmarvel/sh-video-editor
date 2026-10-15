@@ -125,6 +125,8 @@ export const COMMAND_LABELS_KO: Readonly<Record<string, string>> = {
   'clip.extractAudio': '소리 추출',
   'clip.speedDuration': '속도, 길이...',
   'clip.sceneEditDetection': '장면 전환 감지...',
+  // 메뉴 경로는 없지만 화면(흔들림 줄이기)이 바로 실행하는 커맨드
+  'effects.analyzeStabilizer': '흔들림 분석',
   'clip.enable': '켜기, 끄기',
   'clip.link': '연결, 연결 해제',
   'clip.group': '그룹',
@@ -402,6 +404,7 @@ export const HISTORY_LABELS_KO: Readonly<Record<string, string>> = {
   'Replace With Clip': '클립으로 바꾸기',
   'Apply Match': '매치 적용',
   'Scene Edit Detection': '장면 전환 감지',
+  'Warp Stabilizer': '흔들림 줄이기',
   'Simplify Sequence': '편집본 단순화',
   'Sequence Settings': '편집본 설정',
   'Sequence Color Settings': '편집본 색 설정',

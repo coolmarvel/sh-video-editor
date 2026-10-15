@@ -28,6 +28,8 @@ import { useWebFiles } from '../src/features/project/web-store';
 import { resetRecentMemory, useRecent } from '../src/features/project/recent';
 import { stopWebSession } from '../src/features/project/web-session';
 import { clearPeakCache } from '../src/features/audio/peaks';
+import { stopJobPump, useJobs } from '../src/features/jobs/store';
+import { installEnginePoller } from '../src/features/events/useEnginePolling';
 import { FakeEngine, type FakeBridgeOptions } from './fake-bridge';
 
 export function resetStores(): void {
@@ -61,6 +63,9 @@ export function resetStores(): void {
   resetRecentMemory();
   stopWebSession();
   clearPeakCache();
+  stopJobPump();
+  useJobs.setState(useJobs.getInitialState(), true);
+  installEnginePoller(null);
 }
 
 /** 가짜 엔진을 만들어 useEditor 에 연결한다(init 까지 끝난 상태). */

@@ -1,0 +1,45 @@
+/* 상태 줄 잡 진행 칸(DESIGN.md 4.25). 값은 전부 --sh-* 토큰 */
+/* 상태 글 칸(sh-pane--grow)이 줄어들고 이 칸은 제 폭을 지킨다(상태 줄의 .sh-pane 기본은 min-width 0 + 말줄임) */
+.ve-jobs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sh-space-6);
+  position: relative;
+  overflow: visible;
+  flex: none;
+}
+.ve-jobs .ve-jobs-bar {
+  width: calc(var(--sh-space-48) * 2);
+  flex: none;
+}
+.ve-jobs-text {
+  white-space: nowrap;
+}
+/* 여러 잡 팝오버: 상태 줄 위로 연다 */
+.ve-jobs-list {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin: 0 0 var(--sh-space-4);
+  padding: var(--sh-space-4);
+  list-style: none;
+  min-width: calc(var(--sh-size-menu-min-width) + var(--sh-space-48) * 2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4);
+  z-index: 20;
+}
+.ve-jobs-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: var(--sh-space-6);
+}
+@media (max-width: 900px) {
+  .ve-jobs .ve-jobs-bar {
+    width: var(--sh-space-48);
+  }
+  .ve-jobs-list {
+    min-width: calc(var(--sh-size-menu-min-width) + var(--sh-space-48));
+  }
+}

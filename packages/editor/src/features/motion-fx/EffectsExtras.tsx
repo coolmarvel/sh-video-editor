@@ -9,6 +9,7 @@ import { readNumber, readParam, readPoint } from '../effects/params';
 import type { InspectorContext } from '../inspector/registry';
 import { useTimeline } from '../timeline/store';
 import { findClip, type ClipInfo } from '../timeline/types';
+import { useJobs } from '../jobs/store';
 import { CHROMA_PARAMS, KEY_COLOR_PARAM, STABILIZER_PARAMS, ULTRA_KEY, WARP_STABILIZER, analysisNote } from './chroma';
 import { PIP_CORNERS, PIP_SIZES, pipCornerOf } from './pip';
 import { sourceSize, useMotionFx } from './store';
@@ -153,6 +154,7 @@ export function StabilizeSection(ctx: InspectorContext) {
   const busy = useMotionFx((s) => s.busy);
   const analysis = useMotionFx((s) => s.analysis);
   const lastMs = useMotionFx((s) => s.lastAnalysisMs);
+  const jobs = useJobs((s) => s.jobs);
   const fxBusy = useEffects((s) => s.busy);
   const compare = useEffects((s) => s.compare);
   if (!clip) return null;
@@ -160,8 +162,11 @@ export function StabilizeSection(ctx: InspectorContext) {
   const ids = videoClipIds(ctx);
   const index = lastIndexOf(clip, WARP_STABILIZER);
   const fx = index >= 0 ? effectsOf(clip)[index] : undefined;
-  const locked = busy || fxBusy || compare !== null;
   const analyzing = analysis !== null;
+  const locked = busy || fxBusy || compare !== null || analyzing;
+  // 분석 잡들의 진행률(가장 느린 것). 이벤트가 아직 안 왔으면 0
+  const progress = analysis ? jobs.filter((j) => analysis.jobs.includes(j.id)).reduce((m, j) => Math.min(m, j.progress), 1) : 0;
+  const pct = analysis && analysis.jobs.length > 0 ? Math.round((progress === 1 && jobs.length === 0 ? 1 : progress) * 100) : 0;
   return (
     <fieldset className="sh-group mfx-group" data-testid="stabilize-section" data-active={!!fx} aria-busy={analyzing}>
       <legend>흔들림 줄이기</legend>
@@ -176,11 +181,11 @@ export function StabilizeSection(ctx: InspectorContext) {
           </button>
         )}
         {analyzing ? (
-          <span className="mfx-progress" role="status">
+          <span className="mfx-progress" role="status" data-testid="stabilize-progress">
             <span className="sh-progress" aria-hidden="true">
-              <span style={{ width: '100%' }} />
+              <span style={{ width: `${pct}%` }} />
             </span>
-            분석 중...
+            분석 중... {pct}%
           </span>
         ) : lastMs !== null && fx ? (
           <span className="mfx-hint sh-tnum">{analysisNote(lastMs)}</span>

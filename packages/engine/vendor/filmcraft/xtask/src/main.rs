@@ -62,6 +62,7 @@ const LAYERS: &[(&str, u8)] = &[
     ("effects", 2),
     ("audio", 2),
     ("captions", 2),
+    ("lottie", 2),
     ("speech", 2),
     ("interchange", 2),
     ("render", 3),

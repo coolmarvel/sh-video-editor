@@ -48,7 +48,12 @@ impl Default for MediaPool {
             proxies: RwLock::new(HashMap::new()),
             offline: RwLock::new(HashMap::new()),
             use_proxies: AtomicBool::new(false),
-            openers: RwLock::new(filmcraft_codecs::openers()),
+            // sh-video-editor: Lottie animations (`.json` / `.lottie`) open as vector media
+            openers: RwLock::new({
+                let mut o = filmcraft_codecs::openers();
+                o.push(filmcraft_lottie::opener);
+                o
+            }),
         }
     }
 }
@@ -249,7 +254,8 @@ impl MediaPool {
             } {
                 Ok(s) => {
                     self.offline.write().unwrap_or_else(|e| e.into_inner()).remove(&item);
-                    s
+                    // sh-video-editor: vector media renders at the size the item declares
+                    m.info.video.as_ref().and_then(|v| s.at_size(v.width, v.height)).unwrap_or(s)
                 }
                 Err(_) if filmcraft_media::pending::is_set() => {
                     // the host is still fetching the file's bytes: show the slate for now, retry later

@@ -745,7 +745,7 @@ fn menu_commands() -> Vec<CommandSpec> {
             "From file…",
             &["Graphics and Titles", "New Layer"],
             None,
-            r#"{"path":str,"time":ticks?,"track":index?} (imports the image or video and places it above the clips at the playhead)"#,
+            r#"{"path":str,"time":ticks?,"track":index?,"duration":ticks|"durationSeconds":f64?} (imports the image or video and places it above the clips at the playhead; `duration` shortens the clip, for looping media such as Lottie stickers)"#,
             has_seq,
             |s, p| {
                 let path = str_p(p, "path").ok_or_else(|| bad("graphics.newFromFile", "need `path`"))?.to_string();
@@ -760,7 +760,12 @@ fn menu_commands() -> Vec<CommandSpec> {
                 if matches!(&pi.kind, ItemKind::Media(m) if m.info.video.is_none()) {
                     return Err(bad("graphics.newFromFile", "the file has no picture"));
                 }
-                let (name, dur) = (pi.name.clone(), pi.duration());
+                let (name, full) = (pi.name.clone(), pi.duration());
+                // sh-video-editor: `duration` cuts the clip short (a looping Lottie sticker reports a long duration)
+                let rate = s.sequence_rate();
+                // `duration` (ticks) or the time spellings with the prefix: `durationSeconds`, `durationFrame`, `durationTimecode`
+                let want = p.get("duration").and_then(Value::as_i64).map(Tick).or_else(|| time_p(s, p, "duration"));
+                let dur = want.map_or(full, |d| d.clamp(rate.frame_duration(), full.max(rate.frame_duration())));
                 let clip = place_video_clip(s, &name, p, "New Layer from File", Vec::new(), move |_, _| (item, dur))?;
                 s.state.graphic_layers.clear();
                 Ok(json!({"clip": clip.0, "item": item.0}))

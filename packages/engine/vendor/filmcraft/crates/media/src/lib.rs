@@ -137,6 +137,12 @@ pub trait MediaSource: Send + Sync {
     fn warnings(&self) -> Vec<String> {
         Vec::new()
     }
+    /// sh-video-editor: a resolution-independent source (a vector animation) rendering natively
+    /// at `width` x `height`, the size the project item declares; `None` for raster media or
+    /// when it already renders at that size. The media pool asks after opening a file.
+    fn at_size(&self, _width: u32, _height: u32) -> Option<SharedSource> {
+        None
+    }
 }
 
 pub type SharedSource = Arc<dyn MediaSource>;

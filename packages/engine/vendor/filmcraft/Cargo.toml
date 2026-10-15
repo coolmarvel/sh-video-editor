@@ -37,6 +37,7 @@ filmcraft-h264enc = { path = "crates/h264enc" }
 filmcraft-vp9enc = { path = "crates/vp9enc" }
 filmcraft-opusenc = { path = "crates/opusenc" }
 filmcraft-hevcenc = { path = "crates/hevcenc" }
+filmcraft-lottie = { path = "crates/lottie" }
 filmcraft-audio-dsp = { path = "crates/audio-dsp" }
 filmcraft-frame = { path = "crates/frame" }
 filmcraft-media = { path = "crates/media" }

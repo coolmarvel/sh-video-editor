@@ -120,3 +120,17 @@ export function formatEta(seconds: number | null): string {
   if (s < 60) return `남은 시간 약 ${s}초`;
   return `남은 시간 약 ${Math.floor(s / 60)}분 ${s % 60}초`;
 }
+
+/**
+ * 1080p 이상에서 H.264 보다 몇 배 오래 걸리는지(데스크톱 실측, docs/guides/webm-export.md 4절). 소프트웨어 인코더라 화면 크기에
+ * 비례해 느려지고, 웹(브라우저)은 한 스레드라 이보다 더 느리다.
+ */
+export const SLOW_FORMAT_FACTOR: Record<string, number> = { hevc: 3.2, av1: 4.2, webm: 2.0 };
+
+/** 느린 형식을 1080p 이상으로 고르면 결과 줄 아래에 보일 안내. 아니면 null. */
+export function slowFormatNote(formatId: string, width: number, height: number, web: boolean): string | null {
+  const factor = SLOW_FORMAT_FACTOR[formatId];
+  if (!factor || factor < 1.5 || width * height < 1920 * 1080 * 0.9) return null;
+  const where = web ? ' 브라우저에서는 이보다 더 걸립니다.' : '';
+  return `이 형식은 1080p 에서 H.264 보다 약 ${Math.round(factor)}배 오래 걸립니다.${where} 긴 편집본은 720p 프리셋이 빠릅니다.`;
+}

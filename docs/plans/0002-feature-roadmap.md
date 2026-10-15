@@ -182,7 +182,7 @@ domain: development
   - (b) [x] 스티커 패널(분류 5개, 자체 제작 SVG 20종, `features/stickers/assets` + `.attribution` + `ATTRIBUTION.md`). 화면이 PNG 로 래스터해 웹은 `registerFiles`, 데스크톱은 `writeTempFile` 로 넘기고 엔진 `graphics.newFromFile {path, time}`(두 번째부터는 `timeline.place {duration}`). 엔진은 SVG 를 읽지 못한다(media: unrecognised format). 위치·크기는 모션 탭·변형 상자. 검색은 없음
   - (c) [x] Lottie 샘플 10개 렌더 골든: `packages/engine/tests/lottie.test.ts`(napi: 에셋마다 가져오기·5초 클립·1.5초 프레임의 정해진 자리 색·0.2초 대 0.5초 차이·한 바퀴 뒤 반복 일치, Lottie 아닌 .json 거부, 1080p 렌더 시간; wasm: putFile 경로 한 번), `cargo test -p filmcraft-lottie` 28개(이즈·도형·스타일 규칙·트림·리피터·마스크·매트·프리컴프·dotLottie·적대적 입력)
   - (d) L
-- [x] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export + feat/hevc-export: WebM(VP9 + Opus)·HEVC(hevcenc) 소프트웨어 인코더, 프리셋 각 2종. 둘 다 단일 스레드라 1080p 는 H.264 의 5~9배 느림. 2026-10-15 feat/av1-export: AV1(av1enc) 형식 "AV1 (mp4)"·프리셋 2종, WebM 의 `videoCodec: av1`. 1080p 는 H.264 의 10배 느림, 파일은 46%)
+- [x] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export + feat/hevc-export: WebM(VP9 + Opus)·HEVC(hevcenc) 소프트웨어 인코더, 프리셋 각 2종. 둘 다 단일 스레드라 1080p 는 H.264 의 5~9배 느림. 2026-10-15 feat/av1-export: AV1(av1enc) 형식 "AV1 (mp4)"·프리셋 2종, WebM 의 `videoCodec: av1`. 1080p 는 H.264 의 10배 느림, 파일은 46%. 2026-10-15 feat/encoders: VP9 타일 열·HEVC WPP·AV1 행 단위 병렬 결정으로 1080p 18초가 WebM 128.6초에서 70.9초, HEVC 236.7초에서 106.4초, AV1 314.1초에서 145.8초(H.264 대비 2·3·4배), AV1 레이트 컨트롤이 키프레임 몫을 갚아 목표 비트레이트를 맞춤, `docs/guides/webm-export.md` 4절)
   - (a) effectcraft `hevcenc`·`vp9enc`·`opusenc` 이식, `export::VideoEncoder`·`AudioEncoder` 구현, `export.formats` 에 hevc `available:true`, webm 포맷 신규(matroska 먹서는 디먹스만 있어 먹서 신규)
   - (b) 내보내기 프리셋에 "HEVC(용량 절반)"·"WebM(웹용)" 추가
   - (c) 인코드 -> 우리 디코더 -> 디코드 왕복 PSNR 35dB 이상, ffprobe 로 재생 가능, Windows Movies & TV·Chrome 재생

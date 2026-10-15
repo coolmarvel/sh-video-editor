@@ -4,8 +4,12 @@
  * 390 폭에서는 끌어다 놓을 목표(둘째 클립)가 가로 스크롤 밖이라 드래그 경로가 불안정했다(과거 skip 2건). 거기서는 같은 편집점에
  * 키보드로 넣는다: 둘째 클립 선택 -> 적용 위치 "앞" -> 카드에 포커스 -> Enter (TransitionGallery 의 onKeyDown, 더블클릭과 같은 store 경로).
  */
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Page } from '@playwright/test';
-import { clickRuler, engineSequence, expect, makeDemoSequence, test, ui } from './fixtures';
+import { clickRuler, engineSequence, expect, makeDemoSequence, test, toasts, ui } from './fixtures';
 
 interface ShBridge {
   execute(id: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -25,6 +29,15 @@ function engineTransitions(page: Parameters<typeof clickRuler>[0]): Promise<Tran
     const b = (window as unknown as { shBridge: ShBridge }).shBridge;
     const seq = (await b.execute('sequence.inspect')) as { video: Array<{ transitions: TransitionRow[] }> };
     return seq.video[0]!.transitions;
+  });
+}
+
+/** 활성 시퀀스 V1 의 클립(엔진 inspect): 시작·끝·소스 시작(tick) */
+function v1Items(page: Page): Promise<Array<{ start: number; end: number; sourceIn: number }>> {
+  return page.evaluate(async () => {
+    const b = (window as unknown as { shBridge: ShBridge }).shBridge;
+    const seq = (await b.execute('sequence.inspect')) as { video: Array<{ items: Array<{ start: number; end: number; sourceIn: number }> }> };
+    return seq.video[0]!.items.map(({ start, end, sourceIn }) => ({ start, end, sourceIn }));
   });
 }
 
@@ -169,5 +182,72 @@ test.describe('전환', () => {
     await expect.poll(() => engineTransitions(app)).toEqual([]);
     await expect(ui.timeline(app).locator('.tl-transition')).toHaveCount(0);
     await expect(app.getByRole('region', { name: '속성' }).getByRole('tab', { name: '전환' })).toHaveCount(0);
+  });
+
+  test.describe('핸들 자동으로 다듬기', () => {
+    // 데모(생성) 영상은 끝이 없어 반복 프레임이 생기지 않는다. 끝이 있는 실제 파일(3초 막대)을 두 번 이어 붙인다
+    let dir = '';
+    let clip = '';
+    test.beforeAll(() => {
+      dir = mkdtempSync(join(tmpdir(), 'sh-e2e-handles-'));
+      clip = join(dir, 'bars3.mp4');
+      execFileSync('ffmpeg', [
+        '-v',
+        'error',
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'smptebars=size=640x360:rate=30',
+        '-t',
+        '3',
+        '-c:v',
+        'libx264',
+        '-pix_fmt',
+        'yuv420p',
+        clip,
+      ]);
+    });
+    test.afterAll(() => {
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('다듬지 않은 두 클립 사이 전환은 알림 버튼으로 양쪽을 리플 트림해 실제 프레임을 쓰고, 실행 취소 한 번에 되돌린다', async ({ app }, testInfo) => {
+      const chooser = app.waitForEvent('filechooser');
+      await app.getByRole('menubar').getByRole('button', { name: '파일' }).click();
+      await app.getByRole('menuitem', { name: '미디어 가져오기...' }).click();
+      await (await chooser).setFiles(clip);
+      const item = app.getByRole('treeitem', { name: /bars3\.mp4/ });
+      await expect(item).toBeVisible({ timeout: 20_000 });
+      await item.click();
+      await app.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
+      await expect(ui.videoClips(app)).toHaveCount(1);
+      // 같은 파일을 3초 뒤에 한 번 더(엔진에 직접): 두 클립 모두 소스 처음부터 끝까지라 핸들이 없다
+      await app.evaluate(async () => {
+        const b = (window as unknown as { shBridge: ShBridge }).shBridge;
+        const seq = (await b.execute('sequence.inspect')) as { video: Array<{ items: Array<{ item: number; end: number }> }> };
+        const first = seq.video[0]!.items[0]!;
+        await b.execute('timeline.place', { item: first.item, track: 'V1', time: first.end, insert: true });
+        await b.execute('edit.deselectAll');
+      });
+      await expect(ui.videoClips(app)).toHaveCount(2);
+
+      await applyAtFirstCut(app, testInfo.project.name, /디졸브/);
+      const notice = toasts(app).filter({ hasText: '끝 화면이 멈춰 보입니다' });
+      await expect(notice).toBeVisible();
+      await notice.getByRole('button', { name: '핸들 자동으로 다듬기' }).click();
+      // 문구 끝에 "(미디어가 모자라 ...)" 가 없다 = 다듬은 뒤 엔진이 알린 반복 프레임이 0
+      await expect(ui.status(app)).toHaveText(/^핸들 다듬기: (앞 클립 끝 \d+프레임, )?뒤 클립 처음 \d+프레임$/);
+
+      // 두 클립은 맞닿은 채 컷이 앞으로 오고, 뒤 클립은 소스 중간에서 시작하며, 전환은 그대로 하나
+      const [a, b] = await v1Items(app);
+      expect(b!.start).toBe(a!.end);
+      expect(b!.sourceIn).toBeGreaterThan(0);
+      expect(await engineTransitions(app)).toHaveLength(1);
+      // 실행 취소 한 번이 다듬기 전체(트림 둘 + 길이 다시 맞춤)를 되돌린다
+      await ui.tool(app, '실행 취소').click();
+      await expect(ui.status(app)).toHaveText('실행 취소: 핸들 다듬기');
+      expect((await v1Items(app))[1]!.sourceIn).toBe(0);
+    });
   });
 });

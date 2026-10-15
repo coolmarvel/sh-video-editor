@@ -132,6 +132,23 @@ test.describe('미디어와 타임라인', () => {
     expect(family.startsWith('"Malgun Gothic"')).toBe(true);
   });
 
+  test('웹에서 새 프로젝트는 Alt+N: 메뉴에 Alt+N 으로 보이고 누르면 새 프로젝트가 된다(Chrome 은 Ctrl+N 을 넘기지 않는다)', async ({ app }) => {
+    await app.getByRole('menubar').getByRole('button', { name: '파일' }).click();
+    await expect(app.getByRole('menuitem', { name: /새 프로젝트/ })).toHaveText('새 프로젝트Alt+N');
+    await app.keyboard.press('Escape');
+    await app.getByRole('button', { name: '데모 영상', exact: true }).click();
+    await app.getByRole('menuitem', { name: '오로라' }).click();
+    await expect(app.getByRole('treeitem', { name: /Aurora/ })).toBeVisible();
+    // 바뀐 것이 있으므로 저장할지 먼저 묻는다. 저장하지 않으면 빈 새 프로젝트
+    await app.locator('.ve-status').click();
+    await app.keyboard.press('Alt+N');
+    const ask = app.getByRole('alertdialog');
+    await expect(ask).toBeVisible();
+    await ask.getByRole('button', { name: '저장하지 않음' }).click();
+    await expect(toasts(app).filter({ hasText: '새 프로젝트를 만들었습니다' })).toBeVisible();
+    await expect(app.getByRole('treeitem', { name: /Aurora/ })).toHaveCount(0);
+  });
+
   test('토스트는 6초 뒤 사라지고 닫기 버튼으로 바로 닫힌다', async ({ app }) => {
     await app.getByRole('button', { name: '데모 영상', exact: true }).click();
     await app.getByRole('menuitem', { name: '오로라' }).click();

@@ -1019,6 +1019,64 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
   열리고 잡마다 한 줄(이름 1fr, 막대, 퍼센트, "취소")이 들어간다. 잡이 하나로 줄면 팝오버는 저절로 닫힌다.
 - 접근성: 막대는 `role="progressbar"` + `aria-valuenow`, `aria-label` 은 잡 이름. 취소 버튼의 이름은 목록에서 "<잡 이름> 취소".
 - 상태: 취소하면 엔진이 `cancelled` 로 끝내고 칸이 사라진다. 기능 쪽(흔들림 줄이기 절, 장면 찾기)이 결과를 상태 줄 글과 토스트(4.13)로 알린다.
+- 좁은 화면(900 이하): 막대 48. 상태 줄은 진단 칸(엔진 버전, 렌더 시간)과 호스트 칸을 숨기고, 프로젝트 이름(최대 40%)·상태 칸은 제 폭을 지킨다.
+  남는 폭은 상태 글이 쓰고 넘치면 말줄임이다. 상태 줄 자체는 가로로 넘치지 않는다(2026-10-15, 390 폭에서 이름·수정됨이 한 글자로 잘리던 것).
+
+### 4.26 창 제목 줄 (편집기 전용, 데스크톱, 2026-10-15)
+
+구현: `packages/editor/src/shell/TitleBar.tsx`, `shell/layout.css`(`.ve-chrome`, `.ve-titlebar`), 창 옵션 `apps/desktop/src/main/index.ts`.
+4.11 타이틀바를 바탕으로 하되 OS 창 버튼을 그대로 쓴다.
+
+- Windows·Linux 데스크톱 창은 OS 제목 줄을 숨기고(`titleBarStyle: 'hidden'`) 창 버튼(최소화·최대화·닫기)만 화면 오른쪽 위에 겹친다
+  (`titleBarOverlay`, Window Controls Overlay). 버튼 면은 투명이라 아래 크롬 그라데이션이 비치고, 글리프 색은 `--sh-color-text`, 높이는
+  `--sh-size-titlebar`(28). OS 의 닫기 hover 빨강·스냅 레이아웃은 OS 가 그린다. macOS 는 OS 제목 줄 그대로.
+- 띠: 4.11 과 같은 높이 28, `--sh-gradient-chrome`. 왼쪽 8px 에 앱 아이콘 16(32px 래스터), **창 가운데** 에 "문서 이름 (수정됨) -
+  SH Video Editor" 12px 보통 굵기 `--sh-color-text`, 넘치면 말줄임. 창 버튼 자리는 비우고 양쪽 여백을 같게 둬 제목이 창 가운데 온다.
+  글은 `document.title`(작업 표시줄)과 같다(`windowTitle`).
+- 제목 줄과 메뉴바(4.3)는 한 덩어리(`.ve-chrome`)로 쌓고 **둘 사이에 선을 두지 않는다**. 아래 경계선은 메뉴바의 1px frame 하나다.
+  OS 의 흰 제목 줄이 어두운 크롬 위에 따로 얹히던 것을 없애, 제목·메뉴가 하나로 이어진 크롬 띠가 된다(한글 2024 같은 문법).
+- 띠 전체가 창 손잡이(`app-region: drag`, 더블클릭 최대화는 OS 동작)다. 띠에 버튼을 두지 않는다.
+- 창 버튼 겹침이 꺼진 창(웹, 전체 화면, macOS)에서는 그리지 않는다(`navigator.windowControlsOverlay.visible`).
+
+### 4.27 전사 패널 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/transcript/` (`TranscriptTab.tsx`, `transcript.css`). 값은 전부 `--sh-*` 토큰이다.
+
+- 인스펙터 탭 "전사"(자막 탭 뒤). 위에서부터 검색 줄(입력 4.5 + 오른쪽 11px muted 수), 툴바(4.2) "지우기 (N)", "구간 표시", "선택 해제",
+  문장 목록, "자동 정리" 묶음(자막 탭과 같은 `tx-group`: 무음 기준 입력, 군말 입력, 툴바 "무음 자동 제거", "군말 제거").
+- 문장 목록: 1px chrome-frame 틀, canvas 면, 최대 높이 40vh 스크롤. 행 = 체크박스(4.6) + 본문 버튼(투명, 왼쪽 정렬). 본문은 메타 줄
+  (11px muted: mm:ss.s tabular + 화자 칩 4.13) 과 글(줄바꿈, keep-all). 행 사이 1px grid. hover 면 hover, 선택 행 accent-subtle 면,
+  검색에 맞는 글은 warning-subtle 면, 플레이헤드가 있는 문장은 왼쪽 2px accent 띠(`aria-current="time"`).
+- 빈 상태: `tx-group` 제목 "전사가 없습니다" + 안내 한 줄 + (데스크톱) 기본 버튼 "자막 탭으로". 웹은 안내만.
+
+### 4.28 미디어 썸네일 (편집기 전용, 2026-10-14)
+
+구현: `packages/editor/src/features/media/` (`thumbs.ts`, `MediaTree.tsx`, `media.css`), 타임라인 클립은 `features/timeline/Track.tsx`.
+엔진(`renderItemThumbnail`)이 포스터 프레임(없으면 첫 프레임)을 RGBA 로 만들고 화면은 PNG data URL 로 바꿔 메모리 LRU 에 둔다.
+
+- 치수: 48x27 (`size.tree-indent * 3`, 16:9). 트리(4.8)의 항목 행은 썸네일 + 위아래 2px 로 31 (`--ve-thumb-row`), 빈(폴더) 행은 19 그대로.
+  타임라인 클립 안의 썸네일은 영상 트랙 안쪽 높이(44 - 8 - 4 = 32)에 16:9, 클립 폭 64px 미만이면 넣지 않는다.
+- 모양: `--sh-color-canvas` 면 + 1px border, 반경 0, 그림자 없음. `object-fit: cover`(비율이 다른 원본은 가운데를 잘라 보인다).
+  썸네일이 오기 전과 그림이 없는 항목(소리·조정 레이어)은 같은 상자 안에 유형 아이콘 16(`icons.tsx`). 줄 높이가 흔들리지 않는다.
+- 요청: 한 번에 하나씩(직렬) 엔진에 보내 모니터 프레임을 오래 막지 않는다. 같은 항목은 한 번만 만들고 실패는 기억해 재시도하지 않는다.
+  시퀀스 항목은 프로젝트 revision 을 키에 섞어 편집하면 새로 만든다. 저장소(SQLite·OPFS)로 옮길 때는 `ThumbnailLoader` 의 캐시만 바꾼다.
+- 접근성: 썸네일 `img` 는 `alt=""`(장식). 이름·유형은 옆 글자와 `title` 이 전한다. 끌기 금지(`draggable=false`, 항목 끌기는 라벨이 맡는다).
+
+### 4.29 미리보기 스크러버·재생 조작 줄 (편집기 전용, 2026-10-14, 계약은 2026-10-15)
+
+구현: `packages/editor/src/features/monitor/` (`MonitorPanel.tsx`, `Scrubber.tsx`, `monitor.css`). 값은 `--sh-*` 토큰. 스테이지 바탕 검정은
+영상 레터박스라 토큰이 아니다.
+
+- 골격: 패널(4.12) 안에 위에서부터 스테이지(남은 높이 전부, 영상은 비율을 지켜 가운데), 스크러버 줄, 재생 조작 툴바(4.2). 한 열 배치(900 이하)는
+  스테이지 최소 높이 160.
+- 스크러버 줄: canvas 면 + 위 1px frame, 안쪽 여백 4/8. 스크러버는 높이 `size.control-sm`, 트랙은 높이 6 의 sunken 면 + 1px border-strong,
+  재생한 부분은 accent 면으로 채운다. 손잡이는 폭 8, 위아래 꽉 찬 `--sh-gradient-bevel` 면 + 1px control-border(둥근 모양 없음), hover 면
+  테두리 hover-edge. 비활성(편집본 없음)은 불투명도 0.5. 누르고 끌면 그 위치로 스크럽(포인터 캡처), 좌우 화살표 1프레임, Home/End.
+  `role="slider"`, `aria-label="재생 위치"`, 값 0..1000.
+- 재생 조작 툴바: 위 1px toolbar-hairline. 도구 버튼(4.2) 처음으로, 이전 프레임, 재생/정지(`aria-pressed`), 다음 프레임, 끝으로, 구분선, 재생
+  배율 콤보(폭 64, J/K/L), 소리(4.20), 오른쪽 끝에 타임코드 "현재 / 전체"(현재는 text, 전체는 secondary, 정수 프레임 tabular-nums). 좁으면 두 줄로
+  접힌다(높이 auto, 최소 `size.toolbar`).
+- 단축키: Space 재생/정지, J/K/L, 좌우 화살표, Home/End(패널에 포커스가 있을 때, 4.15 와 같은 규칙).
 
 ## 5. Elevation
 
@@ -1089,46 +1147,6 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 - **병원 원무·간호 직원**: 같은 서식과 목록을 하루 수백 번 다룬다. 키보드와 우클릭을 쓴다. 화면이 바뀌는 것을 싫어한다.
 - **환자(서명 화면)**: 태블릿에서 한 번 서명한다. 큰 글자·큰 버튼(`touch` 테마)이 필요하다.
 - **전산 담당자(작성자)**: 여러 앱을 만들고 유지한다. 앱끼리 같은 부품·같은 단축키이길 원한다.
-
-### 4.26 창 제목 줄 (편집기 전용, 데스크톱, 2026-10-15)
-
-구현: `packages/editor/src/shell/TitleBar.tsx`, `shell/layout.css`(`.ve-chrome`, `.ve-titlebar`), 창 옵션 `apps/desktop/src/main/index.ts`.
-4.11 타이틀바를 바탕으로 하되 OS 창 버튼을 그대로 쓴다.
-
-- Windows·Linux 데스크톱 창은 OS 제목 줄을 숨기고(`titleBarStyle: 'hidden'`) 창 버튼(최소화·최대화·닫기)만 화면 오른쪽 위에 겹친다
-  (`titleBarOverlay`, Window Controls Overlay). 버튼 면은 투명이라 아래 크롬 그라데이션이 비치고, 글리프 색은 `--sh-color-text`, 높이는
-  `--sh-size-titlebar`(28). OS 의 닫기 hover 빨강·스냅 레이아웃은 OS 가 그린다. macOS 는 OS 제목 줄 그대로.
-- 띠: 4.11 과 같은 높이 28, `--sh-gradient-chrome`. 왼쪽 8px 에 앱 아이콘 16(32px 래스터), **창 가운데** 에 "문서 이름 (수정됨) -
-  SH Video Editor" 12px 보통 굵기 `--sh-color-text`, 넘치면 말줄임. 창 버튼 자리는 비우고 양쪽 여백을 같게 둬 제목이 창 가운데 온다.
-  글은 `document.title`(작업 표시줄)과 같다(`windowTitle`).
-- 제목 줄과 메뉴바(4.3)는 한 덩어리(`.ve-chrome`)로 쌓고 **둘 사이에 선을 두지 않는다**. 아래 경계선은 메뉴바의 1px frame 하나다.
-  OS 의 흰 제목 줄이 어두운 크롬 위에 따로 얹히던 것을 없애, 제목·메뉴가 하나로 이어진 크롬 띠가 된다(한글 2024 같은 문법).
-- 띠 전체가 창 손잡이(`app-region: drag`, 더블클릭 최대화는 OS 동작)다. 띠에 버튼을 두지 않는다.
-- 창 버튼 겹침이 꺼진 창(웹, 전체 화면, macOS)에서는 그리지 않는다(`navigator.windowControlsOverlay.visible`).
-
-### 4.24 전사 패널 (편집기 전용, 2026-10-14)
-
-구현: `packages/editor/src/features/transcript/` (`TranscriptTab.tsx`, `transcript.css`). 값은 전부 `--sh-*` 토큰이다.
-
-- 인스펙터 탭 "전사"(자막 탭 뒤). 위에서부터 검색 줄(입력 4.5 + 오른쪽 11px muted 수), 툴바(4.2) "지우기 (N)", "구간 표시", "선택 해제",
-  문장 목록, "자동 정리" 묶음(자막 탭과 같은 `tx-group`: 무음 기준 입력, 군말 입력, 툴바 "무음 자동 제거", "군말 제거").
-- 문장 목록: 1px chrome-frame 틀, canvas 면, 최대 높이 40vh 스크롤. 행 = 체크박스(4.6) + 본문 버튼(투명, 왼쪽 정렬). 본문은 메타 줄
-  (11px muted: mm:ss.s tabular + 화자 칩 4.13) 과 글(줄바꿈, keep-all). 행 사이 1px grid. hover 면 hover, 선택 행 accent-subtle 면,
-  검색에 맞는 글은 warning-subtle 면, 플레이헤드가 있는 문장은 왼쪽 2px accent 띠(`aria-current="time"`).
-- 빈 상태: `tx-group` 제목 "전사가 없습니다" + 안내 한 줄 + (데스크톱) 기본 버튼 "자막 탭으로". 웹은 안내만.
-
-### 4.17 미디어 썸네일 (편집기 전용, 2026-10-14)
-
-구현: `packages/editor/src/features/media/` (`thumbs.ts`, `MediaTree.tsx`, `media.css`), 타임라인 클립은 `features/timeline/Track.tsx`.
-엔진(`renderItemThumbnail`)이 포스터 프레임(없으면 첫 프레임)을 RGBA 로 만들고 화면은 PNG data URL 로 바꿔 메모리 LRU 에 둔다.
-
-- 치수: 48x27 (`size.tree-indent * 3`, 16:9). 트리(4.8)의 항목 행은 썸네일 + 위아래 2px 로 31 (`--ve-thumb-row`), 빈(폴더) 행은 19 그대로.
-  타임라인 클립 안의 썸네일은 영상 트랙 안쪽 높이(44 - 8 - 4 = 32)에 16:9, 클립 폭 64px 미만이면 넣지 않는다.
-- 모양: `--sh-color-canvas` 면 + 1px border, 반경 0, 그림자 없음. `object-fit: cover`(비율이 다른 원본은 가운데를 잘라 보인다).
-  썸네일이 오기 전과 그림이 없는 항목(소리·조정 레이어)은 같은 상자 안에 유형 아이콘 16(`icons.tsx`). 줄 높이가 흔들리지 않는다.
-- 요청: 한 번에 하나씩(직렬) 엔진에 보내 모니터 프레임을 오래 막지 않는다. 같은 항목은 한 번만 만들고 실패는 기억해 재시도하지 않는다.
-  시퀀스 항목은 프로젝트 revision 을 키에 섞어 편집하면 새로 만든다. 저장소(SQLite·OPFS)로 옮길 때는 `ThumbnailLoader` 의 캐시만 바꾼다.
-- 접근성: 썸네일 `img` 는 `alt=""`(장식). 이름·유형은 옆 글자와 `title` 이 전한다. 끌기 금지(`draggable=false`, 항목 끌기는 라벨이 맡는다).
 
 ## 14. States
 

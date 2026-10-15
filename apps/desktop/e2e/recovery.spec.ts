@@ -19,13 +19,14 @@ const APP_VERSION = (JSON.parse(readFileSync(join(APP_DIR, 'package.json'), 'utf
 /** 문제 보고 파일(src/main/crash-report.ts 의 CrashReport) 중 이 테스트가 보는 부분 */
 interface CrashReportFile {
   schema: number;
-  app: { name: string; version: string };
+  app: { name: string; productName: string; version: string; packaged: boolean };
   engine: { version: string | null };
   os: { platform: string; electron: string };
   exit: { code: number; signal: string | null };
   crashes: { total: number };
   recentCommands: Array<{ id: string; ok: boolean; at: number; ms: number }>;
   recentEdits: Array<{ id: string; ok: boolean; at: number; ms: number }>;
+  history: { undo: string[]; redo: string[]; dropped: number } | null;
   memory: { main: { rss: number }; system: { total: number } };
 }
 
@@ -124,8 +125,15 @@ test('엔진 프로세스를 강제 종료하면 렌더러가 알림을 받고 �
     const reportName = readdirSync(reportDir).find((f) => f.endsWith('.json'))!;
     expect(reportName).toMatch(/^\d{4}-\d{2}-\d{2}-\d{6}\.json$/);
     const report = JSON.parse(readFileSync(join(reportDir, reportName), 'utf8')) as CrashReportFile;
-    expect(report.schema).toBe(1);
+    expect(report.schema).toBe(2);
     expect(report.app.version).toBe(APP_VERSION);
+    // 개발 실행의 app.getName() 은 패키지 이름이라 사람이 보는 제품 이름을 따로 적는다
+    expect(report.app.productName).toBe('SH Video Editor');
+    expect(report.app.packaged).toBe(false);
+    // 죽은 엔진의 마지막 실행 취소 목록(엔진 프로세스가 편집마다 보낸 history.list 스냅샷)
+    expect(report.history).not.toBeNull();
+    expect(report.history!.undo.length).toBeGreaterThan(0);
+    expect(report.history!.undo.length).toBeLessThanOrEqual(50);
     expect(report.engine.version).toContain('sh-video-engine');
     expect(report.os.platform).toBe(process.platform);
     expect(report.exit.code).toBe(code);

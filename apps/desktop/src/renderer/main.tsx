@@ -64,4 +64,7 @@ const bridge: EngineBridge = {
 };
 
 const el = document.getElementById('root');
+// QA 용(웹 main.tsx 와 같다): Playwright 가 화면과 같은 bridge 객체를 보고 호출 수를 잴 수 있게. preload 가 이미 내놓은 shEngine 을 감싼 것뿐이라
+// 권한은 늘지 않는다
+(window as unknown as { shBridge: EngineBridge }).shBridge = bridge;
 if (el) createRoot(el).render(<App bridge={bridge} host="desktop" appIcon={appIcon} />);

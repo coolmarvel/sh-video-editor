@@ -13,6 +13,11 @@ export interface ShortcutDef {
   /** 한국어 설명(도움말·메뉴 툴팁) */
   label: string;
   scope: ShortcutScope;
+  /**
+   * 브라우저가 페이지에 넘기지 않는 조합(Chrome 의 Ctrl+N 새 창 등). 웹 메뉴는 이것을 건너뛴 첫 조합을 표시한다.
+   * 키 처리는 그대로 둔다(데스크톱에서는 통한다)
+   */
+  reservedOnWeb?: string[];
 }
 
 /**
@@ -24,7 +29,7 @@ export const focusArea = { current: 'timeline' };
 export const KEYMAP: ShortcutDef[] = [
   { id: 'edit.undo', keys: ['Ctrl+Z'], label: '실행 취소', scope: 'global' },
   { id: 'edit.redo', keys: ['Ctrl+Y', 'Ctrl+Shift+Z'], label: '다시 실행', scope: 'global' },
-  { id: 'file.new', keys: ['Ctrl+N'], label: '새 프로젝트', scope: 'global' },
+  { id: 'file.new', keys: ['Ctrl+N', 'Alt+N'], label: '새 프로젝트', scope: 'global', reservedOnWeb: ['Ctrl+N'] },
   { id: 'file.open', keys: ['Ctrl+O'], label: '프로젝트 열기', scope: 'global' },
   { id: 'file.save', keys: ['Ctrl+S'], label: '저장', scope: 'global' },
   { id: 'file.saveAs', keys: ['Ctrl+Shift+S'], label: '다른 이름으로 저장', scope: 'global' },
@@ -73,9 +78,12 @@ export function shortcutForKeys(keys: string): ShortcutDef | undefined {
   return BY_KEY.get(keys);
 }
 
-/** 메뉴에 표시할 단축키(첫 번째 조합). 없으면 null */
-export function shortcutLabel(id: string): string | null {
-  return BY_ID.get(id)?.keys[0] ?? null;
+/** 메뉴에 표시할 단축키: 첫 조합, 웹이면 브라우저가 가로채는 조합(reservedOnWeb)을 건너뛴 첫 조합. 없으면 null */
+export function shortcutLabel(id: string, host: 'desktop' | 'web' = 'desktop'): string | null {
+  const def = BY_ID.get(id);
+  if (!def) return null;
+  const keys = host === 'web' ? def.keys.filter((k) => !def.reservedOnWeb?.includes(k)) : def.keys;
+  return keys[0] ?? null;
 }
 
 const CODE_KEYS: Record<string, string> = {

@@ -15,6 +15,7 @@ import {
   type EngineRequest,
   type ExecutedRecord,
   type HostControl,
+  type HistorySnapshot,
   type HostNotice,
 } from '../engine-protocol';
 import { RingBuffer, writeCrashReport } from './crash-report';
@@ -54,6 +55,8 @@ export class EngineSupervisor {
   private readonly recent = new RingBuffer<ExecutedRecord>();
   /** 읽기(inspect·list 류)를 뺀 최근 커맨드. 화면의 읽기가 많아 전체 20개만으로는 편집 흐름이 안 보인다 */
   private readonly recentEdits = new RingBuffer<ExecutedRecord>();
+  /** 엔진 프로세스가 편집마다 'history' 로 보낸 마지막 실행 취소 목록(문제 보고용). 새 프로세스가 뜨면 비운다 */
+  private history: HistorySnapshot | null = null;
   /** 마지막 문제 보고 파일 경로. 없으면 null */
   lastReport: string | null = null;
 
@@ -122,11 +125,13 @@ export class EngineSupervisor {
     this.port = port2;
     this.recent.clear();
     this.recentEdits.clear();
+    this.history = null;
     this.ready = new Promise<UtilityProcess>((resolve, reject) => {
       port2.on('message', (ev) => {
         const d = ev.data as HostNotice | undefined;
         if (d && d.type === 'ready') resolve(child);
         else if (d && d.type === 'executed') this.record({ id: d.id, params: d.params, at: d.at, ms: d.ms, ok: d.ok, error: d.error });
+        else if (d && d.type === 'history') this.history = { undo: d.undo, redo: d.redo, dropped: d.dropped };
         else this.onResponse(ev.data);
       });
       child.once('exit', () => reject(new Error('engine process exited before ready')));
@@ -177,6 +182,7 @@ export class EngineSupervisor {
           recentRestarts: this.restarts.length,
           recentCommands: this.recent.toArray(),
           recentEdits: this.recentEdits.toArray(),
+          history: this.history,
         })
       : null;
     this.lastReport = report;

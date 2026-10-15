@@ -1,8 +1,9 @@
 /** features/transitions/store.ts: 적용·길이·교체·반전이 엔진 커맨드로 가고 inspect 로 되돌아오는지, 선택 동기화. */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditor } from '@editor/store';
 import { useTimeline } from '@editor/features/timeline/store';
-import { useTransitions } from '@editor/features/transitions/store';
+import { TRIM_HANDLES_LABEL, useTransitions } from '@editor/features/transitions/store';
+import { useProject } from '@editor/features/project/store';
 import { findTransition } from '@editor/features/transitions/types';
 import { FT30, T, engineWithClips } from '../../fake-bridge';
 import { connect, resetStores } from '../../stores';
@@ -214,5 +215,97 @@ describe('가짜 엔진의 전환 불변식(엔진 규칙 흉내)', () => {
     expect(videoTransitions()[0]).toMatchObject({ start: 4 * T - 10 * FT30 - 15 * FT30 });
     await tl().moveClips([{ clip: clips[2]!.clip, track: seq().video[0]!.id, time: 20 * T }]);
     expect(videoTransitions()).toHaveLength(0);
+  });
+});
+
+describe('trimHandles (핸들 자동으로 다듬기)', () => {
+  /** 엔진이 미디어가 모자라 반복 프레임을 알리는 것처럼: applyVideoTransition 결과에 repeatFrames 를 붙인다(가짜 엔진은 계산하지 않는다) */
+  function reportRepeat(repeat: { from: number; to: number }) {
+    const bridge = useEditor.getState().bridge!;
+    const orig = bridge.execute.bind(bridge);
+    bridge.execute = async (id, params) => {
+      const r = await orig(id, params);
+      return id === 'sequence.applyVideoTransition' ? { ...(r as object), frames: 30, clamped: false, repeatFrames: repeat } : r;
+    };
+  }
+
+  it('반복 프레임이 있으면 버튼이 있는 알림을 띄우고, 누르면 두 클립을 리플 트림해 한 단계로 묶는다', async () => {
+    const { engine, clips } = await ready();
+    reportRepeat({ from: 15, to: 15 });
+    const id = (await ts().applyAtPoint({ cut: 4 * T, from: clips[0]!.clip, to: clips[2]!.clip }, 'cross_dissolve'))!;
+    const notice = useProject.getState().notices.at(-1)!;
+    expect(notice.kind).toBe('warning');
+    expect(notice.text).toContain('15프레임은 끝 화면이 멈춰 보입니다');
+    expect(notice.action?.label).toBe(TRIM_HANDLES_LABEL);
+    const undoBefore = engine.undoStack.length;
+
+    expect(await ts().trimHandles(id, { from: 15, to: 15 })).toBe(true);
+    expect(engine.callsOf('timeline.trim')).toEqual([
+      { clip: clips[0]!.clip, edge: 'out', mode: 'ripple', deltaFrames: -15 },
+      { clip: clips[2]!.clip, edge: 'in', mode: 'ripple', deltaFrames: 15 },
+    ]);
+    // 두 클립은 맞닿은 채(컷이 15프레임 앞으로), 뒤 클립은 소스 15프레임 뒤에서 시작하고 전환은 그대로 남는다
+    const [a, b] = seq().video[0]!.items;
+    expect(a!.end).toBe(4 * T - 15 * FT30);
+    expect(b!.start).toBe(a!.end);
+    expect(b!.sourceIn).toBe(15 * FT30);
+    expect(findTransition(seq(), id)).not.toBeNull();
+    expect(engine.undoStack.length).toBe(undoBefore + 1);
+    expect(engine.undoStack.at(-1)!.label).toBe('핸들 다듬기');
+    expect(useEditor.getState().status).toBe('핸들 다듬기: 앞 클립 끝 15프레임, 뒤 클립 처음 15프레임');
+  });
+
+  it('선택 클립 양쪽에 넣다가 둘 다 반복하면 알림 하나, 버튼은 둘 다 다듬고 실행 취소 한 단계', async () => {
+    const { engine, clips } = await ready();
+    reportRepeat({ from: 6, to: 6 });
+    await engine.execute('timeline.select', { clips: [clips[2]!.clip] });
+    await tl().refresh();
+    await ts().applyToSelectedClips('cross_dissolve');
+    expect(videoTransitions()).toHaveLength(2);
+    const notices = useProject.getState().notices.filter((n) => n.action?.label === TRIM_HANDLES_LABEL);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]!.text).toContain('전환 2곳에 쓸 미디어가 모자라 최대 6프레임');
+    const undoBefore = engine.undoStack.length;
+    notices[0]!.action!.run();
+    await vi.waitFor(() => expect(ts().busy).toBe(false));
+    await vi.waitFor(() => expect(engine.undoStack.length).toBe(undoBefore + 1));
+    expect(engine.undoStack.at(-1)!.label).toBe('핸들 다듬기');
+    // 사이 전환(앞 클립 끝 + 뒤 클립 처음)과 끝 전환(앞 클립만 있다: 둘째 클립 끝)
+    expect(engine.callsOf('timeline.trim').map((c) => [c?.['edge'], c?.['deltaFrames']])).toEqual([
+      ['out', -6],
+      ['in', 6],
+      ['out', -6],
+    ]);
+    expect(videoTransitions()).toHaveLength(2);
+  });
+
+  it('반복이 없으면 알림도 트림도 없다', async () => {
+    const { engine, clips } = await ready();
+    const id = (await ts().applyAtPoint({ cut: 4 * T, from: clips[0]!.clip, to: clips[2]!.clip }, 'cross_dissolve'))!;
+    expect(useProject.getState().notices).toHaveLength(0);
+    expect(await ts().trimHandles(id, { from: 0, to: 0 })).toBe(false);
+    expect(engine.callsOf('timeline.trim')).toHaveLength(0);
+  });
+
+  it('한쪽 편집점(처음 페이드)은 있는 쪽만 다듬는다', async () => {
+    const { engine, clips } = await ready();
+    reportRepeat({ from: 0, to: 6 });
+    const id = (await ts().applyAtPoint({ cut: 0, from: null, to: clips[0]!.clip }, 'dip_to_black', 12))!;
+    expect(await ts().trimHandles(id, { from: 3, to: 6 })).toBe(true);
+    expect(engine.callsOf('timeline.trim')).toEqual([{ clip: clips[0]!.clip, edge: 'in', mode: 'ripple', deltaFrames: 6 }]);
+    expect(useEditor.getState().status).toBe('핸들 다듬기: 뒤 클립 처음 6프레임');
+  });
+
+  it('트림이 실패하면 묶음을 취소하고 오류를 올린다(편집본은 그대로)', async () => {
+    const { engine, clips } = await ready();
+    const id = (await ts().applyAtPoint({ cut: 4 * T, from: clips[0]!.clip, to: clips[2]!.clip }, 'cross_dissolve'))!;
+    const before = JSON.stringify(seq().video[0]!.items);
+    engine.failNext('timeline.trim', 'edit failed: track is locked');
+    expect(await ts().trimHandles(id, { from: 15, to: 15 })).toBe(false);
+    expect(engine.callsOf('edit.cancelTransaction')).toHaveLength(1);
+    expect(useEditor.getState().error).toContain('핸들을 다듬을 수 없습니다');
+    await tl().refresh();
+    expect(JSON.stringify(seq().video[0]!.items)).toBe(before);
+    expect(ts().busy).toBe(false);
   });
 });

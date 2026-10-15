@@ -1906,18 +1906,23 @@ export class FakeEngine {
         if ((edge === 'in' && delta >= len) || (edge === 'out' && -delta >= len))
           throw new FakeEngineError('edit failed: clip would be shorter than one frame');
         this.snapshot('Trim Edit');
+        const ripple = p['mode'] === 'ripple';
+        const oldEnd = clip.end;
         // linked 옵션: 주면 그것이, 없으면 연결 선택 상태가 상대를 데려갈지 정한다(엔진과 같다)
         for (const c of this.linkedOf(seq, clip, this.linkFollow(p))) {
           if (edge === 'in') {
-            c.start += delta;
             c.sourceIn += delta;
+            // 리플 in 트림은 클립 시작을 그대로 두고 뒤를 당긴다(엔진과 같다, 2026-10-15 napi 로 확인). 일반 트림은 시작이 움직인다
+            if (ripple) c.end -= delta;
+            else c.start += delta;
           } else c.end += delta;
         }
-        if (p['mode'] === 'ripple') {
+        if (ripple) {
+          const shift = edge === 'out' ? delta : -delta;
           for (const c of track.items) {
-            if (c.clip !== clip.clip && c.start >= clip.end - (edge === 'out' ? delta : 0)) {
-              c.start += edge === 'out' ? delta : -delta;
-              c.end += edge === 'out' ? delta : -delta;
+            if (c.clip !== clip.clip && c.start >= oldEnd) {
+              c.start += shift;
+              c.end += shift;
             }
           }
         }

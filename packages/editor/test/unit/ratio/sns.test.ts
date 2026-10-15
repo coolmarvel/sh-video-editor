@@ -81,6 +81,26 @@ describe('useSnsPresets.load', () => {
     expect(engine.callsOf('export.resolve').at(-1)).toEqual({ preset: 'Social Vertical 1080x1920', format: 'h264' });
   });
 
+  it('H.264 가 아닌 형식이면 카드의 H.264 목표를 형식 비율로 줄여 해석하고 내보낸다(VP9 가 20 Mbps 로 인코딩하지 않게)', async () => {
+    const { engine } = engineWithClips({ desktop: true });
+    await connect({}, engine);
+    await useExport.getState().show();
+    await useSnsPresets.getState().load();
+    expect(useSnsPresets.getState().cards.find((c) => c.id === 'sns-youtube')!.h264Kbps).toBe(20000);
+    // 형식을 WebM 으로: 표시값을 다시 읽어 8 Mbps(20 x 0.4), 정사각은 12 Mbps x 0.4
+    useExport.getState().setFormat('webm');
+    await useSnsPresets.getState().load();
+    const s = useSnsPresets.getState();
+    expect(s.infoFormat).toBe('webm');
+    expect(s.info['sns-youtube']!.targetKbps).toBe(8000);
+    expect(s.info['sns-instagram']!.targetKbps).toBe(4800);
+    // 내보내기 store 의 SNS 카드도 h264Kbps 를 들고 있어 해석·큐에 같은 비트레이트가 간다(목록 중복 없음)
+    expect(useExport.getState().presets.filter((p) => isSnsPreset(p.id))).toHaveLength(4);
+    await useExport.getState().setPreset('sns-youtube');
+    expect(engine.callsOf('export.resolve').at(-1)).toEqual({ preset: 'High Quality 1080p HD', format: 'webm', bitrateKbps: 8000 });
+    expect(useExport.getState().resolved?.targetKbps).toBe(8000);
+  });
+
   it('시퀀스가 없으면 해석값이 null 이고 카드는 남는다', async () => {
     const engine = await connect({ desktop: true });
     await useExport.getState().show();

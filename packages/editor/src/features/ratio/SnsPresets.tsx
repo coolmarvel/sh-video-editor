@@ -10,15 +10,18 @@ export function SnsPresets() {
   const presets = useExport((s) => s.presets);
   const presetId = useExport((s) => s.presetId);
   const job = useExport((s) => s.job);
+  const formatId = useExport((s) => s.formatId);
   const cards = useSnsPresets((s) => s.cards);
   const info = useSnsPresets((s) => s.info);
+  const infoFormat = useSnsPresets((s) => s.infoFormat);
   const busy = loading || job?.status === 'encoding' || job?.status === 'ready';
   const merged = cards.length > 0 && cards.every((c) => presets.some((p) => p.id === c.id));
 
-  // 대화상자가 열려 프리셋을 다 읽은 뒤(그리고 show() 가 목록을 되돌린 뒤) 카드를 만들어 목록에 더한다
+  // 대화상자가 열려 프리셋을 다 읽은 뒤(그리고 show() 가 목록을 되돌린 뒤) 카드를 만들어 목록에 더한다. 형식이 바뀌면 표시값을 다시 읽는다
+  const stale = infoFormat !== formatId;
   useEffect(() => {
-    if (open && !loading && !merged) void useSnsPresets.getState().load();
-  }, [open, loading, merged]);
+    if (open && !loading && (!merged || stale)) void useSnsPresets.getState().load();
+  }, [open, loading, merged, stale]);
 
   if (cards.length === 0) return null;
   return (

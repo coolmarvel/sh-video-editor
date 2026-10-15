@@ -1,4 +1,4 @@
-/* 컨텍스트 메뉴 자리. 부품 모양(sh-menu, sh-menu__item)은 sh-classic.css, 값은 --sh-* 토큰만 (DESIGN.md 4.17). */
+/* 컨텍스트 메뉴 자리. 부품 모양(sh-menu, sh-menu__item)은 sh-classic.css, 값은 --sh-* 토큰만 (DESIGN.md 4.21). */
 .ve-ctx {
   position: fixed;
   z-index: 300;

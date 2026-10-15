@@ -204,9 +204,9 @@ domain: development
 - [ ] **M4-3 Windows HW 디코드·인코드**: cargo-xwin 빌드에서 `platform` Media Foundation 링크 확인, NVENC H.264 내보내기 옵션 노출, 1080p 3클립 미리보기 CPU 사용률 측정. (d) M
 - [~] **M4-4 wasm 성능** (2026-10-14 feat/wasm-perf: 14.2MB, SIMD128, WebCodecs. 2026-10-15 feat/engine-perf: 데모 생성기 열·행 단위 계산으로 wasm renderFrame 장면별 1.3~4.5배(Aurora 237ms 에서 56ms), 출력은 비트 단위로 같음. 12MB 와 OceanSunset·Forest 의 60ms 는 미달. 2026-10-15 feat/web-files: 588MB 파일 범위 읽기 실측(wasm 메모리 +18MB), 가져온 미디어를 OPFS 에 보관해 새로고침·복구 뒤 재연결 없이 열림. 탐색 뒤 프레임 캐시 670MB 는 남음): SIMD128·wasm-opt·코덱 feature 분리로 23MB 축소(todo P2), WebCodecs 디코더를 `codecs::register_video_decoder` 에 등록, renderFrame 1080p scale 0.5 를 194ms 에서 60ms 이하로. 데스크톱 대비 내보내기 시간 비율 기록. (d) L
 - [ ] **M4-5 Windows 런타임 검증**: 사용자 Windows PC 에서 인스톨러 실행·3클립 시험(0001 마일스톤 1 미완 항목), 재생·내보내기·자동 저장 복구 체크리스트를 `docs/guides/packaging.md` 에. (d) S
-- [ ] **M4-6 크래시 리포트**: utility process 종료 코드와 마지막 커맨드 20개(`history.list`)를 로컬 파일로 남기고 사용자가 첨부할 수 있게. 서버 전송 없음. (d) S
+- [x] **M4-6 크래시 리포트** (2026-10-14 문제 보고 파일, 2026-10-15 schema 2: 엔진 프로세스가 편집마다 보내는 `history.list` 스냅샷과 productName, 스모크는 임시 userData): utility process 종료 코드와 마지막 커맨드 20개(`history.list`)를 로컬 파일로 남기고 사용자가 첨부할 수 있게. 서버 전송 없음. (d) S
 - [ ] **M4-7 썸네일·파형 커맨드**: `media.thumbnail`(item, time, size) 신규, `clip.generateAudioWaveform` 결과를 바인딩으로 노출. SQLite 캐시(M2-8)와 연결. (d) M
-- [ ] **M4-8 이벤트 통합**: `drainEvents` 를 store 가 폴링해 revision 하나로 갱신(todo P1). (d) S
+- [x] **M4-8 이벤트 통합** (2026-10-14 RevisionGate. 2026-10-15 데스크톱도 실측: napi drainEvents 는 처음부터 revision 을 실어 데모 넣기 + 타임라인에 넣기가 sequence.inspect 4~6, project.inspect 3~4, media.status 2, 데스크톱 e2e 가 상한을 지킨다): `drainEvents` 를 store 가 폴링해 revision 하나로 갱신(todo P1). (d) S
 - [ ] **M4-9 한글화**: 커맨드 라벨·메뉴 한글(todo P2), 자막 기본 글꼴 한글. (d) S
 
 ### 상위 10개 제안 (가치 x 크기 x 보유)

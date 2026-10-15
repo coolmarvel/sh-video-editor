@@ -8,6 +8,7 @@ import {
   formatBytes,
   formatExtension,
   formatFilterName,
+  presetParams,
   usableFormats,
   withExtension,
   type EngineFormat,
@@ -71,7 +72,7 @@ export const useExport = create<ExportState>((set, get) => {
     const preset = presets.find((p) => p.id === presetId);
     if (!b || !preset) return;
     try {
-      const r = (await b.execute('export.resolve', { ...preset.params, format: formatId })) as {
+      const r = (await b.execute('export.resolve', presetParams(preset, formatId))) as {
         frames: number;
         range: { seconds: number };
         output: { width: number; height: number; fps: string; targetKbps: number };
@@ -197,8 +198,7 @@ export const useExport = create<ExportState>((set, get) => {
         capture = isWebExport(b) ? captureWrittenFile(b, path) : null;
         await b.execute('export.queue.clear', { all: false });
         const added = (await b.execute('export.queue.add', {
-          ...preset.params,
-          format: formatId,
+          ...presetParams(preset, formatId),
           path,
           start: true,
         })) as { added: number[]; items: QueueItem[] };

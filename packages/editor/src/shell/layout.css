@@ -190,8 +190,19 @@ body {
   .ve-timeline {
     height: 160px;
   }
-  .ve-status .ve-version {
+  /* 좁은 상태 줄(2026-10-15, 390 폭에서 잡 칸이 켜지면 상태 글 14px, 프로젝트 이름·수정됨이 한 글자로 잘렸다): 진단 칸(엔진 버전,
+     렌더 시간)과 늘 같은 호스트 칸은 숨기고, 프로젝트 이름·상태는 제 폭을 지킨다. 남는 폭은 상태 글이 쓴다 */
+  .ve-status .ve-version,
+  .ve-status .mon-status,
+  .ve-status .ve-host {
     display: none;
+  }
+  .ve-status .ve-project-state {
+    flex: none;
+  }
+  .ve-status .ve-project-name {
+    flex: 0 1 auto;
+    max-width: 40%;
   }
 }
 /* 미디어 패널: 한 열 배치(모바일)에서는 모니터 자리를 남기도록 높이를 제한한다. 내부 배치는 features/media/media.css */

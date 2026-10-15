@@ -24,6 +24,8 @@ import {
   type TransitionAlign,
 } from './types';
 import { errorMessage } from '../../errors';
+import { withTransaction } from '../../engine/transaction';
+import { useProject } from '../project/store';
 
 export type ApplyEdges = 'both' | 'in' | 'out';
 
@@ -56,7 +58,15 @@ interface TransitionsState {
   replaceEffect(id: number, effect: string): Promise<void>;
   setReverse(id: number, reverse: boolean): Promise<void>;
   remove(id: number): Promise<void>;
+  /**
+   * 미디어가 모자라 끝·처음 프레임을 반복하는 전환(엔진 repeatFrames)의 핸들을 만든다: 앞 클립 끝을 from 프레임, 뒤 클립 처음을 to 프레임
+   * 리플 트림해(두 클립은 계속 맞닿는다) 전환이 실제 프레임만 쓰게 한다. 실행 취소 한 단계 "핸들 다듬기". 성공하면 true
+   */
+  trimHandles(id: number, repeat: { from: number; to: number }): Promise<boolean>;
 }
+
+/** 반복 프레임이 있을 때 띄우는 알림의 동작 버튼 이름 */
+export const TRIM_HANDLES_LABEL = '핸들 자동으로 다듬기';
 
 export const useTransitions = create<TransitionsState>((set, get) => {
   /** 커맨드 하나를 보내고 실패를 상태 줄에 올린다. 성공해도 다시 읽기는 호출자가 한다(여러 개를 묶어 보낼 때가 있다) */
@@ -76,6 +86,41 @@ export const useTransitions = create<TransitionsState>((set, get) => {
 
   /** 마지막 적용 결과(길이를 줄였는지·반복 프레임). 상태 줄 문구에 붙인다 */
   let lastFit: FitResult | undefined;
+
+  type Repeat = { id: number; repeat: { from: number; to: number } };
+  const repeatOf = (id: number, r: FitResult | undefined): Repeat | null => {
+    const rep = r?.repeatFrames;
+    return rep && (rep.from > 0 || rep.to > 0) ? { id, repeat: rep } : null;
+  };
+
+  /**
+   * 끝·처음 프레임을 반복하는 전환이 있으면 "핸들 자동으로 다듬기" 버튼이 있는 알림을 하나 띄운다(같은 전환들은 key 로 한 번).
+   * 버튼은 전부 다듬고, 여러 개면 실행 취소 한 단계로 묶는다(withTransaction 은 중첩되면 바깥 것이 한 단계)
+   */
+  function offerTrimHandles(list: Array<Repeat | null>) {
+    const items = list.filter((x): x is Repeat => x !== null);
+    if (items.length === 0) return;
+    const frames = Math.max(...items.map((x) => Math.max(x.repeat.from, x.repeat.to)));
+    const where = items.length > 1 ? `전환 ${items.length}곳에 쓸 미디어가 모자라 최대 ` : '전환에 쓸 미디어가 모자라 ';
+    const run = async () => {
+      const bridge = useEditor.getState().bridge;
+      if (items.length === 1 || !bridge) {
+        for (const x of items) await get().trimHandles(x.id, x.repeat);
+        return;
+      }
+      await withTransaction(bridge, '핸들 다듬기', async () => {
+        for (const x of items) if (!(await get().trimHandles(x.id, x.repeat))) throw new Error('핸들을 다듬지 못한 전환이 있습니다');
+      }).catch(() => undefined);
+    };
+    useProject
+      .getState()
+      .notify(
+        'warning',
+        `${where}${frames}프레임은 끝 화면이 멈춰 보입니다. 클립 끝을 다듬어 실제 장면을 쓸 수 있습니다.`,
+        { label: TRIM_HANDLES_LABEL, run: () => void run() },
+        { key: `transition-repeat-${items.map((x) => x.id).join('-')}` },
+      );
+  }
 
   async function apply(point: EditPoint, effect: string, frames: number, extra: Record<string, unknown> = {}): Promise<number | null> {
     const target = applyTarget(point);
@@ -124,6 +169,7 @@ export const useTransitions = create<TransitionsState>((set, get) => {
         if ((useTimeline.getState().sequence?.selection.length ?? 0) > 0) await send('edit.deselectAll', {});
         set({ selected: id });
         await refreshAll(`전환 적용: ${transitionLabel(effect)}, ${lastFit?.frames ?? n}프레임${fitNote(lastFit)}`);
+        offerTrimHandles([repeatOf(id, lastFit)]);
       }
       return id;
     },
@@ -137,12 +183,16 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       }
       const n = defaultFrames(seq.settings.frame_rate);
       let applied = 0;
+      const repeats: Array<Repeat | null> = [];
       for (const clipId of selection) {
         const found = findClip(seq, clipId);
         if (!found || found.kind !== 'video') continue;
         for (const point of clipEditPoints(found.track, clipId, get().applyEdges)) {
           const id = await apply(point, effect, n);
-          if (id !== null) applied += 1;
+          if (id !== null) {
+            applied += 1;
+            repeats.push(repeatOf(id, lastFit));
+          }
         }
       }
       if (applied === 0) {
@@ -151,6 +201,7 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       }
       // 클립 선택은 그대로 둔다(연달아 다른 전환을 더블클릭할 수 있게). 전환 선택은 클립 선택과 함께 가지 않는다
       await refreshAll(`전환 적용: ${transitionLabel(effect)}, ${applied}곳`);
+      offerTrimHandles(repeats);
     },
 
     async setDuration(id, frames) {
@@ -161,6 +212,7 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       if (r === undefined) return;
       set({ selected: id });
       await refreshAll(`전환 길이: ${r.frames ?? n}프레임${fitNote(r)}`);
+      offerTrimHandles([repeatOf(id, r)]);
     },
 
     async setAlign(id, align) {
@@ -171,6 +223,36 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       const r = (await send('sequence.setTransitionLength', { transition: id, frames, align })) as FitResult | undefined;
       if (r === undefined) return;
       await refreshAll(`전환 정렬: ${ALIGN_LABEL[align]}${fitNote(r)}`);
+      offerTrimHandles([repeatOf(id, r)]);
+    },
+
+    async trimHandles(id, repeat) {
+      const bridge = useEditor.getState().bridge;
+      const seq = useTimeline.getState().sequence;
+      const found = seq ? findTransition(seq, id) : null;
+      if (!bridge || !seq || !found) return false;
+      const from = found.transition.from !== null && repeat.from > 0 ? repeat.from : 0;
+      const to = found.transition.to !== null && repeat.to > 0 ? repeat.to : 0;
+      if (from === 0 && to === 0) return false;
+      const frames = framesOf(found.transition, frameRate());
+      set({ busy: true });
+      try {
+        // 리플 트림이라 두 클립은 맞닿은 채로 컷만 움직이고, 엔진이 전환을 새 컷에 다시 맞춘다. 길이 커맨드로 반복이 0 인지 읽는다
+        const r = await withTransaction(bridge, '핸들 다듬기', async () => {
+          if (from > 0) await bridge.execute('timeline.trim', { clip: found.transition.from, edge: 'out', mode: 'ripple', deltaFrames: -from });
+          if (to > 0) await bridge.execute('timeline.trim', { clip: found.transition.to, edge: 'in', mode: 'ripple', deltaFrames: to });
+          return (await bridge.execute('sequence.setTransitionLength', { transition: id, frames })) as FitResult;
+        });
+        set({ selected: id });
+        const parts = [from > 0 ? `앞 클립 끝 ${from}프레임` : '', to > 0 ? `뒤 클립 처음 ${to}프레임` : ''].filter(Boolean).join(', ');
+        await refreshAll(`핸들 다듬기: ${parts}${fitNote(r)}`);
+        return true;
+      } catch (e) {
+        useEditor.setState({ error: `핸들을 다듬을 수 없습니다: ${errorMessage(e)}` });
+        return false;
+      } finally {
+        set({ busy: false });
+      }
     },
 
     async replaceEffect(id, effect) {

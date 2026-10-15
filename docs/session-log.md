@@ -12,6 +12,17 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-15 - P1 Windows 실기 확인 두 건 (WSL 에서 Windows 프로그램 실행)
+
+- **요청**: CI 수정을 마치고 다음 todo 를 바로 진행. P1 두 건은 Windows PC 가 필요해 미뤄 왔지만 WSL 이 Windows 프로그램을 실행할 수 있어 직접 확인.
+- **HW 디코드**: Windows 용 `engine-node.win32-x64-msvc.node`(0.1.9) 를 `%TEMP%\shve-hwcheck` 에 두고 Windows Node(volta)로 불러 1080p H.264(10초)·HEVC(5초)를
+  scale 0.5 로 90장씩 그렸다. `hw: Media Foundation`, H.264 하드웨어 91장·소프트웨어 0·폴백 0, HEVC 도 하드웨어, 프레임당 13.4ms·11.0ms.
+- **글꼴·제목 줄**: `win-unpacked` 를 띄워 PowerShell 로 창을 캡처(맑은 고딕 실제 Bold, 괄호 일시 통째 줄바꿈, 투명 overlay 위 창 버튼)하고, 마우스
+  입력으로 제목 줄 끌기(창 이동)·더블클릭 최대화·복원을 확인. 앱은 실제 userData 를 써서 사용자의 이전 복구본 대화상자가 떴고, 고르지 않고
+  창을 닫아 복구본은 그대로 남았다. 스냅 레이아웃은 P3 로.
+- **문서**: packaging.md 실기 검증 표, todo P1 두 건 완료.
+- **다음**: P2 세 갈래(engine-media, encoders, app-p2) 워크트리 진행 중.
+
 ## 2026-10-15 - CI 웹 e2e 실패 수정 (ffmpeg, 보고서 폴더)
 
 - **상황**: 0.1.8·0.1.9 푸시의 GitHub Actions 가 web job 에서 실패했다(다른 job 은 통과). 로컬 검증은 통과했기에 놓쳤다: 푸시 뒤 CI 결과를

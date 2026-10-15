@@ -12,8 +12,7 @@ domain: development
 
 ## P1 - 다음 릴리스에서 다뤄야 함
 
-- [ ] Windows 실기에서 0.1.9 글꼴(맑은 고딕 실제 Bold)과 제목 줄(투명 titleBarOverlay 위 창 버튼, 끌기, 더블클릭 최대화, 스냅) 확인. Linux xvfb 로는 ClearType·창 버튼이 안 보임 (`apps/desktop/src/main/index.ts`, `shell/TitleBar.tsx`)
-- [ ] Windows HW 디코드 실기 확인: 앱 정보의 엔진 버전에 `hw: Media Foundation` 이 뜨고 재생 뒤 `perf.stats` 의 decode.hardware.frames > 0 인지 (`docs/guides/packaging.md` 실기 검증 표)
+(없음)
 
 ## P2 - 가까운 로드맵
 
@@ -35,6 +34,7 @@ domain: development
 
 ## P3 - 품질
 
+- [ ] Windows 스냅 레이아웃(최대화 버튼 hover)이 투명 titleBarOverlay 에서도 뜨는지 눈으로 확인 (`apps/desktop/src/main/index.ts`)
 - [ ] vendor hevc conformance `draft_mode_changes_only_flagged_non_reference_pictures` 가 부하 중 1회 실패(단독 5회·스위트 5회 통과). flaky 관찰 (`crates/hevc`)
 - [ ] 웹 자동 자막이 한 스레드. wasm-bindgen-rayon 은 빌드 플래그·헤더가 더 필요 (`packages/engine/bindings/speech-wasm`)
 - [ ] 웹 큰 파일 e2e 는 임시 컨텍스트 OPFS 한도(약 500MB) 때문에 복사 성공 실측 불가. 영속 컨텍스트로 (`apps/web/e2e/web-files.spec.ts`)

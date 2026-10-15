@@ -1,4 +1,4 @@
-/* 효과·색·필터 화면 배치. 값은 전부 --sh-* 토큰. 슬라이더 계약은 DESIGN.md 4.17 */
+/* 효과·색·필터 화면 배치. 값은 전부 --sh-* 토큰. 슬라이더 계약은 DESIGN.md 4.19 */
 .fx-tab {
   display: flex;
   flex-direction: column;
@@ -71,7 +71,7 @@
   padding: 0 var(--sh-space-2);
   width: var(--sh-space-48);
 }
-/* 슬라이더(4.17): 트랙 4px 오목, 엄지 10x16 베벨, 반경 0 */
+/* 슬라이더(4.19): 트랙 4px 오목, 엄지 10x16 베벨, 반경 0 */
 .fx-range {
   appearance: none;
   -webkit-appearance: none;

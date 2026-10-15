@@ -103,7 +103,9 @@ domain: engine
 - 코드: `crates/engine/src/sh_commands.rs` 의 `transition_room`·`repeated_frames`·`transition_report`, `commands.rs` 의 `apply_transition`·`set_transition_params`·
   inspect. 테스트: `sh_commands_tests.rs` 의 `a_transition_longer_than_its_clips_is_clamped_to_fit_and_reported`·`transition_params_inspect_as_plain_values_and_round_trip`·
   `transitions_already_in_a_project_keep_their_length`, `packages/engine/tests/transitions.test.ts`(평문 파라미터, 줄이기, ffmpeg 영상의 반복 프레임과 밝기).
-  화면: `features/transitions/types.ts` 의 `fitNote` 가 상태 줄 문구에 붙인다.
+  화면: `features/transitions/types.ts` 의 `fitNote` 가 상태 줄 문구에 붙이고, `features/transitions/store.ts` 의 `trimHandles` 가 알림 버튼 "핸들 자동으로 다듬기"
+  로 `timeline.trim {edge: out, mode: ripple, deltaFrames: -from}`(앞 클립)과 `{edge: in, mode: ripple, deltaFrames: to}`(뒤 클립)를 한 트랜잭션 "핸들 다듬기" 로
+  보낸 뒤 `sequence.setTransitionLength` 로 반복 0 을 확인한다. 리플 in 트림은 클립 시작을 두고 뒤를 당기므로 두 클립은 맞닿은 채 전환이 새 컷으로 옮겨진다.
 
 ## 남은 것
 

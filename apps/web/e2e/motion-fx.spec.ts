@@ -1,8 +1,8 @@
 /**
  * 속도 램프·크로마키·작은 화면·흔들림 줄이기 e2e(웹, wasm 엔진, M3-2·M3-3·M3-9): 속도 탭의 프리셋이 time_remap speed 키프레임을
  * 만들고(effects.keyframes 로 확인) 배지 "램프" 와 곡선 편집기가 보인다. 효과 탭의 배경 지우기가 ultra_key 를 붙이고 스포이트가 모니터
- * 픽셀 색을 키 색으로 넣는다. 작은 화면 프리셋이 motion 위치·크기를 바꾼다. 흔들림 줄이기가 warp_stabilizer 를 붙이고 분석 시간을
- * 상태 줄에 적는다. 1440 과 390 두 뷰포트(playwright.config.ts).
+ * 픽셀 색을 키 색으로 넣는다. 작은 화면 프리셋이 motion 위치·크기를 바꾼다. 흔들림 줄이기가 warp_stabilizer 를 붙이고 분석 잡의 진행률을
+ * 상태 줄 잡 칸에 보이며(취소 가능) 끝나면 분석 시간을 상태 줄에 적는다. 1440 과 390 두 뷰포트(playwright.config.ts).
  */
 import type { Page } from '@playwright/test';
 import { engineSequence, expect, makeDemoSequence, test, ui } from './fixtures';
@@ -153,13 +153,27 @@ test.describe('배경 지우기, 작은 화면', () => {
 });
 
 test.describe('흔들림 줄이기', () => {
-  test('warp_stabilizer 를 붙이고 분석 시간을 상태 줄에 적는다', async ({ app }, testInfo) => {
+  test('warp_stabilizer 를 붙이고 분석 잡의 진행률을 상태 줄 잡 칸에 보이며 끝나면 분석 시간을 상태 줄에 적는다', async ({ app }, testInfo) => {
     await selectFirstClip(app);
     await inspector(app).getByRole('tab', { name: '효과' }).click();
     const section = app.getByTestId('stabilize-section');
     const t0 = Date.now();
     await section.getByRole('button', { name: '흔들림 줄이기' }).click();
+    // 분석 중: 상태 줄 잡 칸(진행 막대 + "흔들림 분석 N%" + 취소)과 절의 "분석 중... N%"
+    const pane = app.getByTestId('jobs-pane');
+    await expect(pane).toBeVisible();
+    await expect(pane.getByTestId('jobs-text')).toHaveText(/^흔들림 분석 \d+%$/);
+    await expect(pane.getByRole('progressbar', { name: '흔들림 분석' })).toBeVisible();
+    await expect(pane.getByTestId('jobs-cancel')).toBeVisible();
+    await expect(section.getByTestId('stabilize-progress')).toContainText('분석 중...');
+    // 효과는 이미 붙어 "해제" 가 보이지만 분석 중에는 잠긴다
+    await expect(section.getByRole('button', { name: '해제' })).toBeDisabled();
+    // 진행률이 올라간다
+    const pct = async () => Number(((await pane.getByTestId('jobs-text').textContent()) ?? '').replace(/[^0-9]/g, ''));
+    const first = await pct();
+    await expect.poll(pct, { timeout: 120_000 }).toBeGreaterThan(first);
     await expect(ui.status(app)).toContainText('흔들림 줄이기를 적용했습니다', { timeout: 120_000 });
+    await expect(pane).toHaveCount(0);
     const elapsed = Date.now() - t0;
     const status = await ui.status(app).textContent();
     testInfo.annotations.push({ type: 'analysis', description: `${status} (벽시계 ${(elapsed / 1000).toFixed(1)}초)` });
@@ -169,5 +183,21 @@ test.describe('흔들림 줄이기', () => {
     await expect(section.getByRole('slider', { name: '부드러움' })).toHaveValue('50');
     await section.getByRole('button', { name: '해제' }).click();
     await expect.poll(async () => (await firstClip(app)).effects.some((e) => e.effect === 'warp_stabilizer')).toBe(false);
+  });
+
+  test('상태 줄 잡 칸의 취소를 누르면 분석을 멈추고 효과를 뗀다', async ({ app }) => {
+    await selectFirstClip(app);
+    await inspector(app).getByRole('tab', { name: '효과' }).click();
+    const section = app.getByTestId('stabilize-section');
+    await section.getByRole('button', { name: '흔들림 줄이기' }).click();
+    const pane = app.getByTestId('jobs-pane');
+    await expect(pane.getByTestId('jobs-text')).toHaveText(/^흔들림 분석 \d+%$/);
+    await expect.poll(async () => (await firstClip(app)).effects.some((e) => e.effect === 'warp_stabilizer')).toBe(true);
+    await pane.getByTestId('jobs-cancel').click();
+    await expect(ui.status(app)).toHaveText('흔들림 분석을 취소하고 효과를 뗐습니다', { timeout: 30_000 });
+    await expect(pane).toHaveCount(0);
+    await expect(app.getByRole('status').filter({ hasText: '흔들림 분석을 취소했습니다' })).toBeVisible();
+    await expect.poll(async () => (await firstClip(app)).effects.some((e) => e.effect === 'warp_stabilizer')).toBe(false);
+    await expect(section.getByRole('button', { name: '흔들림 줄이기' })).toBeEnabled();
   });
 });

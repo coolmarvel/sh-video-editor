@@ -14,6 +14,9 @@ import { clipMenu, laneMenu } from '@editor/features/context-menu/clip-menu';
 import { useContextMenu } from '@editor/features/context-menu/store';
 import { useProject } from '@editor/features/project/store';
 import { useTimeline } from '@editor/features/timeline/store';
+import { EnginePoller } from '@editor/features/events/poller';
+import { installEnginePoller } from '@editor/features/events/useEnginePolling';
+import { PUMP_INTERVAL_MS, useJobs } from '@editor/features/jobs/store';
 import { FakeEngine, T, engineWithClips } from '../../fake-bridge';
 import { connect, resetStores } from '../../stores';
 
@@ -23,9 +26,11 @@ const tl = () => useTimeline.getState();
 const lastToast = () => useProject.getState().notices.at(-1);
 const labels = (entries: ReturnType<typeof clipMenu>) => entries.map((e) => (e.kind === 'item' ? e.label : '-'));
 
-async function ready(): Promise<ReturnType<typeof engineWithClips>> {
-  const made = engineWithClips();
+async function ready(opts: Parameters<typeof engineWithClips>[0] = {}): Promise<ReturnType<typeof engineWithClips>> {
+  const made = engineWithClips(opts);
   await connect({}, made.engine);
+  // 장면 찾기 잡의 진행률 이벤트는 폴러가 올린다(실제 앱은 useEnginePolling 훅)
+  installEnginePoller(new EnginePoller(made.engine.bridge));
   await tl().refresh();
   return made;
 }
@@ -232,25 +237,30 @@ describe('clipMenu / laneMenu', () => {
 });
 
 describe('detectScenes (장면마다 자르기)', () => {
-  it('영상 클립의 장면 전환마다 자르고(연결된 소리 포함) 토스트와 상태 줄로 수를 알린다', async () => {
+  it('잡으로 돌려(wait: false) 진행률을 기다린 뒤 늘어난 클립 수로 자른 곳을 세고(연결된 소리 포함) 토스트와 상태 줄로 알린다', async () => {
     const { engine, items, clips } = await ready();
     // a.mp4 는 1초와 3초에서 장면이 바뀐다
     items[0]!.sceneCuts = [1 * T, 3 * T];
     const video = tl().sequence!.video[0]!.items[0]!;
-    const r = await detectScenes([video]);
-    expect(r).toEqual({ clips: 1, cuts: 2 });
-    expect(engine.callsOf('clip.sceneEditDetection')).toEqual([{ clips: [clips[0]!.clip], applyCuts: true, wait: true }]);
+    const p = detectScenes([video]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useJobs.getState().jobs.map((j) => j.kind)).toEqual(['sceneDetect']);
+    expect(useEditor.getState().status).toContain('장면을 찾는 중');
+    expect(tl().busy).toBe(true);
+    expect(await p).toEqual({ clips: 1, cuts: 2 });
+    expect(engine.callsOf('clip.sceneEditDetection')).toEqual([{ clips: [clips[0]!.clip], applyCuts: true, wait: false }]);
     expect(tl().sequence!.video[0]!.items.map((c) => c.start / T)).toEqual([0, 1, 3, 4]);
     expect(tl().sequence!.audio[0]!.items.map((c) => c.start / T)).toEqual([0, 1, 3, 4]);
     expect(useEditor.getState().status).toBe('장면 2곳에서 잘랐습니다 (클립 1개)');
     expect(lastToast()).toMatchObject({ kind: 'success' });
     expect(tl().busy).toBe(false);
+    expect(useJobs.getState().jobs).toEqual([]);
     // 실행 취소 한 단계
     await tl().undo();
     expect(tl().sequence!.video[0]!.items).toHaveLength(2);
   });
 
-  it('장면 전환이 없으면 안내 토스트, 소리 클립만 고르면 경고', async () => {
+  it('장면 전환이 없으면 안내 토스트, 소리 클립만 고르면 경고, 잡을 걸지 못하면 오류 토스트', async () => {
     const { engine } = await ready();
     const video = tl().sequence!.video[0]!.items[0]!;
     expect(await detectScenes([video])).toEqual({ clips: 1, cuts: 0 });
@@ -262,5 +272,23 @@ describe('detectScenes (장면마다 자르기)', () => {
     engine.failNext('clip.sceneEditDetection', 'decoder busy');
     expect(await detectScenes([video])).toBeNull();
     expect(lastToast()).toMatchObject({ kind: 'danger', text: expect.stringContaining('decoder busy') });
+    expect(tl().busy).toBe(false);
+  });
+
+  it('진행 중에 취소하면 아무것도 자르지 않고 경고로 알린다', async () => {
+    const { items } = await ready({ jobStep: 0.01 });
+    items[0]!.sceneCuts = [1 * T, 3 * T];
+    const video = tl().sequence!.video[0]!.items[0]!;
+    const p = detectScenes([video]);
+    await new Promise((r) => setTimeout(r, PUMP_INTERVAL_MS * 2));
+    const job = useJobs.getState().jobs[0]!;
+    expect(job.kind).toBe('sceneDetect');
+    expect(job.progress).toBeGreaterThan(0);
+    await useJobs.getState().cancel(useEditor.getState().bridge!, job.id);
+    expect(await p).toBeNull();
+    expect(tl().sequence!.video[0]!.items).toHaveLength(2);
+    expect(useEditor.getState().status).toBe('장면 찾기를 취소했습니다');
+    expect(lastToast()).toMatchObject({ kind: 'warning' });
+    expect(tl().busy).toBe(false);
   });
 });

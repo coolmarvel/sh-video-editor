@@ -12,15 +12,20 @@ import { PICK_SCALE, useMotionFx } from '@editor/features/motion-fx/store';
 import { pipPlacement } from '@editor/features/motion-fx/pip';
 import { badgeLabel } from '@editor/features/speed/model';
 import { registerSpeedSection, useSpeedSections } from '@editor/features/speed/sections';
+import { useProject } from '@editor/features/project/store';
 import { useTimeline } from '@editor/features/timeline/store';
 import { findClip } from '@editor/features/timeline/types';
 import { useEditor } from '@editor/store';
+import { EnginePoller } from '@editor/features/events/poller';
+import { installEnginePoller } from '@editor/features/events/useEnginePolling';
+import { PUMP_INTERVAL_MS, useJobs } from '@editor/features/jobs/store';
 import { T, engineWithClips, type FakeClip, type FakeEngine } from '../../fake-bridge';
 import { connect, resetStores } from '../../stores';
 import '@editor/features/motion-fx';
 
 let engine: FakeEngine;
 let a: FakeClip;
+let b: FakeClip;
 
 beforeEach(async () => {
   resetStores();
@@ -28,7 +33,10 @@ beforeEach(async () => {
   const made = engineWithClips();
   engine = made.engine;
   a = made.clips[0]!;
+  b = made.clips[2]!;
   await connect({}, engine);
+  // 흔들림 분석 잡의 진행률 이벤트는 폴러가 올린다(실제 앱은 useEnginePolling 훅)
+  installEnginePoller(new EnginePoller(engine.bridge));
   await useTimeline.getState().refresh();
 });
 
@@ -209,20 +217,32 @@ describe('작은 화면', () => {
 });
 
 describe('흔들림 줄이기', () => {
-  it('warp_stabilizer 를 붙이고 한 장을 그려 분석 시간을 재며 상태 줄에 2D 근사를 적는다', async () => {
+  it('effects.analyzeStabilizer 잡을 걸고 진행률을 기다려 끝나면 상태 줄에 분석 시간과 2D 근사를 적는다', async () => {
     expect(await fx().stabilize([])).toBe(false);
     expect(useEditor.getState().status).toContain('먼저 선택하세요');
-    expect(await fx().stabilize([a.clip])).toBe(true);
-    expect(engine.callsOf('effects.apply')).toEqual([{ clips: [a.clip], effect: 'warp_stabilizer' }]);
+    const p = fx().stabilize([a.clip]);
+    await new Promise((r) => setTimeout(r, 0));
+    // 잡이 걸리면 분석 표시와 잡 목록에 보인다
+    expect(fx().analysis).toMatchObject({ clip: a.clip });
+    expect(useJobs.getState().jobs.map((j) => j.kind)).toEqual(['stabilizer']);
+    expect(useEditor.getState().status).toContain('진행 막대');
+    expect(await p).toBe(true);
+    expect(engine.callsOf('effects.analyzeStabilizer')).toEqual([{ clip: a.clip }]);
+    expect(engine.callsOf('effects.apply')).toEqual([]);
     expect(lastIndexOf(clipNow(), 'warp_stabilizer')).toBe(0);
-    expect(labelsOf()).toEqual(['흔들림 줄이기']);
+    // 클립 하나는 엔진이 붙인 한 단계 그대로(트랜잭션 없음)
+    expect(labelsOf()).toEqual(['Warp Stabilizer']);
+    expect(engine.callsOf('edit.beginTransaction')).toEqual([]);
     expect(fx().lastAnalysisMs).not.toBeNull();
     expect(fx().analysis).toBeNull();
     expect(fx().busy).toBe(false);
+    expect(useJobs.getState().jobs).toEqual([]);
     expect(useEditor.getState().status).toMatch(/흔들림 줄이기를 적용했습니다: 클립 1개 \(분석 \d+\.\d초, 2D 근사/);
-    // 다시 누르면 효과를 또 붙이지 않고 분석만 다시 잰다
+    expect(useProject.getState().notices.at(-1)).toMatchObject({ kind: 'success' });
+    // 다시 누르면 엔진이 cached 를 돌려줘 잡 없이 바로 끝난다
     await fx().stabilize([a.clip]);
-    expect(engine.callsOf('effects.apply')).toHaveLength(1);
+    expect(engine.callsOf('effects.analyzeStabilizer')).toHaveLength(2);
+    expect(engine.jobs.filter((j) => j.kind === 'stabilizer')).toHaveLength(1);
     await fx().setStabilizerParam(a.clip, 'smoothness', 80);
     expect(engine.callsOf('effects.setParam').at(-1)).toEqual({ clip: a.clip, effect: 0, param: 'smoothness', value: 80 });
     await fx().removeStabilizer([a.clip]);
@@ -234,8 +254,38 @@ describe('흔들림 줄이기', () => {
     expect(engine.calls.length).toBe(n);
   });
 
-  it('붙이기에 실패하면 오류를 올리고 분석 표시를 거둔다', async () => {
-    engine.failNext('effects.apply', '거부');
+  it('클립 둘 이상에 처음 붙일 때는 한 단계 "흔들림 줄이기" 로 묶고 잡 둘을 기다린다', async () => {
+    expect(await fx().stabilize([a.clip, b.clip])).toBe(true);
+    expect(engine.callsOf('effects.analyzeStabilizer')).toEqual([{ clip: a.clip }, { clip: b.clip }]);
+    expect(engine.callsOf('edit.beginTransaction')).toEqual([{ label: '흔들림 줄이기' }]);
+    expect(labelsOf()).toEqual(['흔들림 줄이기']);
+    expect(useEditor.getState().status).toContain('클립 2개');
+    expect(engine.jobs.filter((j) => j.kind === 'stabilizer' && j.finished)).toHaveLength(2);
+  });
+
+  it('취소하면 분석 없는 효과를 떼고 경고로 알린다', async () => {
+    const slow = engineWithClips({ jobStep: 0.01 });
+    engine = slow.engine;
+    a = slow.clips[0]!;
+    await connect({}, engine);
+    installEnginePoller(new EnginePoller(engine.bridge));
+    await useTimeline.getState().refresh();
+    const p = fx().stabilize([a.clip]);
+    await new Promise((r) => setTimeout(r, PUMP_INTERVAL_MS * 2));
+    const job = useJobs.getState().jobs[0]!;
+    expect(job.progress).toBeGreaterThan(0);
+    expect(lastIndexOf(clipNow(), 'warp_stabilizer')).toBe(0);
+    await useJobs.getState().cancel(engine.bridge, job.id);
+    expect(await p).toBe(false);
+    expect(lastIndexOf(clipNow(), 'warp_stabilizer')).toBe(-1);
+    expect(useEditor.getState().status).toBe('흔들림 분석을 취소하고 효과를 뗐습니다');
+    expect(useProject.getState().notices.at(-1)).toMatchObject({ kind: 'warning' });
+    expect(fx().analysis).toBeNull();
+    expect(fx().busy).toBe(false);
+  });
+
+  it('잡을 걸지 못하면 오류를 올리고 분석 표시를 거둔다', async () => {
+    engine.failNext('effects.analyzeStabilizer', '거부');
     expect(await fx().stabilize([a.clip])).toBe(false);
     expect(useEditor.getState().error).toContain('흔들림을 줄일 수 없습니다');
     expect(fx().analysis).toBeNull();

@@ -11,6 +11,7 @@ import type { EngineBridge, EngineRestartInfo } from '../../engine/bridge';
 import { useEditor } from '../../store';
 import { useProject } from '../project/store';
 import { useMonitor } from '../monitor/store';
+import { useJobs } from '../jobs/store';
 import { PERSISTENCE_MS, classify, pollInterval, type Classified } from './classify';
 import { useEngineEvents, type EngineEventsState } from './store';
 
@@ -204,6 +205,7 @@ export class EnginePoller {
       useEngineEvents.setState((s) => ({ toast: { ...t, seq: (s.toast?.seq ?? 0) + 1 } }));
       this.onToast(t.message, t.error);
     }
+    if (c.jobs.length > 0) useJobs.getState().applyEvents(c.jobs);
   }
 }
 

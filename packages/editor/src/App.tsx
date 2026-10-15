@@ -9,6 +9,7 @@ import { MonitorStatusPane } from './features/monitor';
 import { ExportDialog } from './features/export/ExportDialog';
 import { ProjectHost } from './features/project/ProjectHost';
 import { ProjectStatus } from './features/project/ProjectStatus';
+import { JobsPane } from './features/jobs';
 import { Splitter, clamp, useLayoutMetrics, useLayoutStore } from './features/layout';
 import { InspectorPanel } from './features/inspector';
 import { ContextMenuHost } from './features/context-menu';
@@ -112,6 +113,7 @@ export function App({ bridge, host }: AppProps) {
       <Timeline />
       <div className="sh-statusbar ve-status">
         <span className="sh-pane sh-pane--grow">{error ? `오류: ${error}` : status}</span>
+        <JobsPane />
         <MonitorStatusPane />
         <ProjectStatus />
         <span className="sh-pane">{host === 'desktop' ? '데스크톱' : '웹'}</span>

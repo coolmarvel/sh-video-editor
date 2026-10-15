@@ -19,12 +19,17 @@ export function pollEngineNow(): Promise<void> {
   return current ? current.tick() : Promise.resolve();
 }
 
+/** 지금 폴러를 바꾼다(훅이 쓰고, 단위 테스트가 가짜 엔진의 폴러를 세울 때도 쓴다). null 이면 없음 */
+export function installEnginePoller(poller: EnginePoller | null): void {
+  current = poller;
+}
+
 export function useEnginePolling(): void {
   const bridge = useEditor((s) => s.bridge);
   useEffect(() => {
     if (!bridge) return;
     const poller = new EnginePoller(bridge);
-    current = poller;
+    installEnginePoller(poller);
     poller.start();
     // 재생을 시작·정지하면 간격이 달라진다. 그 즉시 한 번 읽어 새 간격으로 이어 간다
     const unsubscribe = useMonitor.subscribe((s, prev) => {
@@ -33,7 +38,7 @@ export function useEnginePolling(): void {
     return () => {
       unsubscribe();
       poller.stop();
-      if (current === poller) current = null;
+      if (current === poller) installEnginePoller(null);
     };
   }, [bridge]);
 }

@@ -430,7 +430,7 @@ fn jobs_and_queue_items_report_the_time_they_have_left() {
     use crate::export_tools::QueueStatus;
     let mut s = demo();
     let dir = Scratch::new("eta");
-    let job = crate::Job { id: 77, label: "Exporting".into(), progress: Default::default(), result: Default::default() };
+    let job = crate::Job { id: 77, kind: "export", label: "Exporting".into(), progress: Default::default(), result: Default::default() };
     job.progress.total.store(1000, Ordering::Relaxed);
     assert!(job.to_json()["etaSeconds"].is_null(), "no speed measured yet");
     // 50 units a second for 5 s, read from the near future (the JSON reads the real clock, which is then behind them)

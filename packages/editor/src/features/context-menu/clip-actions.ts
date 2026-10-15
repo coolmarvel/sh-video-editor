@@ -3,10 +3,11 @@
  * 선택·삭제·자르기·트림은 features/timeline/store 가 이미 가지고 있어 그쪽을 부른다.
  */
 import { useEditor } from '../../store';
+import { useJobs } from '../jobs/store';
 import { useProject } from '../project/store';
 import { execCommand, refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
-import { findClip, type ClipInfo } from '../timeline/types';
+import { findClip, type ClipInfo, type SequenceInfo } from '../timeline/types';
 import { useContextMenu } from './store';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -141,6 +142,10 @@ export interface SceneResult {
  * 엔진 `clip.sceneEditDetection {clips, applyCuts: true, wait: true}`: 분석이 끝날 때까지 기다려 자르기 수를 돌려받는다
  * (wasm 은 항상 동기). 결과는 실행 취소 한 단계 "Scene Edit Detection".
  */
+function countVideoClips(seq: SequenceInfo): number {
+  return seq.video.reduce((n, t) => n + t.items.length, 0);
+}
+
 export async function detectScenes(selected: ClipInfo[]): Promise<SceneResult | null> {
   const bridge = useEditor.getState().bridge;
   const seq = useTimeline.getState().sequence;
@@ -150,13 +155,29 @@ export async function detectScenes(selected: ClipInfo[]): Promise<SceneResult | 
     useProject.getState().notify('warning', '장면을 찾으려면 영상 클립을 선택하세요.');
     return null;
   }
-  useEditor.setState({ status: `장면을 찾는 중... (클립 ${videos.length}개)`, error: null });
+  useEditor.setState({ status: `장면을 찾는 중... (클립 ${videos.length}개, 상태 줄의 진행 막대로 취소할 수 있습니다)`, error: null });
   useTimeline.setState({ busy: true });
   try {
-    const r = (await bridge.execute('clip.sceneEditDetection', { clips: videos.map((c) => c.clip), applyCuts: true, wait: true })) as {
-      clips?: Array<{ clip: number; cuts?: number[] }>;
+    // 잡으로 돌리고(진행률은 features/jobs) 끝나면 늘어난 영상 클립 수로 자른 곳을 센다
+    const before = countVideoClips(seq);
+    const r = (await bridge.execute('clip.sceneEditDetection', { clips: videos.map((c) => c.clip), applyCuts: true, wait: false })) as {
+      job: number;
+      frames: number;
     };
-    const cuts = (r.clips ?? []).reduce((n, c) => n + (c.cuts?.length ?? 0), 0);
+    useJobs.getState().track(bridge, { id: r.job, kind: 'sceneDetect' });
+    const [job] = await useJobs.getState().waitFor([r.job]);
+    if (job?.cancelled) {
+      useEditor.setState({ status: '장면 찾기를 취소했습니다', error: null });
+      useProject.getState().notify('warning', '장면 찾기를 취소했습니다.');
+      await refreshAll();
+      return null;
+    }
+    if (job?.error) throw new Error(job.error);
+    // 데스크톱: 스레드가 끝낸 결과는 pollPersistence 가 프로젝트에 반영한다(자르기). 웹은 pumpJobs 가 이미 반영했다
+    await bridge.pollPersistence?.();
+    await useTimeline.getState().refresh();
+    const after = useTimeline.getState().sequence;
+    const cuts = Math.max(0, (after ? countVideoClips(after) : before) - before);
     const status = cuts > 0 ? `장면 ${cuts}곳에서 잘랐습니다 (클립 ${videos.length}개)` : '장면이 바뀌는 곳을 찾지 못했습니다';
     await refreshAll(status);
     useProject

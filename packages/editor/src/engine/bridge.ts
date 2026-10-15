@@ -30,7 +30,25 @@ export type EngineEvent =
   | { type: 'toast'; message: string; error: boolean }
   | { type: 'openSequence'; item: number }
   | { type: 'openSource'; item: number }
-  | { type: 'revealInProject'; item: number };
+  | { type: 'revealInProject'; item: number }
+  | JobProgressEvent;
+
+/**
+ * 백그라운드 잡(흔들림 분석 `stabilizer`, 장면 찾기 `sceneDetect`, 내보내기 `export` 등)의 진행률. 엔진이 진행률이 바뀔 때마다
+ * 하나씩 낸다(`Session::emit_job_progress`). 마지막 것은 `done` 이고, `jobs.cancel` 로 멈추면 `cancelled` 와 `error: "stopped"`.
+ * features/jobs 의 store 가 받는다.
+ */
+export interface JobProgressEvent {
+  type: 'jobProgress';
+  id: number;
+  kind: string;
+  label?: string;
+  /** 0..1 (오류 없이 끝나면 1) */
+  progress: number;
+  done: boolean;
+  cancelled?: boolean;
+  error?: string | null;
+}
 
 /** 엔진 재시작 알림(onEngineRestart). 호스트가 문제 보고 파일을 남겼으면 그 경로. */
 export interface EngineRestartInfo {

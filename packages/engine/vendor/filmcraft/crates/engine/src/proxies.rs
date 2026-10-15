@@ -195,7 +195,7 @@ pub fn start_job(s: &mut Session, label: String, work: Vec<(ItemId, String, &'st
         tasks.push((item, clip, name, src, out, pr));
     }
     let id = s.jobs.iter().map(|j| j.id).max().unwrap_or(0) + 1;
-    let job = crate::Job { id, label, progress: Default::default(), result: Default::default() };
+    let job = crate::Job { id, kind: "media", label, progress: Default::default(), result: Default::default() };
     job.progress.total.store(total, std::sync::atomic::Ordering::Relaxed);
     let outputs: Arc<Mutex<Vec<(ItemId, String)>>> = Arc::default();
     let (prog, res, outs) = (job.progress.clone(), job.result.clone(), outputs.clone());

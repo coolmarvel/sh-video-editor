@@ -4,7 +4,7 @@ import { POLL_HIDDEN_MS, POLL_PAUSED_MS, POLL_PLAYING_MS, classify, pollInterval
 
 describe('classify', () => {
   it('빈 묶음은 아무 신호도 없다', () => {
-    expect(classify([])).toEqual({ revision: null, openSequence: null, openSource: null, reveal: null, toasts: [], unknown: 0 });
+    expect(classify([])).toEqual({ revision: null, openSequence: null, openSource: null, reveal: null, toasts: [], jobs: [], unknown: 0 });
   });
 
   it('같은 종류가 여러 개면 마지막 값만, 토스트는 순서대로 전부', () => {

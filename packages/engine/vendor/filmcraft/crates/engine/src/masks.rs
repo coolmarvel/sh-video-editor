@@ -567,7 +567,7 @@ fn track(s: &mut Session, p: &Value) -> Result<Value> {
     let scale = (TRACK_MAX_WIDTH / size.0.max(1) as f64).min(1.0) as f32;
     let id = s.jobs.iter().map(|j| j.id).max().unwrap_or(0) + 1;
     let label = format!("Track {} ({})", mask.name, if backward { "backward" } else { "forward" });
-    let job = crate::Job { id, label: label.clone(), progress: Default::default(), result: Default::default() };
+    let job = crate::Job { id, kind: "maskTrack", label: label.clone(), progress: Default::default(), result: Default::default() };
     job.progress.total.store(steps as u64, std::sync::atomic::Ordering::Relaxed);
     let keys: Arc<Mutex<Vec<(Tick, MaskPath)>>> = Arc::default();
     let (prog, res, out) = (job.progress.clone(), job.result.clone(), keys.clone());

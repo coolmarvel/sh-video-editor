@@ -721,6 +721,9 @@ fn build() -> Vec<CommandSpec> {
         cmd!("file.newProject", "Project…", ["File", "New"], Some("Cmd+Alt+N"), r#"{"name":str}"#, always, |s, p| {
             let name = str_p(p, "name").unwrap_or("Untitled").to_string();
             s.project = std::sync::Arc::new(filmcraft_project::Project::new(&name));
+            // sh-video-editor: per-clip analyses are keyed by item / clip ids, which a new project reuses
+            filmcraft_render::vfx::clear_stabilizer_cache();
+            s.stabilizer_jobs.clear();
             s.history = Default::default();
             s.history.limit = 200;
             s.state = crate::Session::default().state;
@@ -735,6 +738,8 @@ fn build() -> Vec<CommandSpec> {
         cmd!("file.openDemoProject", "Demo Project", ["File", "New"], None, "{}", always, |s, _| {
             let (p, seq) = crate::demo::demo_project(&s.media);
             s.project = std::sync::Arc::new(p);
+            filmcraft_render::vfx::clear_stabilizer_cache();
+            s.stabilizer_jobs.clear();
             s.history = Default::default();
             s.history.limit = 200;
             s.state = crate::Session::default().state;
@@ -1183,6 +1188,12 @@ fn build() -> Vec<CommandSpec> {
             let id = u64_p(p, "job").ok_or_else(|| bad("jobs.cancel", "need `job`"))?;
             let j = s.jobs.iter().find(|j| j.id == id).ok_or_else(|| bad("jobs.cancel", "no such job"))?;
             j.progress.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            // a stepped task (web) settles at once instead of on the next pump
+            if let Some(i) = s.tasks.iter().position(|t| t.job() == id)
+                && s.tasks[i].step(0)
+            {
+                s.tasks.remove(i);
+            }
             Ok(Value::Null)
         }),
         // ================= Edit =================
@@ -2638,6 +2649,7 @@ fn build() -> Vec<CommandSpec> {
     v.extend(crate::project_panel::commands());
     v.extend(crate::media_browser::commands());
     v.extend(crate::sh_commands::commands());
+    v.extend(crate::stabilize::commands());
     // Edit ▸ Label ▸ <colour>, Paste Attributes, subclips, Video / Audio Options, Replace With Clip…
     // and their menu order
     crate::clip_ops::apply_layout(&mut v);
@@ -3376,6 +3388,9 @@ fn install_project(s: &mut Session, proj: filmcraft_project::Project, path: Opti
     s.offline = Default::default();
     let first = proj.sequences().next().map(|i| i.id);
     s.project = std::sync::Arc::new(proj);
+    // sh-video-editor: analyses of the previous project's clips must not match the new ids
+    filmcraft_render::vfx::clear_stabilizer_cache();
+    s.stabilizer_jobs.clear();
     s.history = Default::default();
     s.history.limit = 200;
     s.state = crate::Session::default().state;

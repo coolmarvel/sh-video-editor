@@ -327,6 +327,7 @@ impl Services for WebServices {
 
 /// 엔진 이벤트를 화면이 분류하기 쉬운 `{type, ...}` 객체로. napi 바인딩과 같은 모양이다.
 /// - projectChanged {revision} · toast {message, error} · openSequence|openSource|revealInProject {item}
+/// - jobProgress {id, kind, label, progress 0..1, done, cancelled, error|null} (잡 진행률이 바뀔 때마다 하나)
 pub fn event_json(e: Event) -> serde_json::Value {
     match e {
         Event::ProjectChanged { revision } => serde_json::json!({"type": "projectChanged", "revision": revision}),
@@ -334,6 +335,16 @@ pub fn event_json(e: Event) -> serde_json::Value {
         Event::OpenSequence(item) => serde_json::json!({"type": "openSequence", "item": item.0}),
         Event::OpenSource(item) => serde_json::json!({"type": "openSource", "item": item.0}),
         Event::RevealInProject(item) => serde_json::json!({"type": "revealInProject", "item": item.0}),
+        Event::JobProgress { id, kind, label, progress, done, cancelled, error } => serde_json::json!({
+            "type": "jobProgress",
+            "id": id,
+            "kind": kind,
+            "label": label,
+            "progress": progress,
+            "done": done,
+            "cancelled": cancelled,
+            "error": error,
+        }),
     }
 }
 

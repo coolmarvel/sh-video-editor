@@ -8,7 +8,7 @@
 //! the result (crop / auto-scale / synthesise edges). Perspective and Subspace Warp use the
 //! similarity model (no per-region warping).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use filmcraft_project::{EffectInstance, TrackMethod};
@@ -234,6 +234,22 @@ fn path_cache() -> &'static PathCache {
     C.get_or_init(Default::default)
 }
 
+/// Analyses a background job is running right now ([`StabilizerAnalysis`]): renders of those
+/// clips pass the picture through instead of analysing on the render thread.
+fn pending_set() -> &'static Mutex<HashSet<u64>> {
+    static P: OnceLock<Mutex<HashSet<u64>>> = OnceLock::new();
+    P.get_or_init(Default::default)
+}
+
+fn cache_insert(key: u64, path: Arc<StabilizerPath>) {
+    if let Ok(mut c) = path_cache().lock() {
+        if c.len() > 64 {
+            c.clear();
+        }
+        c.insert(key, path);
+    }
+}
+
 /// Forget every cached stabilizer analysis (e.g. after the media changed).
 pub fn clear_stabilizer_cache() {
     if let Ok(mut c) = path_cache().lock() {
@@ -241,17 +257,108 @@ pub fn clear_stabilizer_cache() {
     }
 }
 
-/// Analyse (or fetch the cached analysis of) the clip `env` describes.
+/// Cache key of a clip's analysis for one tracking method (what [`stabilizer_path`] looks up).
+pub fn stabilizer_key(item: &filmcraft_project::TrackItem, method: TrackMethod, detailed: bool) -> u64 {
+    super::clip_analysis_key(item) ^ (method as u64).wrapping_mul(0x9E37) ^ (detailed as u64).wrapping_mul(0x51_7CC1)
+}
+
+/// Whether an analysis for `key` is in the cache (a render will stabilise without analysing).
+pub fn stabilizer_cached(key: u64) -> bool {
+    path_cache().lock().ok().is_some_and(|c| c.contains_key(&key))
+}
+
+/// Whether a background analysis for `key` is running ([`StabilizerAnalysis`] alive).
+pub fn stabilizer_pending(key: u64) -> bool {
+    pending_set().lock().ok().is_some_and(|p| p.contains(&key))
+}
+
+/// The analysis width (longest side) for a source `src_w` pixels wide: the scale frames are
+/// decoded at. Shared by the render-time analysis and background jobs.
+pub fn stabilizer_scale(src_w: u32, detailed: bool) -> f32 {
+    let target_w = if detailed { 960.0 } else { 480.0 };
+    (target_w / src_w.max(1) as f32).min(1.0)
+}
+
+/// A clip's stabilizer analysis fed one frame at a time (background jobs: a thread, or a host
+/// without threads pumping a few frames per call). While it is alive renders of the clip show the
+/// picture unchanged; [`StabilizerAnalysis::finish`] puts the path in the cache the render reads.
+pub struct StabilizerAnalysis {
+    key: u64,
+    fps: f64,
+    method: TrackMethod,
+    size: Option<(usize, usize)>,
+    prev: Option<Prepared>,
+    steps: Vec<Affine>,
+    pushed: usize,
+}
+
+impl StabilizerAnalysis {
+    pub fn new(key: u64, fps: f64, method: TrackMethod) -> Self {
+        if let Ok(mut p) = pending_set().lock() {
+            p.insert(key);
+        }
+        Self { key, fps: fps.max(1.0), method, size: None, prev: None, steps: Vec::new(), pushed: 0 }
+    }
+
+    /// Frames pushed so far.
+    pub fn pushed(&self) -> usize {
+        self.pushed
+    }
+
+    /// The next frame (None = it could not be decoded: the step to it is identity).
+    pub fn push(&mut self, frame: Option<&Image>) {
+        let cur = frame.map(|f| Prepared::new(gray_of(f)));
+        if let Some(c) = &cur
+            && self.size.is_none()
+        {
+            self.size = Some((c.base().w, c.base().h));
+        }
+        if self.pushed > 0 {
+            let step = match (&self.prev, &cur) {
+                (Some(a), Some(b)) if a.base().w == b.base().w => {
+                    let (w, h) = (a.base().w as f64, a.base().h as f64);
+                    let m = 8.0;
+                    let region = [Vec2::new(m, m), Vec2::new(w - m, m), Vec2::new(w - m, h - m), Vec2::new(m, h - m)];
+                    track_step(a, b, &region, self.method).map(|s| s.transform).unwrap_or(Affine::IDENTITY)
+                }
+                _ => Affine::IDENTITY,
+            };
+            self.steps.push(step);
+        }
+        self.prev = cur;
+        self.pushed += 1;
+    }
+
+    /// Put the path in the cache. None when no frame could be decoded (nothing cached).
+    pub fn finish(mut self) -> Option<Arc<StabilizerPath>> {
+        let (w, h) = self.size?;
+        let path = Arc::new(StabilizerPath { w, h, steps: std::mem::take(&mut self.steps), fps: self.fps });
+        cache_insert(self.key, path.clone());
+        Some(path)
+    }
+}
+
+impl Drop for StabilizerAnalysis {
+    fn drop(&mut self) {
+        if let Ok(mut p) = pending_set().lock() {
+            p.remove(&self.key);
+        }
+    }
+}
+
+/// Analyse (or fetch the cached analysis of) the clip `env` describes. None while a background
+/// analysis of the clip is running (the frame shows unchanged until it finishes).
 pub fn stabilizer_path(env: &dyn FxEnv, now: f64, method: TrackMethod, detailed: bool) -> Option<Arc<StabilizerPath>> {
     let key = env.clip_key() ^ (method as u64).wrapping_mul(0x9E37) ^ (detailed as u64).wrapping_mul(0x51_7CC1);
     if let Some(p) = path_cache().lock().ok().and_then(|c| c.get(&key).cloned()) {
         return Some(p);
     }
+    if stabilizer_pending(key) {
+        return None;
+    }
     let fps = env.frame_rate().max(1.0);
     let n = ((env.clip_seconds() * fps).round() as usize).clamp(1, 20_000);
-    let src_w = env.source_size().0.max(1) as f32;
-    let target_w = if detailed { 960.0 } else { 480.0 };
-    let scale = (target_w / src_w).min(1.0);
+    let scale = stabilizer_scale(env.source_size().0, detailed);
     let frames: Vec<Option<Prepared>> = (0..n)
         .into_par_iter()
         .map(|k| {
@@ -275,12 +382,7 @@ pub fn stabilizer_path(env: &dyn FxEnv, now: f64, method: TrackMethod, detailed:
         })
         .collect();
     let path = Arc::new(StabilizerPath { w, h, steps, fps });
-    if let Ok(mut c) = path_cache().lock() {
-        if c.len() > 64 {
-            c.clear();
-        }
-        c.insert(key, path.clone());
-    }
+    cache_insert(key, path.clone());
     Some(path)
 }
 

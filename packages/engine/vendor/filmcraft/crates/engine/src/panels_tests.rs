@@ -136,7 +136,13 @@ fn events_log_failed_commands_jobs_and_messages() {
 fn events_report_background_jobs() {
     let mut s = demo();
     s.execute("events.clear", json!({})).unwrap();
-    let job = |id, label: &str| crate::Job { id, label: label.into(), progress: Arc::new(Default::default()), result: Arc::new(std::sync::Mutex::new(None)) };
+    let job = |id, label: &str| crate::Job {
+        id,
+        kind: "export",
+        label: label.into(),
+        progress: Arc::new(Default::default()),
+        result: Arc::new(std::sync::Mutex::new(None)),
+    };
     let (a, b, c) = (job(901, "Export a.mp4"), job(902, "Create Proxies"), job(903, "Scene Edit Detection"));
     s.jobs.extend([a.clone(), b.clone(), c.clone()]);
     s.poll_persistence();

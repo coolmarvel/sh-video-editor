@@ -468,6 +468,7 @@ pub fn render(s: &mut Session, mode: RenderMode, p: &Value) -> Result<Value> {
     let id = s.jobs.len() as u64 + 1;
     let job = crate::Job {
         id,
+        kind: "previews",
         label: format!("Rendering {} preview segment{}", todo.len(), if todo.len() == 1 { "" } else { "s" }),
         progress: Default::default(),
         result: Default::default(),
@@ -574,7 +575,7 @@ pub fn render_audio(s: &mut Session, p: &Value) -> Result<Value> {
     std::fs::create_dir_all(&dir).map_err(|e| EngineError::Other(format!("preview folder {}: {e}", dir.display())))?;
     let total: i64 = todo.iter().map(|g| g.samples).sum();
     let id = s.jobs.len() as u64 + 1;
-    let job = crate::Job { id, label: "Rendering audio previews".into(), progress: Default::default(), result: Default::default() };
+    let job = crate::Job { id, kind: "audioPreviews", label: "Rendering audio previews".into(), progress: Default::default(), result: Default::default() };
     job.progress.total.store(total.max(1) as u64, Ordering::Relaxed);
     let project = s.project.clone();
     let provider = s.media.full_res_provider(project.clone(), s.services.clone());

@@ -2,8 +2,9 @@
 //!
 //! `clip.sceneEditDetection {clips?, sensitivity=50, minShotFrames=6, applyCuts=true,
 //! createSubclips=false, generateMarkers=false, wait=false}` analyses the selected timeline video
-//! clips in a background job (`jobs.list` shows the progress, `jobs.cancel` stops it without
-//! changing anything). Every sequence frame of each clip is decoded at reduced size and compared
+//! clips in a background job (`jobs.list` and the `JobProgress` events show the progress,
+//! `jobs.cancel` stops it without changing anything; on the web the job advances a few frames per
+//! `pump_jobs`, see [`crate::SteppedTask`]). Every sequence frame of each clip is decoded at reduced size and compared
 //! with the previous one ([`filmcraft_render::scene`]). When the job finishes, the results are
 //! applied in one undo step ("Scene Edit Detection"):
 //!
@@ -137,58 +138,80 @@ fn detect(s: &mut Session, p: &Value) -> Result<Value> {
     let total: usize = work.iter().map(|w| w.frames.len()).sum();
     let id = s.jobs.iter().map(|j| j.id).max().unwrap_or(0) + 1;
     let label = format!("Scene Edit Detection ({} clip{})", work.len(), if work.len() == 1 { "" } else { "s" });
-    let job = crate::Job { id, label, progress: Default::default(), result: Default::default() };
+    let job = crate::Job { id, kind: "sceneDetect", label, progress: Default::default(), result: Default::default() };
     job.progress.total.store(total as u64, std::sync::atomic::Ordering::Relaxed);
     let results: Arc<Mutex<Option<Vec<ClipScenes>>>> = Arc::default();
-    let (prog, res, out) = (job.progress.clone(), job.result.clone(), results.clone());
-    let run = move || {
-        use std::sync::atomic::Ordering;
-        let t0 = web_time::Instant::now();
-        let mut done = 0u64;
-        let mut found = Vec::new();
-        let mut err = None;
-        'clips: for w in &work {
-            let mut det = SceneDetector::new();
-            for (k, (_, mt)) in w.frames.iter().enumerate() {
-                if prog.cancel.load(Ordering::Relaxed) {
-                    err = Some("stopped".to_string());
-                    break 'clips;
-                }
-                match w.src.video_frame(filmcraft_media::FrameRequest { time: *mt, scale: w.scale }) {
-                    Ok(f) => {
-                        det.push_rgba(&f.to_rgba8(), f.width as usize, f.height as usize);
-                    }
-                    Err(e) => {
-                        err = Some(format!("{}: can't decode frame {k}: {e}", w.name));
-                        break 'clips;
-                    }
-                }
-                done += 1;
-                prog.done.store(done, Ordering::Relaxed);
-                *lock(&prog.status) = format!("{}: frame {} of {}", w.name, k + 1, w.frames.len());
-            }
-            let cuts: Vec<(Tick, Tick)> = det.cuts(&opts).into_iter().map(|i| w.frames[i]).collect();
-            let (a, b) = (w.frames.first().map(|f| f.1).unwrap_or_default(), w.frames.last().map(|f| f.1).unwrap_or_default());
-            let fdm = w.frames.get(1).map(|f| (f.1 - w.frames[0].1).abs()).unwrap_or(Tick(1)).max(Tick(1));
-            found.push(ClipScenes {
-                clip: w.clip,
-                name: w.name.clone(),
-                media_item: w.media_item,
-                media_range: TimeRange::from_bounds(a.min(b), a.max(b) + fdm),
-                cuts,
-            });
+    let task = SceneTask {
+        job: id,
+        work,
+        opts,
+        clip: 0,
+        frame: 0,
+        det: SceneDetector::new(),
+        found: Vec::new(),
+        done: 0,
+        t0: web_time::Instant::now(),
+        prog: job.progress.clone(),
+        res: job.result.clone(),
+        out: results.clone(),
+    };
+    s.jobs.push(job);
+    s.scene_jobs.push(PendingScene { job: id, seq: seq_id, apply, results: results.clone() });
+    let wait = bool_p(p, "wait").unwrap_or(false);
+    let mut out = json!({"job": id, "frames": total});
+    s.run_task(Box::new(task), wait)?;
+    if wait {
+        if let Some(r) = lock(&results).as_ref() {
+            out["clips"] = json!(
+                r.iter()
+                    .map(|c| json!({"clip": c.clip.0, "cuts": c.cuts.iter().map(|x| x.0.0).collect::<Vec<_>>(), "mediaCuts": c.cuts.iter().map(|x| x.1.0).collect::<Vec<_>>()}))
+                    .collect::<Vec<_>>()
+            );
         }
-        let secs = t0.elapsed().as_secs_f64();
-        let n_cuts: usize = found.iter().map(|c| c.cuts.len()).sum();
-        *lock(&prog.status) = match &err {
+        poll(s);
+    }
+    if let Some(Err(e)) = s.jobs.iter().find(|j| j.id == id).and_then(|j| lock(&j.result).clone()) {
+        return Err(EngineError::Other(e));
+    }
+    Ok(out)
+}
+
+/// The analysis, a frame per unit ([`crate::SteppedTask`]): a thread loops it on native hosts;
+/// the web pumps a few frames per call so the worker keeps answering.
+struct SceneTask {
+    job: u64,
+    work: Vec<Work>,
+    opts: SceneOptions,
+    /// Next clip / frame to analyse.
+    clip: usize,
+    frame: usize,
+    det: SceneDetector,
+    found: Vec<ClipScenes>,
+    done: u64,
+    t0: web_time::Instant,
+    prog: Arc<filmcraft_export::Progress>,
+    res: Arc<Mutex<Option<std::result::Result<filmcraft_export::Report, String>>>>,
+    out: Arc<Mutex<Option<Vec<ClipScenes>>>>,
+}
+
+impl SceneTask {
+    fn finish(&mut self, err: Option<String>) -> bool {
+        use std::sync::atomic::Ordering;
+        let secs = self.t0.elapsed().as_secs_f64();
+        let n_cuts: usize = self.found.iter().map(|c| c.cuts.len()).sum();
+        let done = self.done;
+        *lock(&self.prog.status) = match &err {
             Some(e) if e == "stopped" => "Stopped: nothing was changed".into(),
             Some(e) => e.clone(),
             None => format!("Found {n_cuts} cut point(s) in {done} frame(s) ({secs:.1}s)"),
         };
         let r = match err {
-            Some(e) => Err(e),
+            Some(e) => {
+                *lock(&self.prog.error) = Some(e.clone());
+                Err(e)
+            }
             None => {
-                *lock(&out) = Some(found);
+                *lock(&self.out) = Some(std::mem::take(&mut self.found));
                 Ok(filmcraft_export::Report {
                     path: String::new(),
                     frames: done,
@@ -199,31 +222,59 @@ fn detect(s: &mut Session, p: &Value) -> Result<Value> {
                 })
             }
         };
-        *lock(&res) = Some(r);
-        prog.finished.store(true, Ordering::Relaxed);
-    };
-    let run = crate::export_tools::guard_job(job.progress.clone(), job.result.clone(), run);
-    s.jobs.push(job);
-    s.scene_jobs.push(PendingScene { job: id, seq: seq_id, apply, results: results.clone() });
-    let wait = bool_p(p, "wait").unwrap_or(false);
-    let mut out = json!({"job": id, "frames": total});
-    if wait || cfg!(target_arch = "wasm32") {
-        run();
-        if let Some(r) = lock(&results).as_ref() {
-            out["clips"] = json!(
-                r.iter()
-                    .map(|c| json!({"clip": c.clip.0, "cuts": c.cuts.iter().map(|x| x.0.0).collect::<Vec<_>>(), "mediaCuts": c.cuts.iter().map(|x| x.1.0).collect::<Vec<_>>()}))
-                    .collect::<Vec<_>>()
-            );
+        *lock(&self.res) = Some(r);
+        self.prog.finished.store(true, Ordering::Relaxed);
+        true
+    }
+}
+
+impl crate::SteppedTask for SceneTask {
+    fn job(&self) -> u64 {
+        self.job
+    }
+
+    fn step(&mut self, max: usize) -> bool {
+        use std::sync::atomic::Ordering;
+        for _ in 0..max {
+            if self.prog.cancel.load(Ordering::Relaxed) {
+                return self.finish(Some("stopped".to_string()));
+            }
+            let Some(w) = self.work.get(self.clip) else { return self.finish(None) };
+            if self.frame < w.frames.len() {
+                let k = self.frame;
+                let (_, mt) = w.frames[k];
+                match w.src.video_frame(filmcraft_media::FrameRequest { time: mt, scale: w.scale }) {
+                    Ok(f) => {
+                        self.det.push_rgba(&f.to_rgba8(), f.width as usize, f.height as usize);
+                    }
+                    Err(e) => return self.finish(Some(format!("{}: can't decode frame {k}: {e}", w.name))),
+                }
+                self.frame += 1;
+                self.done += 1;
+                self.prog.done.store(self.done, Ordering::Relaxed);
+                *lock(&self.prog.status) = format!("{}: frame {} of {}", w.name, k + 1, w.frames.len());
+                continue;
+            }
+            // the clip is done: its cuts
+            let det = std::mem::take(&mut self.det);
+            let cuts: Vec<(Tick, Tick)> = det.cuts(&self.opts).into_iter().map(|i| w.frames[i]).collect();
+            let (a, b) = (w.frames.first().map(|f| f.1).unwrap_or_default(), w.frames.last().map(|f| f.1).unwrap_or_default());
+            let fdm = w.frames.get(1).map(|f| (f.1 - w.frames[0].1).abs()).unwrap_or(Tick(1)).max(Tick(1));
+            self.found.push(ClipScenes {
+                clip: w.clip,
+                name: w.name.clone(),
+                media_item: w.media_item,
+                media_range: TimeRange::from_bounds(a.min(b), a.max(b) + fdm),
+                cuts,
+            });
+            self.clip += 1;
+            self.frame = 0;
         }
-        poll(s);
-    } else {
-        std::thread::Builder::new().name("filmcraft-scene-detect".into()).spawn(run).map_err(|e| EngineError::Other(e.to_string()))?;
+        if self.prog.cancel.load(Ordering::Relaxed) {
+            return self.finish(Some("stopped".to_string()));
+        }
+        false
     }
-    if let Some(Err(e)) = s.jobs.iter().find(|j| j.id == id).and_then(|j| lock(&j.result).clone()) {
-        return Err(EngineError::Other(e));
-    }
-    Ok(out)
 }
 
 /// Apply finished jobs (one undo step each) and drop finished / cancelled ones. Called once per UI

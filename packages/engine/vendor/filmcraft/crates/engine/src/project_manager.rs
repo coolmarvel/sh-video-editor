@@ -202,7 +202,7 @@ pub fn run(s: &mut Session, p: &Value) -> Result<Value> {
         .sum::<u64>()
         + 1;
     let id = s.jobs.iter().map(|j| j.id).max().unwrap_or(0) + 1;
-    let job = crate::Job { id, label: format!("Project Manager: {name}"), progress: Default::default(), result: Default::default() };
+    let job = crate::Job { id, kind: "projectManager", label: format!("Project Manager: {name}"), progress: Default::default(), result: Default::default() };
     job.progress.total.store(total, Ordering::Relaxed);
     let (prog, res) = (job.progress.clone(), job.result.clone());
     let prev_dst = crate::previews::dir_for_project(&project_path);

@@ -572,6 +572,13 @@ pub(crate) fn base_layer(
     })
 }
 
+/// A clip's raw picture at timeline `t` at `scale` of its source size, as [`vfx::FxEnv::source_frame`]
+/// gives it to analyses on the render thread. Background analyses (`effects.analyzeStabilizer`)
+/// decode with this so their result matches a render-time analysis.
+pub fn clip_source_frame(project: &Project, seq: &Sequence, item: &TrackItem, t: Tick, sources: &dyn SourceProvider, scale: f32) -> Option<Image> {
+    base_layer(project, seq, item, t, RenderOptions::default(), sources, scale.clamp(1.0 / 64.0, 1.0))
+}
+
 /// The layer of one clip at timeline `t` with its effects applied, on a canvas the size of the
 /// sequence output (transparent elsewhere), before opacity and blending. Used by Apply Match.
 pub fn render_clip(

@@ -46,6 +46,7 @@ pub mod settings;
 pub mod sh_commands;
 pub mod shortcut_presets;
 pub mod shortcuts;
+pub mod stabilize;
 pub mod sync;
 pub mod transcript;
 pub mod trim;
@@ -327,6 +328,19 @@ pub enum Event {
     OpenSource(ItemId),
     /// Show this item in the Project panel (Reveal in Project).
     RevealInProject(ItemId),
+    /// A background job's progress changed (sent once per change seen by [`Session::drain_events`],
+    /// [`Session::poll_persistence`] and [`Session::pump_jobs`]; the last one has `done`).
+    JobProgress {
+        id: u64,
+        kind: String,
+        label: String,
+        /// 0..1 (1 when the job finished without error)
+        progress: f64,
+        done: bool,
+        /// `jobs.cancel` stopped it (then `done` and `error` are set too)
+        cancelled: bool,
+        error: Option<String>,
+    },
 }
 
 pub struct Session {
@@ -371,6 +385,8 @@ pub struct Session {
     pub mask_jobs: Vec<masks::PendingTrack>,
     /// Scene Edit Detection jobs whose results are applied when they finish.
     pub scene_jobs: Vec<scene_detect::PendingScene>,
+    /// Warp Stabilizer analyses running: (render cache key, job id).
+    pub stabilizer_jobs: Vec<(u64, u64)>,
     /// Effect presets (built-in + the user's, persisted in the data directory).
     pub presets: presets::PresetLibrary,
     /// Export presets (built-in + the user's, persisted in the data directory) and favourites.
@@ -379,6 +395,11 @@ pub struct Session {
     pub export_queue: export_tools::ExportQueue,
     /// Exports run a batch at a time by [`Session::pump_jobs`] (hosts without threads: web).
     pub stepped: Vec<SteppedJob>,
+    /// Analyses run a few frames at a time by [`Session::pump_jobs`] (hosts without threads:
+    /// web). Native hosts run the same tasks on a thread ([`Session::run_task`]).
+    pub tasks: Vec<Box<dyn SteppedTask>>,
+    /// Progress last reported as an [`Event::JobProgress`] per job (permille, finished).
+    job_reported: std::collections::HashMap<u64, (u32, bool)>,
     /// Speech recogniser for `transcript.generate` (None = the Whisper model named by the command,
     /// feature `whisper`). Hosts and tests install one here.
     pub transcriber: Option<Arc<dyn filmcraft_speech::Transcriber>>,
@@ -390,6 +411,10 @@ pub struct Session {
     exec_depth: u32,
 }
 
+/// Units of work one [`SteppedTask::step`] does (frames). Small on the web so a `pump_jobs`
+/// call returns in time for the next frame; a native thread loops anyway.
+const TASK_UNITS_PER_STEP: usize = if cfg!(target_arch = "wasm32") { 2 } else { 8 };
+
 /// An export advanced a batch at a time on the host's thread ([`Session::pump_jobs`]).
 pub struct SteppedJob {
     pub job: u64,
@@ -399,10 +424,24 @@ pub struct SteppedJob {
     pub result: Arc<std::sync::Mutex<Option<std::result::Result<filmcraft_export::Report, String>>>>,
 }
 
+/// Work advanced a step at a time: a thread loops it (native hosts), or [`Session::pump_jobs`]
+/// (hosts without threads) a few units per call so the host stays responsive. The task owns its
+/// [`Job`]'s progress and writes the job's result when it finishes.
+pub trait SteppedTask: Send {
+    /// The job this task advances.
+    fn job(&self) -> u64;
+    /// Do up to `max` units of work (0 = only notice a cancel). Returns whether the task finished
+    /// (its result is written; the task can be dropped).
+    fn step(&mut self, max: usize) -> bool;
+}
+
 /// A background job with shared progress.
 #[derive(Clone)]
 pub struct Job {
     pub id: u64,
+    /// What kind of job (`export`, `previews`, `audioPreviews`, `maskTrack`, `sceneDetect`,
+    /// `stabilizer`); frontends pick a label and a place for the progress by it.
+    pub kind: &'static str,
     pub label: String,
     pub progress: Arc<filmcraft_export::Progress>,
     pub result: Arc<std::sync::Mutex<Option<std::result::Result<filmcraft_export::Report, String>>>>,
@@ -414,6 +453,7 @@ impl Job {
         let res = self.result.lock().unwrap_or_else(|e| e.into_inner()).clone();
         serde_json::json!({
             "id": self.id,
+            "kind": self.kind,
             "label": self.label,
             "progress": self.progress.fraction(),
             // seconds left at the job's recent speed; null until it can tell
@@ -467,10 +507,13 @@ impl Session {
             media_jobs: Vec::new(),
             mask_jobs: Vec::new(),
             scene_jobs: Vec::new(),
+            stabilizer_jobs: Vec::new(),
             presets: Default::default(),
             export_presets: Default::default(),
             export_queue: Default::default(),
             stepped: Vec::new(),
+            tasks: Vec::new(),
+            job_reported: Default::default(),
             transcriber: None,
             log: Default::default(),
             browser: Default::default(),
@@ -503,7 +546,82 @@ impl Session {
                 break;
             }
         }
-        !self.stepped.is_empty() || self.export_queue.is_active()
+        if !self.tasks.is_empty() {
+            self.pump_tasks(budget.saturating_sub(t0.elapsed()));
+        }
+        self.emit_job_progress();
+        !self.stepped.is_empty() || self.export_queue.is_active() || !self.tasks.is_empty()
+    }
+
+    /// Advance stepped tasks ([`SteppedTask`]) one unit at a time for up to `budget` (at least one
+    /// unit of the first task). Finished tasks are dropped and their results applied.
+    fn pump_tasks(&mut self, budget: std::time::Duration) {
+        let t0 = web_time::Instant::now();
+        let mut finished_any = false;
+        while let Some(t) = self.tasks.first_mut() {
+            if t.step(TASK_UNITS_PER_STEP) {
+                self.tasks.remove(0);
+                finished_any = true;
+            }
+            if t0.elapsed() >= budget {
+                break;
+            }
+        }
+        if finished_any {
+            scene_detect::poll(self);
+        }
+    }
+
+    /// Run `task` in the background: on a thread (native hosts) or, when `wait` or the host has
+    /// no threads (web), on this thread ([`Session::pump_jobs`] advances it when not waiting).
+    pub fn run_task(&mut self, mut task: Box<dyn SteppedTask>, wait: bool) -> Result<()> {
+        if wait {
+            while !task.step(TASK_UNITS_PER_STEP) {}
+            return Ok(());
+        }
+        if cfg!(target_arch = "wasm32") {
+            self.tasks.push(task);
+            return Ok(());
+        }
+        let job = self.jobs.iter().find(|j| j.id == task.job()).cloned();
+        let run = move || while !task.step(TASK_UNITS_PER_STEP) {};
+        let run: Box<dyn FnOnce() + Send> = match job {
+            Some(j) => Box::new(export_tools::guard_job(j.progress, j.result, run)),
+            None => Box::new(run),
+        };
+        std::thread::Builder::new().name("filmcraft-task".into()).spawn(run).map_err(|e| EngineError::Other(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Queue an [`Event::JobProgress`] for every job whose progress changed since the last one.
+    /// A job finishing with `kind == "stabilizer"` also bumps the view (its render changed).
+    fn emit_job_progress(&mut self) {
+        use std::sync::atomic::Ordering;
+        let mut events = Vec::new();
+        let mut rerender = false;
+        for j in &self.jobs {
+            let res = j.result.lock().unwrap_or_else(|e| e.into_inner()).clone();
+            let done = res.is_some() || j.progress.finished.load(Ordering::Relaxed);
+            let error = match &res {
+                Some(Err(e)) => Some(e.clone()),
+                _ => j.progress.error.lock().unwrap_or_else(|e| e.into_inner()).clone(),
+            };
+            let cancelled = j.progress.cancel.load(Ordering::Relaxed);
+            let progress = if done && error.is_none() { 1.0 } else { f64::from(j.progress.fraction()).clamp(0.0, 1.0) };
+            let key = ((progress * 1000.0).round() as u32, done);
+            if self.job_reported.get(&j.id) == Some(&key) {
+                continue;
+            }
+            if done && j.kind == "stabilizer" {
+                rerender = true;
+            }
+            self.job_reported.insert(j.id, key);
+            events.push(Event::JobProgress { id: j.id, kind: j.kind.to_string(), label: j.label.clone(), progress, done, cancelled, error });
+        }
+        self.events.extend(events);
+        if rerender {
+            self.bump_view();
+        }
     }
 
     /// Start auto-save and the crash-recovery journal (native frontends). Loads preferences from
@@ -557,11 +675,15 @@ impl Session {
     /// Apply worker notifications (call regularly, e.g. once per UI frame). Also applies the
     /// results of finished proxy / ingest jobs.
     pub fn poll_persistence(&mut self) {
+        if !self.tasks.is_empty() {
+            self.pump_tasks(std::time::Duration::ZERO);
+        }
         proxies::poll(self);
         masks::poll(self);
         scene_detect::poll(self);
         export_tools::pump_queue(self, false);
         panels::log_jobs(self);
+        self.emit_job_progress();
         let Some(p) = self.persistence.as_mut() else { return };
         for ev in p.drain_events() {
             match ev {
@@ -921,6 +1043,7 @@ impl Session {
     }
 
     pub fn drain_events(&mut self) -> Vec<Event> {
+        self.emit_job_progress();
         std::mem::take(&mut self.events)
     }
 

@@ -4,6 +4,7 @@
  * 화면이 메모리 캐시만 쓰게 한다. 키는 OPFS 경로가 아니라 문자열 키(경로 + tick + 폭)다. 상한을 넘으면 오래된 것부터 지운다.
  */
 import type { CacheStore, PeaksCacheKey, RecentProject, ThumbCacheKey } from '@editor/engine/bridge';
+import { done, idbAvailable, lazyDb, request } from './idb';
 
 const DB_NAME = 'sh-video-editor-cache';
 const DB_VERSION = 1;
@@ -28,49 +29,18 @@ function peaksKey(k: PeaksCacheKey): string {
   return `${k.path}\u0000${k.perSecond}`;
 }
 
-function request<T>(r: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error ?? new Error('IndexedDB 오류'));
-  });
-}
-
-function done(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB 트랜잭션 오류'));
-    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB 트랜잭션 중단'));
-  });
-}
-
-function openDb(): Promise<IDBDatabase> {
-  const req = indexedDB.open(DB_NAME, DB_VERSION);
-  req.onupgradeneeded = () => {
-    const db = req.result;
-    for (const name of [THUMBS, PEAKS]) {
-      if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'key' }).createIndex('usedAt', 'usedAt');
-    }
-    if (!db.objectStoreNames.contains(RECENT)) db.createObjectStore(RECENT, { keyPath: 'path' }).createIndex('openedAt', 'openedAt');
-  };
-  return request(req);
-}
-
-function idbAvailable(): boolean {
-  return typeof indexedDB !== 'undefined';
-}
+const openDb = lazyDb(DB_NAME, DB_VERSION, (db) => {
+  for (const name of [THUMBS, PEAKS]) {
+    if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'key' }).createIndex('usedAt', 'usedAt');
+  }
+  if (!db.objectStoreNames.contains(RECENT)) db.createObjectStore(RECENT, { keyPath: 'path' }).createIndex('openedAt', 'openedAt');
+});
 
 class IdbCache implements CacheStore {
-  private db: Promise<IDBDatabase> | null = null;
   private pruneAt = 0;
 
   private open(): Promise<IDBDatabase> {
-    if (!this.db) {
-      this.db = openDb().catch((e: unknown) => {
-        this.db = null;
-        throw e;
-      });
-    }
-    return this.db;
+    return openDb();
   }
 
   private async get<V>(store: string, key: string): Promise<V | null> {

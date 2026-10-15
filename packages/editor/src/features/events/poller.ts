@@ -14,6 +14,7 @@ import { useMonitor } from '../monitor/store';
 import { useJobs } from '../jobs/store';
 import { PERSISTENCE_MS, classify, pollInterval, type Classified } from './classify';
 import { useEngineEvents, type EngineEventsState } from './store';
+import { errorMessage } from '../../errors';
 
 interface PollerOptions {
   /** 재생 중인지. 기본은 useMonitor.playing */
@@ -24,8 +25,6 @@ interface PollerOptions {
   onToast?: (message: string, error: boolean) => void;
   now?: () => number;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const RESTART_STATUS = '엔진을 다시 시작했습니다. 저장하지 않은 변경은 복구 후보에서 되살릴 수 있습니다.';
 /** 문제 보고 파일을 남겼을 때의 토스트 문구(데스크톱, M4-6) */
@@ -139,7 +138,7 @@ export class EnginePoller {
       await this.poll();
       if (useEngineEvents.getState().lastError !== null) useEngineEvents.setState({ lastError: null });
     } catch (e) {
-      useEngineEvents.setState({ lastError: message(e) });
+      useEngineEvents.setState({ lastError: errorMessage(e) });
     } finally {
       useEngineEvents.setState((s) => ({ polls: s.polls + 1 }));
     }

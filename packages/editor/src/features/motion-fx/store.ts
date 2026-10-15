@@ -29,6 +29,7 @@ import { findClip, type ClipInfo, type SequenceInfo } from '../timeline/types';
 import { ULTRA_KEY, WARP_STABILIZER, analysisNote, pixelAt } from './chroma';
 import { PIP_SIZES, pipCornerLabel, pipPlacement, type PipCorner } from './pip';
 import { rampPoints, rampPreset, type RampPresetId } from './ramp';
+import { errorMessage } from '../../errors';
 
 /** 스포이트가 읽는 프레임의 배율(색만 읽으므로 작게) */
 export const PICK_SCALE = 0.25;
@@ -64,8 +65,6 @@ interface MotionFxState {
   setStabilizerParam(clip: number, param: string, value: ParamInput, opts?: SetParamOptions): Promise<void>;
   removeStabilizer(clips: number[]): Promise<void>;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function bridgeOrNull(): EngineBridge | null {
   return useEditor.getState().bridge;
@@ -185,7 +184,7 @@ export const useMotionFx = create<MotionFxState>((set, get) => ({
       useEditor.setState({ status: `키 색을 골랐습니다: ${hex}`, error: null });
       return true;
     } catch (e) {
-      useEditor.setState({ error: `키 색을 고를 수 없습니다: ${message(e)}` });
+      useEditor.setState({ error: `키 색을 고를 수 없습니다: ${errorMessage(e)}` });
       return false;
     } finally {
       set({ busy: false });
@@ -216,7 +215,7 @@ export const useMotionFx = create<MotionFxState>((set, get) => ({
       useEditor.setState({ status: label, error: null });
       return true;
     } catch (e) {
-      useEditor.setState({ error: `작은 화면으로 바꿀 수 없습니다: ${message(e)}` });
+      useEditor.setState({ error: `작은 화면으로 바꿀 수 없습니다: ${errorMessage(e)}` });
       return false;
     } finally {
       set({ busy: false });
@@ -271,7 +270,7 @@ export const useMotionFx = create<MotionFxState>((set, get) => ({
       useProject.getState().notify('success', `흔들림 줄이기를 적용했습니다 (${analysisNote(ms)}).`);
       return true;
     } catch (e) {
-      useEditor.setState({ error: `흔들림을 줄일 수 없습니다: ${message(e)}` });
+      useEditor.setState({ error: `흔들림을 줄일 수 없습니다: ${errorMessage(e)}` });
       return false;
     } finally {
       set({ busy: false, analysis: null });

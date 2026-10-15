@@ -8,6 +8,7 @@ import type { EngineBridge } from '../../engine/bridge';
 import { withTransaction } from '../../engine/transaction';
 import { TICKS_PER_SECOND } from '../../engine/time';
 import type { SequenceInfo } from '../timeline/types';
+import { errorMessage } from '../../errors';
 
 export type CleanStrength = 'light' | 'normal' | 'strong';
 
@@ -180,7 +181,7 @@ export async function normalizeLoudness(bridge: EngineBridge, seq: SequenceInfo,
       return (await bridge.execute('essentialSound.autoMatch', { clips, target })) as MatchReport;
     });
   } catch (e) {
-    if (/unknown command/i.test(e instanceof Error ? e.message : String(e))) return approximateLoudness(bridge, seq, clips, target);
+    if (/unknown command/i.test(errorMessage(e))) return approximateLoudness(bridge, seq, clips, target);
     throw e;
   }
   const matched = (report.clips ?? []).filter((c) => typeof c.measuredLufs === 'number');

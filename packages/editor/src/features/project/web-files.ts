@@ -11,6 +11,7 @@
  */
 import type { EngineBridge, OpfsStore } from '../../engine/bridge';
 import type { RecoveryCandidate } from './store';
+import { errorMessage } from '../../errors';
 
 const PROJECTS_DIR = 'projects';
 const RECOVERY_DIR = 'recovery';
@@ -275,7 +276,7 @@ export class WebAutosave {
       this.snapshots += 1;
       this.lastError = null;
     } catch (e) {
-      this.lastError = e instanceof Error ? e.message : String(e);
+      this.lastError = errorMessage(e);
     } finally {
       this.busy = false;
     }

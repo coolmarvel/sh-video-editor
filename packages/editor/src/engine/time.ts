@@ -16,6 +16,11 @@ export function formatTimecode(tick: number, fps: number): string {
   // 29.97 은 30)로 나눈다(NDF). geometry.timecodeAt 과 같은 규칙.
   const nominal = Math.max(1, Math.round(fps));
   const totalFrames = Math.max(0, Math.floor((tick * fps) / TICKS_PER_SECOND + 1e-11));
+  return framesToTimecode(totalFrames, nominal);
+}
+
+/** 전체 프레임 수를 명목 프레임레이트로 HH:MM:SS:FF(NDF)로 적는다. formatTimecode 와 timeline/geometry.timecodeAt 이 같이 쓴다. */
+export function framesToTimecode(totalFrames: number, nominal: number): string {
   const f = totalFrames % nominal;
   const totalSeconds = Math.floor(totalFrames / nominal);
   const s = totalSeconds % 60;

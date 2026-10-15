@@ -4,6 +4,7 @@
  * 메모리 저장소(세션 동안만)를 쓰게 한다.
  */
 import type { StoredTemplate, TemplateStore } from '@editor/engine/bridge';
+import { done, idbAvailable, lazyDb, request } from './idb';
 
 const DB_NAME = 'sh-video-editor-templates';
 const DB_VERSION = 1;
@@ -16,41 +17,13 @@ interface Row {
   savedAt: number;
 }
 
-function request<T>(r: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error ?? new Error('IndexedDB 오류'));
-  });
-}
-
-function done(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB 트랜잭션 오류'));
-    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB 트랜잭션 중단'));
-  });
-}
-
-function openDb(): Promise<IDBDatabase> {
-  const req = indexedDB.open(DB_NAME, DB_VERSION);
-  req.onupgradeneeded = () => {
-    const db = req.result;
-    if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
-  };
-  return request(req);
-}
+const openDb = lazyDb(DB_NAME, DB_VERSION, (db) => {
+  if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+});
 
 class IdbTemplates implements TemplateStore {
-  private db: Promise<IDBDatabase> | null = null;
-
   private open(): Promise<IDBDatabase> {
-    if (!this.db) {
-      this.db = openDb().catch((e: unknown) => {
-        this.db = null;
-        throw e;
-      });
-    }
-    return this.db;
+    return openDb();
   }
 
   async list(): Promise<StoredTemplate[]> {
@@ -81,5 +54,5 @@ class IdbTemplates implements TemplateStore {
 
 /** IndexedDB 가 없으면 undefined */
 export function createIdbTemplates(): TemplateStore | undefined {
-  return typeof indexedDB !== 'undefined' ? new IdbTemplates() : undefined;
+  return idbAvailable() ? new IdbTemplates() : undefined;
 }

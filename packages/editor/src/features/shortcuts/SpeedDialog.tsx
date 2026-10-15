@@ -8,6 +8,7 @@ import { useSpeed } from '../speed/store';
 import { useTimeline } from '../timeline/store';
 import { findClip } from '../timeline/types';
 import { useShortcutsUi } from './store';
+import { Dialog } from '../../shell/Dialog';
 
 export function SpeedDialog() {
   const open = useShortcutsUi((s) => s.speedOpen);
@@ -37,35 +38,19 @@ export function SpeedDialog() {
   };
 
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog ve-dialog--narrow"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ve-speed-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            setOpen(false);
-          }
-        }}
-      >
-        <div className="sh-dialog__title">
-          <span id="ve-speed-title">속도, 길이</span>
-        </div>
-        <div className="sh-dialog__body">
-          <p className="ve-dialog-text">선택한 클립 {selection.length}개의 재생 속도를 바꿉니다. 1x 가 원래 속도입니다.</p>
-          <SpeedForm clip={clip} sequence={sequence} count={selection.length} inputRef={inputRef} onSubmit={submit} />
-        </div>
-        <div className="sh-dialog__buttons">
-          <button type="button" className="sh-btn sh-btn--dialog" onClick={() => setOpen(false)}>
-            취소
-          </button>
-          <button type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={selection.length === 0} onClick={submit}>
-            적용
-          </button>
-        </div>
+    <Dialog titleId="ve-speed-title" title="속도, 길이" onClose={() => setOpen(false)} className="ve-dialog--narrow">
+      <div className="sh-dialog__body">
+        <p className="ve-dialog-text">선택한 클립 {selection.length}개의 재생 속도를 바꿉니다. 1x 가 원래 속도입니다.</p>
+        <SpeedForm clip={clip} sequence={sequence} count={selection.length} inputRef={inputRef} onSubmit={submit} />
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <button type="button" className="sh-btn sh-btn--dialog" onClick={() => setOpen(false)}>
+          취소
+        </button>
+        <button type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={selection.length === 0} onClick={submit}>
+          적용
+        </button>
+      </div>
+    </Dialog>
   );
 }

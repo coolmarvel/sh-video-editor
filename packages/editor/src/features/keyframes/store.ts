@@ -38,6 +38,7 @@ import {
   valueAt,
 } from './model';
 import { type MotionPresetId, motionPreset, presetKeyframes } from './presets';
+import { errorMessage } from '../../errors';
 
 type Tracks = Record<ParamKey, ParamTrack>;
 
@@ -87,8 +88,6 @@ interface KeyframesState {
   /** features/effects 가 effects.setParam 을 보낼 때 알려 준다(애니메이션 중이면 플레이헤드에 키프레임이 생긴다) */
   noteParamSet(clip: number, effect: string | number, param: string, value: unknown, time?: number): void;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function bridgeOrNull(): EngineBridge | null {
   return useEditor.getState().bridge;
@@ -185,7 +184,7 @@ export const useKeyframes = create<KeyframesState>((set, get) => {
       ok = true;
     } catch (e) {
       set((s) => ({ tracks: before, undo: structural ? s.undo.slice(0, -1) : s.undo }));
-      useEditor.setState({ error: `키프레임을 바꿀 수 없습니다: ${message(e)}` });
+      useEditor.setState({ error: `키프레임을 바꿀 수 없습니다: ${errorMessage(e)}` });
     } finally {
       set({ busy: false });
       await refreshViews();

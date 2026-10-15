@@ -9,8 +9,7 @@ import { execCommand, refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
 import { findClip, type ClipInfo, type SequenceInfo } from '../timeline/types';
 import { useContextMenu } from './store';
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+import { errorMessage } from '../../errors';
 
 /** 선택한 클립 중 서로 다른 연결 묶음의 수(연결 없는 클립은 각각 하나) */
 export function linkGroups(clips: ClipInfo[]): number {
@@ -125,7 +124,7 @@ export async function synchronizeByAudio(clips: ClipInfo[]): Promise<void> {
           : '이미 싱크가 맞아 옮긴 클립이 없습니다.',
       );
   } catch (e) {
-    useProject.getState().notify('danger', `싱크를 맞추지 못했습니다. 두 클립에 같은 소리가 들어 있어야 합니다. ${message(e)}`);
+    useProject.getState().notify('danger', `싱크를 맞추지 못했습니다. 두 클립에 같은 소리가 들어 있어야 합니다. ${errorMessage(e)}`);
     await refreshAll();
   }
 }
@@ -185,7 +184,7 @@ export async function detectScenes(selected: ClipInfo[]): Promise<SceneResult | 
       .notify(cuts > 0 ? 'success' : 'info', cuts > 0 ? `${status}.` : '장면이 바뀌는 곳을 찾지 못했습니다. 한 장면으로 이어진 영상이거나 변화가 작습니다.');
     return { clips: videos.length, cuts };
   } catch (e) {
-    useProject.getState().notify('danger', `장면을 찾지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `장면을 찾지 못했습니다. ${errorMessage(e)}`);
     await refreshAll();
     return null;
   } finally {

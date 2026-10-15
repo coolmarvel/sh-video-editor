@@ -10,6 +10,7 @@ import { useRecent } from './recent';
 import { isOpfsPath, isWebFiles, isWebRecoveryId } from './web-files';
 import { afterWebSave, discardWeb, recoverWeb, startWebSession, webRecoveryCandidates, webSaveRedirect } from './web-session';
 import { useWebFiles } from './web-store';
+import { errorMessage } from '../../errors';
 
 /** file.recoveryList 의 한 항목. */
 export interface RecoveryCandidate {
@@ -75,7 +76,6 @@ interface ProjectState {
 
 const PROJECT_FILTER = [{ name: 'SH Video Editor 프로젝트', extensions: ['fcproj'] }];
 const UNTITLED = '제목 없음';
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 let noticeSeq = 0;
 /** 토스트가 저절로 닫히기까지(ms). 오류(danger)는 저절로 닫히지 않는다 */
 const NOTICE_TTL_MS = 6000;
@@ -159,7 +159,7 @@ export const useProject = create<ProjectState>((set, get) => {
             await loadCandidates();
           } catch (e) {
             set({ autosave: 'unavailable' });
-            get().notify('warning', `자동 저장을 시작하지 못했습니다: ${message(e)}`);
+            get().notify('warning', `자동 저장을 시작하지 못했습니다: ${errorMessage(e)}`);
           }
           return;
         }
@@ -172,7 +172,7 @@ export const useProject = create<ProjectState>((set, get) => {
         await loadCandidates();
       } catch (e) {
         set({ autosave: 'unavailable' });
-        get().notify('warning', `자동 저장을 시작하지 못했습니다: ${message(e)}`);
+        get().notify('warning', `자동 저장을 시작하지 못했습니다: ${errorMessage(e)}`);
       }
     },
 
@@ -185,7 +185,7 @@ export const useProject = create<ProjectState>((set, get) => {
           await get().refresh();
           get().notify('success', '새 프로젝트를 만들었습니다.');
         } catch (e) {
-          get().notify('danger', `새 프로젝트를 만들지 못했습니다: ${message(e)}`);
+          get().notify('danger', `새 프로젝트를 만들지 못했습니다: ${errorMessage(e)}`);
         }
       });
     },
@@ -229,7 +229,7 @@ export const useProject = create<ProjectState>((set, get) => {
         if (r.missingMedia > 0 && isWebFiles(b)) void useWebFiles.getState().showRelink();
         return true;
       } catch (e) {
-        get().notify('danger', `파일을 열 수 없습니다: ${message(e)}`);
+        get().notify('danger', `파일을 열 수 없습니다: ${errorMessage(e)}`);
         return false;
       }
     },
@@ -251,7 +251,7 @@ export const useProject = create<ProjectState>((set, get) => {
         get().notify('success', `저장했습니다: ${get().name}`);
         return true;
       } catch (e) {
-        get().notify('danger', `저장하지 못했습니다: ${message(e)}`);
+        get().notify('danger', `저장하지 못했습니다: ${errorMessage(e)}`);
         return false;
       }
     },
@@ -278,7 +278,7 @@ export const useProject = create<ProjectState>((set, get) => {
         get().notify('success', `저장했습니다: ${path}`);
         return true;
       } catch (e) {
-        get().notify('danger', `저장하지 못했습니다: ${message(e)}`);
+        get().notify('danger', `저장하지 못했습니다: ${errorMessage(e)}`);
         return false;
       }
     },
@@ -288,7 +288,7 @@ export const useProject = create<ProjectState>((set, get) => {
         await loadCandidates();
         if (get().candidates.length === 0) get().notify('success', '복구할 변경이 없습니다.');
       } catch (e) {
-        get().notify('danger', `복구 목록을 읽지 못했습니다: ${message(e)}`);
+        get().notify('danger', `복구 목록을 읽지 못했습니다: ${errorMessage(e)}`);
       }
     },
 
@@ -305,7 +305,7 @@ export const useProject = create<ProjectState>((set, get) => {
         await get().refresh();
         get().notify('success', `'${r.name}' 의 저장하지 않은 변경을 되살렸습니다 (${r.savedAt}). 저장하면 원본 파일에 씁니다.`);
       } catch (e) {
-        get().notify('danger', `복구하지 못했습니다: ${message(e)}`);
+        get().notify('danger', `복구하지 못했습니다: ${errorMessage(e)}`);
       }
       await loadCandidates().catch(() => undefined);
       set({ recoveryOpen: false });
@@ -318,7 +318,7 @@ export const useProject = create<ProjectState>((set, get) => {
         if (isWebRecoveryId(id)) await discardWeb(b, id);
         else await b.execute('file.discardRecovery', { id });
       } catch (e) {
-        get().notify('danger', `버리지 못했습니다: ${message(e)}`);
+        get().notify('danger', `버리지 못했습니다: ${errorMessage(e)}`);
       }
       await loadCandidates().catch(() => undefined);
     },

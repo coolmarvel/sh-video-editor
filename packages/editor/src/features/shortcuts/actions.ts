@@ -23,10 +23,9 @@ import { useShortcutsUi } from './store';
 import { useAudio } from '../audio/store';
 import { applyDucking, applyFade } from '../audio/ducking';
 import { useMotionFx } from '../motion-fx/store';
+import { errorMessage } from '../../errors';
 
 type Params = Record<string, unknown>;
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** 엔진 상태가 바뀐 뒤 모든 패널이 다시 읽게 한다. status 변경은 타임라인·미디어 패널의 구독을 깨운다 */
 export async function refreshAll(status?: string): Promise<void> {
@@ -49,7 +48,7 @@ export async function execCommand(id: string, params: Params | undefined, done: 
     await refreshAll(done);
     return r;
   } catch (e) {
-    useEditor.setState({ error: `실행할 수 없습니다: ${message(e)}` });
+    useEditor.setState({ error: `실행할 수 없습니다: ${errorMessage(e)}` });
     await refreshAll();
     return undefined;
   }
@@ -95,7 +94,7 @@ async function importMedia(): Promise<void> {
     const paths = await bridge.registerFiles(files);
     await useMedia.getState().importPaths(paths);
   } catch (e) {
-    useProject.getState().notify('danger', `파일을 등록하지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `파일을 등록하지 못했습니다. ${errorMessage(e)}`);
   }
 }
 
@@ -126,7 +125,7 @@ async function audioFade(edge: 'in' | 'out'): Promise<void> {
     await applyFade(bridge, sel.seq, sel.clip, edge, 1);
     await refreshAll(`페이드 ${edge === 'in' ? '인' : '아웃'} 1초를 걸었습니다`);
   } catch (e) {
-    useEditor.setState({ error: `페이드를 걸 수 없습니다: ${message(e)}` });
+    useEditor.setState({ error: `페이드를 걸 수 없습니다: ${errorMessage(e)}` });
   }
 }
 
@@ -138,7 +137,7 @@ async function audioDuck(): Promise<void> {
     const r = await applyDucking(bridge, sel.seq, sel.clip);
     await refreshAll(`음성 구간 ${r.triggers}개를 찾아 키프레임 ${r.keyframes}개를 만들었습니다`);
   } catch (e) {
-    useEditor.setState({ error: `자동 낮춤을 만들 수 없습니다: ${message(e)}` });
+    useEditor.setState({ error: `자동 낮춤을 만들 수 없습니다: ${errorMessage(e)}` });
   }
 }
 
@@ -273,7 +272,7 @@ const TABLE: Record<string, (params?: Params) => void | Promise<void>> = {
       await reports.open();
       useEditor.setState({ status: '문제 보고 폴더를 열었습니다. 엔진이 예기치 않게 종료되면 여기에 JSON 파일이 남습니다', error: null });
     } catch (e) {
-      useEditor.setState({ error: `문제 보고 폴더를 열지 못했습니다: ${message(e)}` });
+      useEditor.setState({ error: `문제 보고 폴더를 열지 못했습니다: ${errorMessage(e)}` });
     }
   },
 };

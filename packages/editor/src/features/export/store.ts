@@ -14,6 +14,7 @@ import {
   type UiPreset,
 } from './presets';
 import { captureWrittenFile, downloadExport, isWebExport, webExportPath, type WrittenCapture } from './web-download';
+import { errorMessage } from '../../errors';
 
 interface Resolved {
   frames: number;
@@ -54,7 +55,6 @@ interface ExportState {
   cancel(): Promise<void>;
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const NO_SEQUENCE = '내보낼 편집본이 없습니다. 먼저 미디어를 타임라인에 넣어 주세요.';
 
 let stopLoop: (() => void) | null = null;
@@ -87,7 +87,7 @@ export const useExport = create<ExportState>((set, get) => {
         problem: null,
       });
     } catch (e) {
-      const m = message(e);
+      const m = errorMessage(e);
       set({ resolved: null, problem: m.includes('disabled') || m.includes('sequence') ? NO_SEQUENCE : m });
     }
   }
@@ -142,7 +142,7 @@ export const useExport = create<ExportState>((set, get) => {
         });
         await resolve();
       } catch (e) {
-        set({ loading: false, problem: `내보내기 설정을 읽지 못했습니다: ${message(e)}` });
+        set({ loading: false, problem: `내보내기 설정을 읽지 못했습니다: ${errorMessage(e)}` });
       }
     },
 
@@ -220,7 +220,7 @@ export const useExport = create<ExportState>((set, get) => {
           (m) => set({ job: null, outcome: { kind: 'danger', text: `내보내기 진행을 확인하지 못했습니다: ${m}` } }),
         );
       } catch (e) {
-        set({ job: null, outcome: { kind: 'danger', text: `내보내기를 시작하지 못했습니다: ${message(e)}` } });
+        set({ job: null, outcome: { kind: 'danger', text: `내보내기를 시작하지 못했습니다: ${errorMessage(e)}` } });
       }
     },
 
@@ -231,7 +231,7 @@ export const useExport = create<ExportState>((set, get) => {
       try {
         await b.execute('export.queue.cancel', { id: job.id });
       } catch (e) {
-        set({ outcome: { kind: 'danger', text: `취소하지 못했습니다: ${message(e)}` } });
+        set({ outcome: { kind: 'danger', text: `취소하지 못했습니다: ${errorMessage(e)}` } });
       }
     },
   };

@@ -9,6 +9,7 @@ import { TICKS_PER_SECOND } from '../../engine/time';
 import { refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
 import { parseSrt } from './srt';
+import { errorMessage } from '../../errors';
 
 export interface CaptionCue {
   id: number;
@@ -69,7 +70,6 @@ interface CaptionsState {
   exportSrt(): Promise<void>;
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const SRT_FILTER = [{ name: '자막 파일', extensions: ['srt', 'vtt'] }];
 
 function bridge() {
@@ -139,7 +139,7 @@ export const useCaptions = create<CaptionsState>((set, get) => {
       await get().refresh();
       return r;
     } catch (e) {
-      set({ notice: { tone: 'danger', text: `자막을 편집할 수 없습니다: ${message(e)}` } });
+      set({ notice: { tone: 'danger', text: `자막을 편집할 수 없습니다: ${errorMessage(e)}` } });
       await get().refresh();
       return undefined;
     } finally {

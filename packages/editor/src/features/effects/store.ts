@@ -16,6 +16,7 @@ import { FILTER_PRESETS, LUMETRI_EFFECT, effectLabel, filterPreset, isIntrinsic 
 import { makeThumbnails } from './thumbnails';
 import type { ClipEffectInfo, FilterPreset } from './types';
 import { useKeyframes } from '../keyframes/store';
+import { errorMessage } from '../../errors';
 
 /** `effects.setParam` 의 value: 숫자, 불, "#rrggbb", [x, y] */
 export type ParamInput = number | boolean | string | [number, number];
@@ -69,7 +70,7 @@ function bridgeOrNull(): EngineBridge | null {
 }
 
 function describeError(e: unknown): string {
-  return `효과를 바꿀 수 없습니다: ${e instanceof Error ? e.message : String(e)}`;
+  return `효과를 바꿀 수 없습니다: ${errorMessage(e)}`;
 }
 
 /** 지금 타임라인 store 가 아는 클립. 없으면 null */

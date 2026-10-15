@@ -18,6 +18,7 @@ import { useTimeline } from '../timeline/store';
 import type { SequenceInfo } from '../timeline/types';
 import { STICKER_PNG_SIZE, STICKER_SECONDS, isAnimated, stickerDef } from './catalog';
 import { rasterizeSvg, type Rasterizer } from './raster';
+import { errorMessage } from '../../errors';
 
 interface StickersState {
   busy: boolean;
@@ -28,8 +29,6 @@ interface StickersState {
   /** 플레이헤드에 5초 스티커 클립을 넣는다. 만든 클립 id, 실패하면 null */
   addSticker(id: string): Promise<number | null>;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** [start, end) 가 비어 있는 첫 영상 트랙 id. 없으면 null */
 export function freeVideoTrack(seq: SequenceInfo, start: number, end: number): number | null {
@@ -88,7 +87,7 @@ export const useStickers = create<StickersState>((set, get) => ({
       useInspectorRegistry.getState().setActive('motion');
       return clip;
     } catch (e) {
-      useProject.getState().notify('danger', `스티커를 넣지 못했습니다. ${message(e)}`);
+      useProject.getState().notify('danger', `스티커를 넣지 못했습니다. ${errorMessage(e)}`);
       await refreshAll();
       return null;
     } finally {

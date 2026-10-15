@@ -21,6 +21,7 @@ import {
   type EditPoint,
   type TransitionAlign,
 } from './types';
+import { errorMessage } from '../../errors';
 
 export type ApplyEdges = 'both' | 'in' | 'out';
 
@@ -55,8 +56,6 @@ interface TransitionsState {
   remove(id: number): Promise<void>;
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
 export const useTransitions = create<TransitionsState>((set, get) => {
   /** 커맨드 하나를 보내고 실패를 상태 줄에 올린다. 성공해도 다시 읽기는 호출자가 한다(여러 개를 묶어 보낼 때가 있다) */
   async function send(id: string, params: Record<string, unknown>): Promise<unknown> {
@@ -66,7 +65,7 @@ export const useTransitions = create<TransitionsState>((set, get) => {
     try {
       return await bridge.execute(id, params);
     } catch (e) {
-      useEditor.setState({ error: `전환을 적용할 수 없습니다: ${message(e)}` });
+      useEditor.setState({ error: `전환을 적용할 수 없습니다: ${errorMessage(e)}` });
       return undefined;
     } finally {
       set({ busy: false });

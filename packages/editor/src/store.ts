@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { CommandSpec, EngineBridge } from './engine/bridge';
+import { errorMessage } from './errors';
 
 interface EditorState {
   bridge: EngineBridge | null;
@@ -26,7 +27,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       const [version, commands] = await Promise.all([bridge.version(), bridge.commands()]);
       set({ version, commands, status: `준비됨: 커맨드 ${commands.length}개`, error: null });
     } catch (e) {
-      set({ status: '엔진 연결 실패', error: e instanceof Error ? e.message : String(e) });
+      set({ status: '엔진 연결 실패', error: errorMessage(e) });
     }
   },
   async run(id, params) {
@@ -36,7 +37,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       const result = await bridge.execute(id, params);
       set({ status: `${id}: ${JSON.stringify(result)}`, error: null });
     } catch (e) {
-      set({ error: e instanceof Error ? e.message : String(e) });
+      set({ error: errorMessage(e) });
     }
   },
 }));

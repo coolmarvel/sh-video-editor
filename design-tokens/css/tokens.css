@@ -107,8 +107,8 @@
   --sh-radius-round: 9999px; /** 상태 점·dirty 점에만 */
   --sh-border-width: 1px; /** 모든 선은 1px */
   --sh-border-focus-offset: -3px; /** 포커스 점선을 안쪽 3px 에 */
-  --sh-font-family-ui: 돋움, Dotum, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; /** UI 기본 - 돋움 12px 정체성 */
-  --sh-font-family-ui-skia: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; /** Avalonia/Skia 렌더러 - 돋움 비트맵이 비정수 크기·합성 굵게에서 깨진다 (2026-10-01) */
+  --sh-font-family-ui: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; /** UI 기본 - 맑은 고딕 12px. 돋움은 굵은 글꼴이 없어 Windows 가 굵게를 흉내 내며 12px 제목이 번진다 (2026-10-15) */
+  --sh-font-family-ui-skia: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif; /** Avalonia/Skia 렌더러용 이름. 0.1.2 부터 ui 와 같은 값 (호환 유지, 2026-10-15) */
   --sh-font-family-content: 굴림, Gulim, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; /** 편집기 본문 콘텐츠 (sh-web-editor) */
   --sh-font-family-mono: 'Cascadia Mono', Consolas, D2Coding, ui-monospace, monospace;
   --sh-font-size-caption: 11px; /** 상태 칸·단축키·툴팁·배지 */

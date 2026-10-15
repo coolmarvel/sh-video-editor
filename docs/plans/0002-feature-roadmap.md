@@ -136,7 +136,7 @@ domain: development
   - (b) features/stt: 자막 탭의 "자동 자막" 절(모델·언어·줄당 글자·최소 시간, 선택 클립/편집본 전체), 동의 대화상자(크기·출처·라이선스·보관), 진행률·취소, "음성 정리"(군말 제거·무음 자르기: 생성 시 옵션 + 인식 뒤 버튼). 자막 목록·스타일·SRT 는 M2-1 의 자막 탭 그대로
   - (c) 한국어 30초 낭독 샘플(zeroth-korean): whisper-base 8.5초(모델 적재 포함), 단어 39개, 자막 6개(12줄), 한 줄 20자 규칙으로 자막 생성(엔진 테스트 `tests/stt.test.ts` 가 모델이 있을 때 검증). 단어 시간 오차 0.5초 이내는 수동 확인 미실시. CER 은 98초 세트에서 base 32.5%, small 24.6%
   - (d) L
-- [x] **M2-3 전환** (2026-10-14, feat/transitions. 남은 것: 엔진에 전환 삭제·정렬 변경 커맨드가 없어 인스펙터의 삭제·정렬은 읽기 전용, 일반 트림으로 틈이 생긴 전환을 엔진이 정리하지 않음, 썸네일은 SVG 로 대체)
+- [x] **M2-3 전환** (2026-10-14, feat/transitions. 2026-10-15 feat/engine-perf: inspect 파라미터 평문 값, 클립보다 긴 전환은 클립 안으로 줄이고(clamped) 미디어 부족은 repeatFrames 로 알림. 삭제·정렬은 그 사이 커맨드가 생겨 인스펙터에서 된다. 남은 것: 엔진에 전환 삭제·정렬 변경 커맨드가 없어 인스펙터의 삭제·정렬은 읽기 전용, 일반 트림으로 틈이 생긴 전환을 엔진이 정리하지 않음, 썸네일은 SVG 로 대체)
   - (a) `sequence.applyVideoTransition`(effect·frames·edge), `sequence.setTransition`, `effects.setDefaultTransition`. 사용자용 전환 12종 선별: cross_dissolve, dip_to_black, dip_to_white, push, slide, whip, zoom_blur, glitch, light_leak, clock_wipe, linear_wipe, cross_zoom
   - (b) features/transitions: 미디어 패널의 전환 탭(썸네일은 두 색 SVG, `renderFrame` 미니 시퀀스는 프로젝트를 더럽혀 보류), 클립 경계로 드롭, 더블클릭, 길이 핸들, 인스펙터 전환 탭
   - (c) 전환 뒤 리플 트림 시 전환이 따라오는지(filmcraft #7 회귀), 내보내기 길이 불변: `packages/engine/tests/transitions.test.ts`
@@ -202,7 +202,7 @@ domain: development
 - [ ] **M4-1 워크플로 회귀 테스트**: filmcraft-cli `run script.jsonl` 로 "가져오기 -> 자르기 -> 전환 -> 자막 -> 음악 -> 내보내기" 를 `npm run verify` 에 포함. 결과 mp4 를 ffprobe 로 길이·스트림 검사. `.mcp.json` 에 `filmcraft-cli mcp` 등록(todo P2). (d) M
 - [ ] **M4-2 실매체 코퍼스**: iPhone(HEVC, VFR, 회전), Galaxy(H.264 60fps), Windows 화면 녹화, 액션캠, 손상 파일 각 1개 이상을 `packages/engine/fixtures/`(gitignore, 사용자 제공)에 두고 M4-1 스크립트로 왕복. 실패하면 vendor 수정(`engine(vendor):`). (d) L
 - [ ] **M4-3 Windows HW 디코드·인코드**: cargo-xwin 빌드에서 `platform` Media Foundation 링크 확인, NVENC H.264 내보내기 옵션 노출, 1080p 3클립 미리보기 CPU 사용률 측정. (d) M
-- [~] **M4-4 wasm 성능** (2026-10-14 feat/wasm-perf: 14.2MB, SIMD128, WebCodecs. 12MB 와 데모 renderFrame 60ms 는 미달): SIMD128·wasm-opt·코덱 feature 분리로 23MB 축소(todo P2), WebCodecs 디코더를 `codecs::register_video_decoder` 에 등록, renderFrame 1080p scale 0.5 를 194ms 에서 60ms 이하로. 데스크톱 대비 내보내기 시간 비율 기록. (d) L
+- [~] **M4-4 wasm 성능** (2026-10-14 feat/wasm-perf: 14.2MB, SIMD128, WebCodecs. 2026-10-15 feat/engine-perf: 데모 생성기 열·행 단위 계산으로 wasm renderFrame 장면별 1.3~4.5배(Aurora 237ms 에서 56ms), 출력은 비트 단위로 같음. 12MB 와 OceanSunset·Forest 의 60ms 는 미달): SIMD128·wasm-opt·코덱 feature 분리로 23MB 축소(todo P2), WebCodecs 디코더를 `codecs::register_video_decoder` 에 등록, renderFrame 1080p scale 0.5 를 194ms 에서 60ms 이하로. 데스크톱 대비 내보내기 시간 비율 기록. (d) L
 - [ ] **M4-5 Windows 런타임 검증**: 사용자 Windows PC 에서 인스톨러 실행·3클립 시험(0001 마일스톤 1 미완 항목), 재생·내보내기·자동 저장 복구 체크리스트를 `docs/guides/packaging.md` 에. (d) S
 - [ ] **M4-6 크래시 리포트**: utility process 종료 코드와 마지막 커맨드 20개(`history.list`)를 로컬 파일로 남기고 사용자가 첨부할 수 있게. 서버 전송 없음. (d) S
 - [ ] **M4-7 썸네일·파형 커맨드**: `media.thumbnail`(item, time, size) 신규, `clip.generateAudioWaveform` 결과를 바인딩으로 노출. SQLite 캐시(M2-8)와 연결. (d) M

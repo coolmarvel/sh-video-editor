@@ -121,26 +121,20 @@ export function framesOf(tr: TransitionInfo, fr: FrameRate): number {
   return Math.max(1, Math.round(tr.duration / frameTicks(fr)));
 }
 
-/**
- * inspect 가 돌려주는 파라미터(`{"direction":{"Choice":3}}`)를 `applyVideoTransition`/`setTransition` 이 받는
- * 평문 값(`{"direction":3}`)으로. 가운데가 비어 있는 점(`{x:null,y:null}`)은 기본값이므로 뺀다.
- */
-export function plainParams(params: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(params)) {
-    if (!v || typeof v !== 'object') {
-      out[k] = v;
-      continue;
-    }
-    const tagged = v as Record<string, unknown>;
-    if ('Choice' in tagged) out[k] = tagged['Choice'];
-    else if ('Float' in tagged) out[k] = tagged['Float'];
-    else if ('Bool' in tagged) out[k] = tagged['Bool'];
-    else if ('Color' in tagged) out[k] = tagged['Color'];
-    else if ('Vec2' in tagged) {
-      const p = tagged['Vec2'] as { x: number | null; y: number | null };
-      if (p && p.x !== null && p.y !== null) out[k] = [p.x, p.y];
-    }
-  }
-  return out;
+/** 적용·길이 커맨드의 결과 중 화면이 쓰는 부분(엔진이 클립에 맞춰 줄였는지, 미디어가 모자라 반복하는 프레임 수) */
+export interface FitResult {
+  transition?: number;
+  frames?: number;
+  clamped?: boolean;
+  repeatFrames?: { from: number; to: number };
+}
+
+/** 상태 줄 문구 뒤에 붙일 설명. 엔진이 길이를 줄였거나 끝·처음 프레임을 반복하면 알린다 */
+export function fitNote(r: FitResult | undefined): string {
+  if (!r) return '';
+  const notes: string[] = [];
+  if (r.clamped && typeof r.frames === 'number') notes.push(`클립 길이에 맞춰 ${r.frames}프레임으로 줄였습니다`);
+  const rep = Math.max(r.repeatFrames?.from ?? 0, r.repeatFrames?.to ?? 0);
+  if (rep > 0) notes.push(`미디어가 모자라 ${rep}프레임은 끝 화면을 반복합니다`);
+  return notes.length > 0 ? ` (${notes.join(', ')})` : '';
 }

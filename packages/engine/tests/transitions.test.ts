@@ -4,6 +4,7 @@
  * 삭제(`sequence.removeTransition`)·길이와 정렬(`sequence.setTransitionLength`)·일반 트림의 틈 정리는 우리가 보강한 커맨드다
  * (docs/guides/engine-commands.md).
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -176,7 +177,7 @@ d('두 클립 사이 디졸브', () => {
     trs = transitionsOf(engine);
     expect(trs).toHaveLength(1);
     expect(trs[0]).toMatchObject({ id: third.transition, effect: 'push', duration: 24 * ft, start: 4 * T - 12 * ft });
-    expect(trs[0]!.params).toEqual({ direction: { Choice: 1 }, motion_blur: { Float: 10 } });
+    expect(trs[0]!.params).toEqual({ direction: 1, motion_blur: 10 });
     const set = exec<{ transition: number; reverse: boolean }>(engine, 'sequence.setTransition', {
       transition: third.transition,
       reverse: true,
@@ -184,12 +185,72 @@ d('두 클립 사이 디졸브', () => {
     });
     expect(set.reverse).toBe(true);
     trs = transitionsOf(engine);
-    expect(trs[0]).toMatchObject({ reverse: true, params: { direction: { Choice: 1 }, motion_blur: { Float: 80 } } });
+    expect(trs[0]).toMatchObject({ reverse: true, params: { direction: 1, motion_blur: 80 } });
     expect(() => exec(engine, 'sequence.applyVideoTransition', { clip: red, effect: 'no_such_transition', frames: 10, edge: 'out' })).toThrow(
       /unknown transition/,
     );
     expect(() => exec(engine, 'sequence.setTransition', { transition: 999_999, reverse: true })).toThrow(/no transition/);
     assertInvariants(inspect(engine));
+  });
+
+  it('클립보다 긴 전환은 클립 안에 들어가게 줄이고(clamped), inspect 파라미터는 setTransition 이 그대로 받는 평문 값이다', () => {
+    const { engine, red, ft } = withMattes();
+    const r = exec<{ transition: number; frames: number; clamped: boolean; repeatFrames: { from: number; to: number }; warning: string | null }>(
+      engine,
+      'sequence.applyVideoTransition',
+      { clip: red, effect: 'push', frames: 600, edge: 'out', params: { direction: 'From East' } },
+    );
+    expect(r).toMatchObject({ frames: 240, clamped: true, repeatFrames: { from: 0, to: 0 }, warning: null });
+    expect(transitionsOf(engine)[0]).toMatchObject({ start: 0, duration: 240 * ft });
+    const len = exec<{ frames: number; clamped: boolean }>(engine, 'sequence.setTransitionLength', { transition: r.transition, frames: 45 });
+    expect(len).toMatchObject({ frames: 45, clamped: false });
+    const params = transitionsOf(engine)[0]!.params;
+    expect(params).toEqual({ direction: 1, motion_blur: 50 });
+    exec(engine, 'sequence.setTransition', { transition: r.transition, params });
+    expect(transitionsOf(engine)[0]!.params).toEqual(params);
+    assertInvariants(inspect(engine));
+  });
+
+  (hasFfprobe() ? it : it.skip)('실제 영상의 끝·처음을 넘는 전환은 반복 프레임 수와 경고를 알리고, 그 구간은 검게 비지 않는다', () => {
+    const clip = join(work, 'bars-2s.mp4');
+    execFileSync('ffmpeg', [
+      '-v',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=320x180:rate=30:duration=2',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:v',
+      'libx264',
+      clip,
+    ]);
+    const engine = new mod.Engine();
+    exec(engine, 'file.newProject', { name: 'repeat' });
+    exec(engine, 'file.newSequence', { name: 'seq', width: 320, height: 180, fps: 30 });
+    const item = exec<{ items: number[] }>(engine, 'file.import', { paths: [clip] }).items[0]!;
+    exec(engine, 'timeline.place', { item, track: 'V1', time: 0, insert: true });
+    exec(engine, 'timeline.place', { item, track: 'V1', time: 2 * T, insert: true });
+    const [a, b] = inspect(engine).video[0]!.items;
+    const r = exec<{ frames: number; clamped: boolean; repeatFrames: { from: number; to: number }; warning: string | null }>(
+      engine,
+      'sequence.applyVideoTransition',
+      { clip: b!.clip, effect: 'cross_dissolve', frames: 30, edge: 'in' },
+    );
+    // 다듬지 않은 두 클립: 컷 뒤 15프레임은 앞 클립의 마지막 프레임, 컷 앞 15프레임은 뒤 클립의 첫 프레임
+    expect(r).toMatchObject({ frames: 30, clamped: false, repeatFrames: { from: 15, to: 15 } });
+    expect(r.warning).toMatch(/repeated frame/);
+    expect(a!.end).toBe(2 * T);
+    const mean = (rgba: Uint8Array) => {
+      let m = 0;
+      for (let i = 0; i < rgba.length; i += 4) m += rgba[i]! + rgba[i + 1]! + rgba[i + 2]!;
+      return m / (rgba.length / 4) / 3;
+    };
+    const ft = T / 30;
+    const lit = mean(engine.renderFrame(2 * T - 20 * ft, 1)!.rgba);
+    for (const dt of [-12, -5, 0, 5, 12]) expect(mean(engine.renderFrame(2 * T + dt * ft, 1)!.rgba)).toBeGreaterThan(lit * 0.8);
   });
 
   it('한쪽 편집점: 시퀀스 처음의 페이드 인은 컷에서 시작하고, 마지막 페이드 아웃은 컷에서 끝난다', () => {

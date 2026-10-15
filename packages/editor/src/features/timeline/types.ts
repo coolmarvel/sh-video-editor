@@ -61,6 +61,7 @@ export interface TransitionInfo {
   from: number | null;
   to: number | null;
   reverse: boolean;
+  /** 파라미터 평문 값(`{"direction": 1, "motion_blur": 10}`). `sequence.setTransition {params}` 이 그대로 받는다 */
   params: Record<string, unknown>;
 }
 

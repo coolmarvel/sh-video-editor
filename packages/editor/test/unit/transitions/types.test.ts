@@ -11,7 +11,7 @@ import {
   findTransition,
   framesOf,
   nearestEditPoint,
-  plainParams,
+  fitNote,
   spanFor,
   transitionCut,
   transitionPoint,
@@ -159,19 +159,12 @@ describe('transition 위치·정렬', () => {
   });
 });
 
-describe('plainParams', () => {
-  it('inspect 의 태그 값을 커맨드가 받는 평문으로', () => {
-    expect(
-      plainParams({
-        direction: { Choice: 3 },
-        motion_blur: { Float: 50 },
-        on: { Bool: true },
-        color: { Color: [1, 0.5, 0.2, 1] },
-        center: { Vec2: { x: null, y: null } },
-        point: { Vec2: { x: 0.5, y: 0.25 } },
-        raw: 7,
-      }),
-    ).toEqual({ direction: 3, motion_blur: 50, on: true, color: [1, 0.5, 0.2, 1], point: [0.5, 0.25], raw: 7 });
-    expect(plainParams({})).toEqual({});
+describe('fitNote', () => {
+  it('엔진이 길이를 줄였거나 프레임을 반복하면 설명을 붙인다', () => {
+    expect(fitNote(undefined)).toBe('');
+    expect(fitNote({ frames: 30, clamped: false, repeatFrames: { from: 0, to: 0 } })).toBe('');
+    expect(fitNote({ frames: 240, clamped: true, repeatFrames: { from: 0, to: 0 } })).toBe(' (클립 길이에 맞춰 240프레임으로 줄였습니다)');
+    expect(fitNote({ frames: 30, clamped: false, repeatFrames: { from: 15, to: 3 } })).toBe(' (미디어가 모자라 15프레임은 끝 화면을 반복합니다)');
+    expect(fitNote({ frames: 60, clamped: true, repeatFrames: { from: 0, to: 30 } })).toContain(', 미디어가 모자라 30프레임');
   });
 });

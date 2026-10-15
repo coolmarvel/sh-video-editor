@@ -3,6 +3,11 @@ declare module '*.svg?raw' {
   const source: string;
   export default source;
 }
+/** vite `?raw`: Lottie 스티커 JSON 을 글자 그대로(features/stickers/catalog.ts) */
+declare module '*.json?raw' {
+  const source: string;
+  export default source;
+}
 declare const __APP_VERSION__: string | undefined;
 /** vite `?raw`: 파일을 글자 그대로 가져온다(features/onboarding/usage-doc.ts 가 docs/guides/usage.md 를 번들한다) */
 declare module '*.md?raw' {

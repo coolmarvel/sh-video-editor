@@ -1,10 +1,10 @@
 # 이식한 엔진 출처 (ADR-0003)
 
-| 저장소      | 상류                                     | 버전                       | 복사일     | 로컬 스냅샷                                        | 이식 범위                                                                                                                                            |
-| ----------- | ---------------------------------------- | -------------------------- | ---------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| filmcraft   | https://github.com/storytold/filmcraft   | 0.2.1 (ROADMAP 2026-10-05) | 2026-10-14 | `~/craft-opensource/filmcraft` (2026-10-08 복사본) | `crates/*`(ui-egui 제외), `apps/filmcraft-cli`, `xtask`, `assets`, `docs`(images·brand 제외)                                                         |
-| effectcraft | https://github.com/storytold/effectcraft | 0.4.0                      | 2026-10-14 | `~/craft-opensource/effectcraft`                   | `crates/vp9enc`, `crates/opusenc`, `crates/hevcenc` (filmcraft 워크스페이스 안 같은 이름의 `crates/*`). 계획: effects, keyframe, gpu, lottie, av1enc |
-| soundcraft  | https://github.com/storytold/soundcraft  | 0.1.0                      | 2026-10-14 | `~/craft-opensource/soundcraft`                    | `crates/dsp/src/offline.rs` 의 `time_stretch`(WSOLA)만 `filmcraft/crates/audio-dsp/src/timestretch.rs` 로. 나머지(dsp 플러그인, mix)는 미이식        |
+| 저장소      | 상류                                     | 버전                       | 복사일     | 로컬 스냅샷                                        | 이식 범위                                                                                                                                                                                |
+| ----------- | ---------------------------------------- | -------------------------- | ---------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| filmcraft   | https://github.com/storytold/filmcraft   | 0.2.1 (ROADMAP 2026-10-05) | 2026-10-14 | `~/craft-opensource/filmcraft` (2026-10-08 복사본) | `crates/*`(ui-egui 제외), `apps/filmcraft-cli`, `xtask`, `assets`, `docs`(images·brand 제외)                                                                                             |
+| effectcraft | https://github.com/storytold/effectcraft | 0.4.0                      | 2026-10-14 | `~/craft-opensource/effectcraft`                   | `crates/vp9enc`, `crates/opusenc`, `crates/hevcenc`, `crates/lottie`(가져오기 쪽만, 2026-10-15) (filmcraft 워크스페이스 안 같은 이름의 `crates/*`). 계획: effects, keyframe, gpu, av1enc |
+| soundcraft  | https://github.com/storytold/soundcraft  | 0.1.0                      | 2026-10-14 | `~/craft-opensource/soundcraft`                    | `crates/dsp/src/offline.rs` 의 `time_stretch`(WSOLA)만 `filmcraft/crates/audio-dsp/src/timestretch.rs` 로. 나머지(dsp 플러그인, mix)는 미이식                                            |
 
 ## 이식 시 한 일 (filmcraft)
 
@@ -73,6 +73,26 @@
   인코더 기준으로), `tests.rs`(`hevc_export_roundtrip`), `crates/platform/src/hardware_encode.rs`(주석만: HW 가 거절하면 내장 인코더로
   폴백). VideoToolbox HW 인코더 팩토리는 `register_encoder` 로 앞에 끼므로 macOS 에서는 여전히 HW 가 먼저 받는다.
   가이드: `docs/guides/webm-export.md` 의 HEVC 절.
+
+## 이식 시 한 일 (effectcraft, 2026-10-15: lottie)
+
+- 원본 `effectcraft/crates/lottie`(Lottie 가져오기, src 3,405줄)는 Lottie JSON 을 effectcraft 의 프로젝트 모델(레이어·키프레임)로 바꾸는
+  변환기라 그대로 쓸 수 없었다(우리 엔진의 그래픽 모델이 다르고 Lottie 의 도형 수식·트림·리피터를 표현할 자리가 없다). 그래서
+  **가져오기 쪽만 이식**했다: 값 읽기(`anim.rs` 의 `nums`·`to_color`·`is_animated`, 키프레임 이즈 `o`/`i`·홀드·`e` 레거시 끝값),
+  도형 항목 이름·열거값·`d: 3` 방향(`shapes.rs`), 레이어 필드(`layers.rs`: ind·parent·ip/op/st/sr·tt/td/tp·masksProperties), base64·
+  ZIP(stored) 도우미. 평가·래스터는 새로 썼다(`anim.rs` 의 보간·공간 탄젠트, `geom.rs` 의 베지어·평탄화·스트로크·대시, `render.rs`
+  의 프리멀티 캔버스·그라디언트·블렌드, `layers.rs` 의 마스크·매트·프리컴프·타임 리맵). 채우기는 `filmcraft-text` 의 스캔라인
+  래스터(`raster::fill_into_rule`, 짝홀 규칙은 이번에 추가)를 쓴다. 플레이어(lottie-web 등) 소스는 보지 않았고 포맷은 lottie-spec 1.0
+  과 LottieFiles 문서 기준이다. 의존성은 serde_json·thiserror 와 filmcraft 크레이트만, `unsafe`·`std::time`·스레드 없음(wasm32 빌드 확인).
+  라이선스는 effectcraft 와 같은 `MIT OR Apache-2.0`(`crates/lottie/LICENSE-MIT`), 루트 `NOTICE` 2번 항목 갱신.
+- 엔진 연결(상류 filmcraft 파일 수정): `crates/media/src/lib.rs`(`MediaSource::at_size` 기본 구현), `crates/engine/src/media_pool.rs`
+  (오프너 목록에 `filmcraft_lottie::opener`, 소스를 연 뒤 `at_size` 로 항목 크기에 맞춤), `crates/engine/src/graphics.rs`
+  (`graphics.newFromFile` 의 `duration`), `crates/text/src/raster.rs`(`fill_into_rule`), `Cargo.toml`·`xtask` LAYERS(L2)·`docs/architecture.md`.
+  `LottieSource` 는 반복되는 영상 미디어로 보이고(`LOOP_SECONDS` 60초, 알파, 문서 프레임률), `graphics.newLottie` 같은 별도 커맨드는
+  두지 않았다(가져오기 경로 하나로 데스크톱 파일·웹 Blob·사용자 Lottie 파일을 다 받는다). 화면: `features/stickers` 의 "움직이는
+  스티커" 10종(직접 만든 bodymovin JSON, `assets/ATTRIBUTION.md`). 가이드: `docs/guides/usage.md` 3.18 절, 테스트
+  `packages/engine/tests/lottie.test.ts`(napi·wasm 렌더 골든), `cargo test -p filmcraft-lottie`(28). 실측(2026-10-15, WSL2 16코어):
+  1080p 편집본에 512 문서 스티커 한 장 renderFrame 이 napi 32~36ms(캐시 뒤 22ms), wasm 139ms.
 
 ## 상류 갱신
 

@@ -10,3 +10,6 @@ packages/engine/bindings/napi/index.d.ts
 design-tokens
 .claude/data
 package-lock.json
+
+# Lottie sticker animations are hand-compacted JSON (one line each, under 4 KB)
+packages/editor/src/features/stickers/assets/*.json

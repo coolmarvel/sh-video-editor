@@ -2668,9 +2668,12 @@ export class FakeEngine {
         const time = (p['time'] as number | undefined) ?? this.state.playhead;
         this.snapshot('Import');
         const name = path.split(/[\\/]/).pop() ?? path;
-        const item = this.addItem({ name, type: 'Still Image', hasAudio: false, duration: 5 * T });
+        // .json 은 Lottie(반복되는 벡터 미디어 60초), 나머지는 5초 정지 그림. `duration` 은 클립을 줄인다
+        const lottie = /\.(json|lottie)$/i.test(name);
+        const item = this.addItem({ name, type: lottie ? 'Movie' : 'Still Image', hasAudio: false, duration: lottie ? 60 * T : 5 * T });
         this.snapshot('New Layer from File');
-        let track = seq.video.find((t) => !t.items.some((c) => c.start < time + 5 * T && time < c.end));
+        const dur = Math.min(item.duration, (p['duration'] as number | undefined) ?? item.duration);
+        let track = seq.video.find((t) => !t.items.some((c) => c.start < time + dur && time < c.end));
         if (!track) {
           track = {
             id: this.nextId++,
@@ -2684,7 +2687,7 @@ export class FakeEngine {
           };
           seq.video.push(track);
         }
-        const clips = this.place(item, time, seq.video.indexOf(track), false, { duration: 5 * T });
+        const clips = this.place(item, time, seq.video.indexOf(track), false, { duration: dur });
         this.touch();
         return { clip: clips[0]?.clip, item: item.item };
       }

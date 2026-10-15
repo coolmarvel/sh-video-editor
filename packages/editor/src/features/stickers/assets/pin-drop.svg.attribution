@@ -1,0 +1,7 @@
+asset:        pin-drop.svg
+title:        떨어지는 핀 스티커 (위에서 떨어져 튀는 빨간 지도 핀, 아래 그림자)
+author:       이성현 (SeongHyun Lee), sh-video-editor 프로젝트를 위해 직접 만듦
+source:       original work (this repository, packages/editor/src/features/stickers/assets)
+license:      project license (sh-video-editor, UNLICENSED; LICENSE 파일 참조)
+added:        2026-10-15 by Claude (agent) for SeongHyun Lee (sh-video-editor)
+notes:        갤러리 미리보기(정지 자세, 128 뷰박스). 글자(text 요소)·글꼴·그림(image) 레이어·타사 에셋 없음. 카드에만 쓰고 타임라인에는 넣지 않는다.

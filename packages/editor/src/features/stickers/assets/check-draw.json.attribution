@@ -1,0 +1,7 @@
+asset:        check-draw.json
+title:        그려지는 체크 스티커 (초록 원이 그려지고 체크가 이어 그려짐)
+author:       이성현 (SeongHyun Lee), sh-video-editor 프로젝트를 위해 직접 만듦
+source:       original work (this repository, packages/editor/src/features/stickers/assets)
+license:      project license (sh-video-editor, UNLICENSED; LICENSE 파일 참조)
+added:        2026-10-15 by Claude (agent) for SeongHyun Lee (sh-video-editor)
+notes:        Lottie 애니메이션(bodymovin v5 JSON, 512x512 30fps, 도형 레이어만). 글자(text 요소)·글꼴·그림(image) 레이어·타사 에셋 없음. 화면이 JSON 바이트를 그대로 호스트 파일로 넘겨 엔진 file.import 로 넣는다(엔진 filmcraft-lottie 가 그린다).

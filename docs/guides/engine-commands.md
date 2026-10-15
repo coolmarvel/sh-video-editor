@@ -105,6 +105,21 @@ domain: engine
   `transitions_already_in_a_project_keep_their_length`, `packages/engine/tests/transitions.test.ts`(평문 파라미터, 줄이기, ffmpeg 영상의 반복 프레임과 밝기).
   화면: `features/transitions/types.ts` 의 `fitNote` 가 상태 줄 문구에 붙인다.
 
+## 분석 캐시 키, 벡터 미디어 확대, 웹의 교환 형식 (2026-10-15)
+
+- 흔들림 분석 캐시 키(`crates/render/src/vfx/mod.rs` 의 `clip_analysis_key(project, item)`)에 클립 위치·길이·소스 시작·속도·역방향에 더해 **그 항목의
+  미디어 참조**(파일 경로 또는 생성기 설정)를 넣었다. 같은 항목 id 로 `media.relink`(다시 연결)나 다른 파일로 바꾸면 옛 영상의 분석을 쓰지 않고 다시
+  분석하며, 실행 취소로 원래 파일로 돌아오면 그 분석을 다시 쓴다. 소스 범위·길이를 바꾸거나 클립을 지웠다 되돌리는 경우는 예전부터 키가 달라지거나
+  같은 키로 돌아와 정확했다(지운 클립의 분석은 메모리에만 남고 64개를 넘으면 비운다). 테스트: `stabilize_tests.rs` 의
+  `relinking_the_footage_analyses_again_instead_of_reusing_the_old_path`(고치기 전에는 실패).
+- `MediaSource::max_scale`(기본 1.0)을 두고, 렌더러(`render::item_layer`, `plan.rs`)가 소스에 요청하는 배율의 상한을 1.0 대신 그 값으로 한다. Lottie 는
+  4.0 이라 모션으로 키운 움직이는 스티커를 보이는 크기(최대 4배, 512 문서면 2048px)로 그린다. 1080p 1배 렌더에서 300% 하트의 가장자리 폭은 5px 에서
+  1px(1배와 같음). 새 프레임 렌더는 1배 렌더에서 약 30ms 에서 66~70ms 로 늘고, 화면 미리보기 배율 0.5 에서는 20~30ms 로 전과 같다(확대하지 않은
+  스티커와 다시 그리기는 전과 같다). 테스트: `packages/engine/tests/lottie.test.ts` 의 "Motion 300%".
+- 웹(wasm) 빌드는 `filmcraft-engine` 의 `interchange` feature 를 끈다. `file.exportInterchange`·`file.exportEdl`·`file.exportFcp7Xml`·`file.exportFcpxml`·
+  `file.exportOtio`·`file.exportAaf`·`file.exportOmf`·`file.importAaf`·`file.exportAle` 는 카탈로그에 그대로 있고(687개, 데스크톱과 같은 목록) 부르면
+  "not available in this build" 오류, `file.import` 는 교환 문서를 알아보지 않는다. 데스크톱은 그대로다. wasm 이 749KB 줄었다(`docs/guides/wasm-performance.md`).
+
 ## 남은 것
 
 - 흔들림 분석 잡은 `effects.analyzeStabilizer` 로 걸었을 때만 돈다. `effects.apply warp_stabilizer` 를 바로 쓰면 예전처럼 첫 렌더가 동기로 분석한다(화면은 쓰지 않음).

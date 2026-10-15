@@ -140,6 +140,63 @@ opt-level "s" 를 전부에 주면 25~40% 느려지고, 디코더·렌더·DSP �
 - renderFrame 고정 비용(빈 편집본, napi): scale 0.25 1.7ms, 0.5 3.8ms, 1.0 7.4ms. 선형광 f32 합성과 sRGB 변환인데 변환은 이미 4096칸 표와
   rayon 이라 줄일 곳이 뚜렷하지 않았다. H.264 1080p 두 겹 재생 scale 0.5 중앙값 17.7ms(디코드 2.7ms/프레임).
 
+## 메모리 예산, 남은 데모 장면, 교환 형식 빼기 (2026-10-15 오후)
+
+### 프레임 캐시와 평면 선반 예산 (wasm 만)
+
+- 원인 두 가지. (1) 디코드 프레임 캐시(`crates/codecs/src/gop.rs`)가 네이티브와 같은 예산(트랙당 384MB, 최소 64장, 전체 1GB)이라 1080p 를
+  몇 번 탐색하면 384MB 를 채웠다. (2) WebCodecs 경로(`bindings/wasm/src/webcodecs.rs`)가 프레임 평면을 매번 새로 할당하고, 캐시가 버린 평면은
+  재활용 선반(`crates/frame/src/pool.rs`)으로 가는데 아무도 꺼내 쓰지 않아 선반 상한(192MB)까지 쌓였다(브라우저 perf.stats: `planePoolMB` 201,
+  `planesReused` 0). wasm 선형 메모리는 한 번 늘면 줄지 않는다.
+- 고친 것: wasm 빌드에서만 트랙당 192MB(1080p 약 60장, 30fps 2초), 최소 16장(웹은 한 스레드 디코드라 앞서 디코드하는 장이 적다), 전체
+  320MB, 생성기·이미지 시퀀스 캐시 256MB 에서 64MB, 평면 선반 192MB 에서 64MB, 부동소수 이미지 선반 320MB 에서 128MB. WebCodecs 프레임은 선반에서
+  평면을 꺼내 쓴다. 데스크톱(네이티브) 값은 그대로다.
+- 측정 A(브라우저): 위 "큰 파일" 절과 같은 방법(`SH_E2E_LARGE_MP4`, ffmpeg testsrc2 1080p30 130초 80Mbps ultrafast, 키프레임 간격 250장 = 8.3초,
+  588MB), 각 2회. 측정 B(Node, 소프트웨어 디코드): 같은 파일을 Blob 범위 읽기로 등록해 30·50·10초를 0.5 배율로 그린 뒤, 30초에서 0.5초씩 26초까지
+  뒤로 문지르기 8번, 10초부터 60장 연속(재생 흉내). 스크립트는 세션 스크래치(`em-bench/mem.mjs`)로, 방법은 이 문단이 전부다.
+
+| 조건                       | wasm 메모리(시작, 가져오기 뒤, 탐색 뒤) | 탐색 30초 / 50초 / 10초        | 디코드 캐시 | 평면 선반       |
+| -------------------------- | --------------------------------------- | ------------------------------ | ----------- | --------------- |
+| 브라우저 전                | 13, 31~34, 666~667 MB                   | 1091~2807 / 54~146 / 401~773ms | 재지 않음   | 재지 않음       |
+| 브라우저 중간(캐시 예산만) | 13, 34, 471~473 MB                      | 1442~1575 / 71~77 / 417~540ms  | 199MB       | 201MB(재사용 0) |
+| 브라우저 후                | 13, 31, 276~277 MB                      | 984~1058 / 53~66 / 284~367ms   | 199MB       | 6MB(재사용 414) |
+| Node 전                    | 13, 16, 461 MB (재생 뒤 469)            | 1786~1957 / 45~47 / 521~637ms  | 401MB       | 3MB             |
+| Node 후                    | 13, 16, 269 MB (재생 뒤 277)            | 1716~2186 / 53~54 / 554~608ms  | 199MB       | 3MB             |
+
+- 브라우저 메모리 59% 감소, 탐색은 같거나 빠르다(평면을 다시 쓰니 할당이 준다). 재생 흉내는 프레임당 44~64ms 로 전후 같다(부하에 따른 흔들림).
+- 대가: 키프레임 간격이 긴 영상(이 시험 파일처럼 8초, 화면 녹화 등)을 2초 넘게 뒤로 문지르면 그 자리에서 키프레임부터 다시 디코드한다(Node
+  측정 B: 8번 중 1번 약 1초, 예전은 4초까지 캐시에 있어 0번). 키프레임 간격 2초 파일(휴대폰 영상에 가까운 `-g 60` 20Mbps 60초)에서는 전후의 문지르기
+  시간이 같고(GOP 경계의 멈춤은 원래 있다: 전 878·733ms, 후 957·588ms), 메모리만 442MB 에서 251MB 로 준다.
+
+### 남은 두 데모 장면 (OceanSunset, Forest)
+
+- 남은 비용은 픽셀마다 x·y 가 함께 들어가는 fbm 의 격자 해시였다(옥타브마다 4개). 한 행의 픽셀은 노이즈 격자의 y 행이 같고 x 는 열을 따라 커지므로,
+  행마다 필요한 격자 열의 해시만 표로 만들고 픽셀은 표를 찾는다(`generators.rs` 의 `FbmRow`). 연산과 순서가 같아 출력은 비트 단위로 같다(바이트 비교
+  테스트에 960x540 크기를 더했다). 물결은 행마다 x 배율이 달라 표를 행마다 새로 만든다.
+- 측정 1(생성기만, 한 스레드, 960x540, 위 표와 같은 명령): OceanSunset 28.4ms 에서 19.7~19.8ms, Forest 23.0ms 에서 16.6~17.2ms.
+- 측정 2(wasm renderFrame, 1920x1080 30fps 편집본에 장면 하나, scale 0.5, 새 프레임 20장 중앙값, main 0.1.9 빌드와 번갈아 7회, 부하 평균 9~14).
+  손대지 않은 네 장면은 전후가 잡음 범위 안에서 같다.
+
+| 장면        | 전          | 후          |
+| ----------- | ----------- | ----------- |
+| OceanSunset | 61.1~70.1ms | 50.0~57.9ms |
+| Forest      | 59.9~68.8ms | 38.5~46.4ms |
+| Aurora      | 41.5~49.1ms | 41.7~51.1ms |
+| Dunes       | 31.2~37.1ms | 32.3~40.4ms |
+| CityNight   | 24.7~29.5ms | 22.2~30.8ms |
+| Plasma      | 30.0~42.3ms | 30.4~38.8ms |
+
+- 여섯 장면 모두 60ms 목표 안이다.
+
+### 교환 형식(EDL, XML, FCPXML, OTIO, AAF, OMF, ALE)을 웹 빌드에서 빼기
+
+- `filmcraft-engine` 에 `interchange` feature(기본 켬)를 두고 wasm 바인딩만 끈다(napi 는 `features = ["interchange"]`). 명령은 카탈로그에 그대로
+  있어(데스크톱과 웹 모두 687개, 같은 목록) 웹에서 부르면 "not available in this build: use the desktop app" 오류를 낸다(`crates/engine/src/interchange_off.rs`).
+  웹 UI 는 이 형식을 고를 수 없고(가져오기 선택기는 영상·소리·사진만) 내보내기 메뉴도 없다.
+- 크기(`npm run build:engine:wasm`, gzip -9): 14,743,980 에서 13,994,329 바이트(-749KB, -5.1%), gzip 5,568,143 에서 5,281,271 바이트(-287KB).
+- 다른 후보는 웹 UI 가 쓰는 기능을 지워서 하지 않았다: 이미지 형식(webp·gif 는 웹 사용자가 흔히 가져온다), symphonia(음악 가져오기), 코덱 feature
+  (MPEG-2·AV1 등 가져오기).
+
 ## 켜 둔 플래그와 각각의 효과
 
 | 항목                                      | 위치                                                                                                                            | 효과(측정)                                                                                                                                                                                                                                                                                                                                         |
@@ -252,13 +309,11 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
 
 ## 남은 것
 
-- 코덱 feature 분리(약 1MB): 위 표의 이유로 보류. 하려면 `filmcraft-codecs` 에 `av1`·`mpeg`·`ac3`·`apv`·`mxf` feature 를 두고
+- 코덱 feature 분리(약 1MB): 웹 사용자가 MPEG-2·AV1 등을 가져올 수 있어 보류. 하려면 `filmcraft-codecs` 에 `av1`·`mpeg`·`ac3`·`apv`·`mxf` feature 를 두고
   `filmcraft-engine` 이 `default-features = false` 로 받게 해야 한다.
-- 데모 renderFrame 60ms 목표: 6장면 중 Aurora 56ms, CityNight 26ms, Dunes 39ms, Plasma 37ms 는 들어왔고 OceanSunset 74ms, Forest 64ms 는
-  조금 넘는다(둘 다 픽셀마다 x·y 가 함께 들어가는 fbm 이 남았다: 구름·물결·빛줄기·안개).
 - 글꼴은 매 시작마다 5.2MB 를 받는다(브라우저 캐시가 흡수). 서비스 워커나 OPFS 캐시는 두지 않았다.
-- 1080p 를 몇 번 탐색하면 디코드한 프레임 캐시로 wasm 선형 메모리가 약 670 MB 까지 늘고 줄지 않는다(위 표). wasm 에서는 `FrameCache` 예산을
-  더 작게 두거나 해상도별로 나누는 것이 좋다(`crates/media/src/cache.rs` 를 쓰는 소스들).
+- wasm 메모리는 1080p 탐색 뒤 약 276MB 로 줄었지만 여전히 줄어들지는 않는다(선형 메모리의 성질). 4K 는 프레임이 4배라 같은 예산에 장 수가 준다.
+- 키프레임 간격이 긴 영상을 2초 넘게 뒤로 문지르면 키프레임부터 다시 디코드한다(위 "프레임 캐시와 평면 선반 예산").
 
 ## 관련 코드
 
@@ -267,5 +322,7 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
 - `apps/web/src/webcodecs.ts` (동기 다리), `apps/web/src/decoder.worker.ts` (VideoDecoder 소유), `apps/web/src/fonts.ts`, `apps/web/src/engine.worker.ts`
 - `packages/engine/vendor/filmcraft/crates/text/src/fonts.rs` (`HOST_SUPPLIED_FONTS`), `crates/platform/src/hybrid.rs`, `crates/codecs/src/hw.rs`
 - `scripts/bench-wasm.mjs`, `packages/engine/tests/wasm-bench.mjs`, `packages/engine/tests/wasm-web.test.ts`, `apps/web/e2e/webcodecs.spec.ts`
+- 메모리 예산: `crates/codecs/src/gop.rs`(`FRAME_BUDGET`, `CACHE_BUDGET`, `MIN_FRAMES`), `crates/media/src/cache.rs`(`SOURCE_CACHE_BUDGET`),
+  `crates/frame/src/pool.rs`(`MAX_BYTES`, `F32_MAX_BYTES`). 교환 형식: `crates/engine/Cargo.toml`(`interchange`), `crates/engine/src/interchange_off.rs`
 - 범위 읽기·보관: `bindings/wasm/src/lib.rs`(`registerBlob`, `BlobReader`), `apps/web/src/opfs.ts`(`copyIn`), `packages/editor/src/features/project/web-media.ts`,
   `packages/engine/tests/web-blob.test.ts`, `apps/web/e2e/web-files.spec.ts`("가져온 파일 보관")

@@ -73,9 +73,12 @@ export async function placeSequentially(exec: Exec, items: MediaItem[], stillSec
   return clips;
 }
 
+/** 템플릿이 만드는 색 매트 항목의 이름(엔진 기본값 "Color Matte" 대신 화면 말) */
+export const MATTE_NAME = '색 배경';
+
 /** 어두운 단색 배경 클립(색 매트) seconds 초를 V1 time 에 놓는다 */
 export async function placeBackdrop(exec: Exec, seconds: number, time = 0, color = '#1b1f2a'): Promise<number | null> {
-  const made = (await exec('file.newColorMatte', { color, seconds })) as { item?: number };
+  const made = (await exec('file.newColorMatte', { color, seconds, name: MATTE_NAME })) as { item?: number };
   if (made.item === undefined) return null;
   const r = (await exec('timeline.place', { item: made.item, track: 'V1', time, insert: false })) as { clips?: number[] };
   return r.clips?.[0] ?? null;

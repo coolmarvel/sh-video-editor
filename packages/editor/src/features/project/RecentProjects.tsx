@@ -1,5 +1,6 @@
 /** 첫 화면 안내 카드의 최근 프로젝트 목록(이름·날짜). 누르면 연다. 비어 있으면 그리지 않는다. */
-import { formatOpenedAt, useRecent } from './recent';
+import { formatDateTime } from '../../datetime';
+import { useRecent } from './recent';
 
 export function RecentProjects() {
   const items = useRecent((s) => s.items);
@@ -13,7 +14,7 @@ export function RecentProjects() {
           <li key={r.path}>
             <button type="button" className="sh-btn sh-btn--ghost ve-recent__item" title={r.path} onClick={() => void open(r.path)}>
               <span className="ve-recent__name">{r.name}</span>
-              <span className="ve-recent__date sh-tnum">{formatOpenedAt(r.openedAt)}</span>
+              <span className="ve-recent__date sh-tnum">{formatDateTime(r.openedAt)}</span>
             </button>
           </li>
         ))}

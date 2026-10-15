@@ -2782,7 +2782,13 @@ export class FakeEngine {
       case 'file.newColorMatte': {
         const seconds = (p['seconds'] as number | undefined) ?? 5;
         this.snapshot('New Color Matte');
-        const item = this.addItem({ name: 'Color Matte', type: 'Synthetic', hasAudio: false, duration: seconds * T, label: 'Lavender' });
+        const item = this.addItem({
+          name: (p['name'] as string | undefined) ?? 'Color Matte',
+          type: 'Synthetic',
+          hasAudio: false,
+          duration: seconds * T,
+          label: 'Lavender',
+        });
         return { item: item.item };
       }
       case 'graphics.newFromFile': {

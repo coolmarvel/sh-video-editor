@@ -2,6 +2,7 @@
  * 프로젝트 파일 기능의 상태와 동작: 새 프로젝트, 열기, 저장, 다른 이름으로 저장, 자동 저장, 복구.
  * 엔진은 file.* / project.inspect 커맨드로만 만지고, 파일 대화상자는 bridge 의 선택 메서드(pickSavePath, pickOpenPath)로 연다.
  */
+import { UNTITLED_KO, displayProjectName } from '../i18n/engine-messages';
 import { create } from 'zustand';
 import type { EngineBridge } from '../../engine/bridge';
 import { useEditor } from '../../store';
@@ -35,6 +36,15 @@ export interface Notice {
   kind: 'info' | 'success' | 'warning' | 'danger';
   text: string;
   action?: NoticeAction;
+  /** 같은 사건의 중복을 접는 열쇠(features/i18n/engine-messages.ts) */
+  key?: string;
+  /** 누가 냈나: 화면(ui) 또는 엔진 토스트 이벤트(engine) */
+  from?: 'ui' | 'engine';
+}
+
+export interface NotifyOptions {
+  key?: string | null;
+  from?: 'ui' | 'engine';
 }
 
 interface ConfirmRequest {
@@ -56,6 +66,8 @@ interface ProjectState {
   recoveryOpen: boolean;
   confirm: ConfirmRequest | null;
   notices: Notice[];
+  /** key 마다 마지막 화면 알림 시각(알림을 닫은 뒤 늦게 온 엔진 알림도 접는다) */
+  noticeKeys: Record<string, number>;
   /** project.inspect 를 다시 읽는다. `need` 는 엔진 이벤트의 revision: 이미 읽었으면 건너뛴다(features/events RevisionGate) */
   refresh(need?: number): Promise<void>;
   startAutosave(): Promise<void>;
@@ -70,15 +82,21 @@ interface ProjectState {
   recover(id: string): Promise<void>;
   discardRecovery(id: string): Promise<void>;
   cancelConfirm(): void;
-  notify(kind: Notice['kind'], text: string, action?: NoticeAction): void;
+  /**
+   * 토스트 하나. `opts.key` 가 같은 화면 알림이 DEDUP_MS 안에 있으면 엔진 알림은 버리고(false), 화면 알림은 먼저 뜬 엔진 알림을
+   * 갈아 끼운다. 보였으면 true.
+   */
+  notify(kind: Notice['kind'], text: string, action?: NoticeAction, opts?: NotifyOptions): boolean;
   dismiss(id: number): void;
 }
 
 const PROJECT_FILTER = [{ name: 'SH Video Editor 프로젝트', extensions: ['fcproj'] }];
-const UNTITLED = '제목 없음';
+const UNTITLED = UNTITLED_KO;
 let noticeSeq = 0;
 /** 토스트가 저절로 닫히기까지(ms). 오류(danger)는 저절로 닫히지 않는다 */
 const NOTICE_TTL_MS = 6000;
+/** 같은 key 의 화면 알림과 엔진 알림을 하나로 보는 시간 */
+const DEDUP_MS = 5000;
 
 export const useProject = create<ProjectState>((set, get) => {
   const bridge = (): EngineBridge | null => useEditor.getState().bridge;
@@ -124,6 +142,7 @@ export const useProject = create<ProjectState>((set, get) => {
     recoveryOpen: false,
     confirm: null,
     notices: [],
+    noticeKeys: {},
 
     refresh(need) {
       const b = bridge();
@@ -137,7 +156,7 @@ export const useProject = create<ProjectState>((set, get) => {
             revision: number;
           };
           // 엔진의 기본 이름 "Untitled" 는 화면에서 "제목 없음" 으로 보여 준다
-          const name = r.name === 'Untitled' ? UNTITLED : r.name;
+          const name = displayProjectName(r.name);
           const s = get();
           if (s.name !== name || s.path !== r.path || s.dirty !== r.dirty || s.revision !== r.revision) {
             set({ name, path: r.path, dirty: r.dirty, revision: r.revision });
@@ -222,7 +241,9 @@ export const useProject = create<ProjectState>((set, get) => {
         const notes: string[] = [];
         if (r.migrated) notes.push('이전 형식이라 올려서 읽었습니다. 저장하면 원본은 백업으로 남습니다');
         if (r.missingMedia > 0) notes.push(`찾을 수 없는 미디어 ${r.missingMedia}개`);
-        get().notify(notes.length ? 'warning' : 'success', `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`);
+        get().notify(notes.length ? 'warning' : 'success', `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`, undefined, {
+          key: 'open',
+        });
         // 최근 목록: 데스크톱은 OS 경로, 웹은 OPFS 경로만(브라우저 File 은 web-store 가 OPFS 로 복사한 뒤 기록한다)
         if (!isWebFiles(b) || isOpfsPath(get().path)) void useRecent.getState().touch(get().path ?? path, get().name);
         // 웹: 브라우저 안에 보관하지 못한 파일(공간 부족 등)은 새로고침 뒤 읽을 수 없으므로 다시 고르게 안내한다
@@ -303,7 +324,14 @@ export const useProject = create<ProjectState>((set, get) => {
       try {
         const r = isWebRecoveryId(id) ? await recoverWeb(b, id) : ((await b.execute('file.recover', { id })) as { name: string; savedAt: string });
         await get().refresh();
-        get().notify('success', `'${r.name}' 의 저장하지 않은 변경을 되살렸습니다 (${r.savedAt}). 저장하면 원본 파일에 씁니다.`);
+        get().notify(
+          'success',
+          `'${displayProjectName(r.name)}' 의 저장하지 않은 변경을 되살렸습니다 (${r.savedAt}). 저장하면 원본 파일에 씁니다.`,
+          undefined,
+          {
+            key: 'recover',
+          },
+        );
       } catch (e) {
         get().notify('danger', `복구하지 못했습니다: ${errorMessage(e)}`);
       }
@@ -327,12 +355,24 @@ export const useProject = create<ProjectState>((set, get) => {
       set({ confirm: null });
     },
 
-    notify(kind, text, action) {
+    notify(kind, text, action, opts) {
+      const key = opts?.key ?? undefined;
+      const from = opts?.from ?? 'ui';
+      const now = Date.now();
+      let kept = get().notices;
+      if (key !== undefined) {
+        if (from === 'engine' && now - (get().noticeKeys[key] ?? Number.NEGATIVE_INFINITY) < DEDUP_MS) return false;
+        if (from === 'ui') {
+          set((s) => ({ noticeKeys: { ...s.noticeKeys, [key]: now } }));
+          kept = kept.filter((n) => !(n.key === key && n.from === 'engine'));
+        }
+      }
       const id = ++noticeSeq;
-      const notice: Notice = action ? { id, kind, text, action } : { id, kind, text };
-      set((s) => ({ notices: [...s.notices.slice(-2), notice] }));
+      const notice: Notice = { id, kind, text, ...(action ? { action } : {}), ...(key !== undefined ? { key, from } : {}) };
+      set({ notices: [...kept.slice(-2), notice] });
       // 동작 버튼이 있는 알림은 사용자가 누르거나 닫을 때까지 남긴다
       if (kind !== 'danger' && !action) setTimeout(() => get().dismiss(id), NOTICE_TTL_MS);
+      return true;
     },
 
     dismiss(id) {

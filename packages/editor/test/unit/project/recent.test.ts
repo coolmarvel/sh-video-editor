@@ -1,7 +1,7 @@
 /** features/project/recent.ts: 최근 목록(호스트 캐시·메모리), 저장·열기 때 기록, 메뉴 항목, 없어진 파일 제거. */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryCacheStore } from '@editor/features/cache/memory';
-import { formatOpenedAt, recentMenuEntries, useRecent } from '@editor/features/project/recent';
+import { recentMenuEntries, useRecent } from '@editor/features/project/recent';
 import { useProject } from '@editor/features/project/store';
 import { connect, flush, resetStores } from '../../stores';
 
@@ -50,11 +50,5 @@ describe('useRecent', () => {
     await useRecent.getState().open('/gone.missing');
     expect(useRecent.getState().items).toHaveLength(0);
     expect(useProject.getState().notices.at(-1)?.kind).toBe('danger');
-  });
-
-  it('formatOpenedAt: 오늘은 시각, 아니면 날짜', () => {
-    const now = new Date(2026, 9, 14, 15, 7).getTime();
-    expect(formatOpenedAt(new Date(2026, 9, 14, 9, 5).getTime(), now)).toBe('09:05');
-    expect(formatOpenedAt(new Date(2026, 8, 3, 9, 5).getTime(), now)).toBe('2026-09-03');
   });
 });

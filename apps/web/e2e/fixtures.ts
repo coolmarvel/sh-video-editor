@@ -45,7 +45,7 @@ export async function makeDemoSequence(page: Page): Promise<void> {
   await page.getByRole('menuitem', { name: '오로라' }).click();
   await expect(page.getByRole('status').filter({ hasText: '데모 영상을 넣었습니다' })).toBeVisible();
   await page.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: '으로 편집을 시작합니다' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '편집을 시작합니다' })).toBeVisible();
   await expect(ui.videoClips(page)).toHaveCount(1);
   await expect(ui.clips(page)).toHaveCount(2);
   await expect(ui.total(page)).toHaveText('00:00:16:00');

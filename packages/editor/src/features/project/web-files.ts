@@ -9,6 +9,8 @@
  *
  * 편집 로직은 없다. 전부 엔진 커맨드(file.saveAs, file.saveCopy, file.open, media.findMissing, media.relink)로 간다.
  */
+import { formatDateTime } from '../../datetime';
+import { displayProjectName } from '../i18n/engine-messages';
 import type { EngineBridge, OpfsStore } from '../../engine/bridge';
 import type { RecoveryCandidate } from './store';
 import { errorMessage } from '../../errors';
@@ -138,12 +140,6 @@ export function recoveryEnginePath(meta: Pick<RecoveryMeta, 'session' | 'project
   return `opfs:/${recoveryDir(meta.session)}/${safeProjectName(meta.projectName)}${PROJECT_EXT}`;
 }
 
-function formatSavedAt(unixMs: number): string {
-  const d = new Date(unixMs);
-  const two = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
-}
-
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -175,7 +171,7 @@ export async function listRecoveryCandidates(opfs: OpfsStore, currentSession: st
       id: WEB_RECOVERY_PREFIX + d.name,
       projectName: meta.projectName,
       projectPath: meta.projectPath,
-      savedAt: formatSavedAt(meta.savedUnix),
+      savedAt: formatDateTime(meta.savedUnix),
       savedUnix: meta.savedUnix,
       revision: meta.revision,
       // 브라우저는 탭이 닫힐 때(새로고침 포함) 알릴 수 없다. 닫히며 남은 변경으로 안내한다
@@ -264,7 +260,7 @@ export class WebAutosave {
       if (info.revision === this.snapshotRevision) return;
       const meta: RecoveryMeta = {
         session: this.session,
-        projectName: info.name === 'Untitled' ? '제목 없음' : info.name,
+        projectName: displayProjectName(info.name),
         projectPath: info.path,
         savedUnix: this.now(),
         revision: info.revision,

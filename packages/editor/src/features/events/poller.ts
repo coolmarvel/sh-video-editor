@@ -15,6 +15,7 @@ import { useJobs } from '../jobs/store';
 import { PERSISTENCE_MS, classify, pollInterval, type Classified } from './classify';
 import { useEngineEvents, type EngineEventsState } from './store';
 import { errorMessage } from '../../errors';
+import { translateEngineMessage } from '../i18n/engine-messages';
 
 interface PollerOptions {
   /** 재생 중인지. 기본은 useMonitor.playing */
@@ -208,8 +209,13 @@ export class EnginePoller {
   }
 }
 
-function defaultToast(text: string, error: boolean): void {
+/**
+ * 엔진 토스트: 아는 영어 문구는 한국어로 옮기고(engine-messages.ts), 화면이 같은 사건을 이미 알렸으면(같은 key) 버린다.
+ * 버린 것은 상태 줄도 바꾸지 않는다(화면 쪽 문구가 남는다).
+ */
+function defaultToast(message: string, error: boolean): void {
+  const { text, key } = translateEngineMessage(message);
+  if (!useProject.getState().notify(error ? 'danger' : 'success', text, undefined, { key, from: 'engine' })) return;
   if (error) useEditor.setState({ error: text });
   else useEditor.setState({ status: text, error: null });
-  useProject.getState().notify(error ? 'danger' : 'success', text);
 }

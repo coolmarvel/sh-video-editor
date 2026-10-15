@@ -98,13 +98,13 @@ test.describe('소리 크기 맞추기', () => {
 });
 
 test.describe('전사 탭', () => {
-  test('웹에서는 전사가 없을 때 데스크톱 전용 안내만 보인다', async ({ app }) => {
+  test('전사가 없으면 자막 탭의 자동 자막으로 안내한다(웹도 자동 자막이 있다)', async ({ app }) => {
     await makeDemoSequence(app);
     await app.getByRole('tab', { name: '전사' }).click();
     const empty = app.getByTestId('transcript-empty');
     await expect(empty).toBeVisible();
-    await expect(empty).toContainText('데스크톱 앱에서만');
-    await expect(empty.getByRole('button', { name: '자막 탭으로' })).toHaveCount(0);
+    await expect(empty).toContainText('자동 자막 만들기');
+    await expect(empty.getByRole('button', { name: '자막 탭으로' })).toHaveCount(1);
     await expect(app.getByRole('list', { name: '전사 문장' })).toHaveCount(0);
   });
 
@@ -174,7 +174,7 @@ test.describe('장면마다 자르기', () => {
     await expect(pane).toHaveCount(0);
     // 상태 줄은 우리 문구이거나, 엔진이 보낸 toast 이벤트(찾지 못했을 때 영어 문구)가 뒤이어 덮을 수 있다
     await expect(ui.status(app)).toHaveText(
-      /^(장면 \d+곳에서 잘랐습니다 \(클립 1개\)|장면이 바뀌는 곳을 찾지 못했습니다|Scene Edit Detection found no cut points)$/,
+      /^(장면 \d+곳에서 잘랐습니다 \(클립 1개\)|장면이 바뀌는 곳을 찾지 못했습니다|장면이 바뀌는 곳을 찾지 못했습니다\.)$/,
     );
     test.info().annotations.push({ type: 'scene-detect', description: `${(await ui.status(app).textContent()) ?? ''} wall=${Date.now() - t0}ms` });
   });

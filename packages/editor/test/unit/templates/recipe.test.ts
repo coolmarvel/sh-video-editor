@@ -76,7 +76,7 @@ describe('레시피 커맨드 순서', () => {
       ]),
     );
     const s = useTimeline.getState().sequence!;
-    expect(s.video[0]!.items[0]!.name).toBe('Color Matte');
+    expect(s.video[0]!.items[0]!.name).toBe('색 배경');
     expect(s.video.flatMap((t) => t.items).map((c) => c.name)).toEqual(expect.arrayContaining(['제목을 입력하세요', '부제목을 입력하세요']));
     expect(s.selection).toHaveLength(1);
     expect(useInspectorRegistry.getState().active).toBe('text');

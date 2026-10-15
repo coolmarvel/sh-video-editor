@@ -13,7 +13,7 @@
 //! cancels it when any command fails (its error is returned).
 
 use filmcraft_edit as edit;
-use filmcraft_project::{ClipId, Interpolation, TrackItem, TransitionAlign, TransitionId};
+use filmcraft_project::{ClipId, Interpolation, Project, Sequence, TrackItem, Transition, TransitionAlign, TransitionId};
 use filmcraft_time::Tick;
 use serde_json::{Value, json};
 
@@ -52,6 +52,55 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
     ]
 }
 
+/// Longest transition that fits inside its clips on their timeline for `align` (a transition
+/// between two clips centred on the cut can take half of the shorter one on each side).
+pub(crate) fn transition_room(q: &Sequence, from: Option<ClipId>, to: Option<ClipId>, align: TransitionAlign) -> Option<Tick> {
+    let len = |c: Option<ClipId>| c.and_then(|c| q.find_item(c)).map(|(_, it)| it.duration);
+    Some(match (len(from), len(to)) {
+        (Some(a), Some(b)) => match align {
+            TransitionAlign::CenterAtCut => Tick(a.0.min(b.0).saturating_mul(2)),
+            TransitionAlign::StartAtCut => b,
+            TransitionAlign::EndAtCut => a,
+        },
+        (None, Some(b)) => b,
+        (Some(a), None) => a,
+        (None, None) => return None,
+    })
+}
+
+/// Frames of `tr` for which a clip has no media of its own and the renderer repeats its edge
+/// frame: the outgoing clip past its source out, the incoming one before its source in (stills,
+/// graphics and generated media never run out).
+pub(crate) fn repeated_frames(project: &Project, q: &Sequence, tr: &Transition) -> (i64, i64) {
+    let rate = q.settings.frame_rate;
+    // media (timeline ticks at the clip's speed) after the out point / before the in point
+    let room = |it: &TrackItem| -> Option<(Tick, Tick)> {
+        let pi = project.item(it.item)?;
+        if matches!(pi.type_label(), "Still Image" | "Synthetic" | "Graphic" | "Adjustment Layer") {
+            return None;
+        }
+        let speed = it.speed.abs().max(1e-9);
+        let to_tl = |t: Tick| Tick((t.0.max(0) as f64 / speed).floor() as i64);
+        let (head, tail) = (it.source_in, pi.duration() - it.source_out());
+        Some(if it.reverse { (to_tl(head), to_tl(tail)) } else { (to_tl(tail), to_tl(head)) })
+    };
+    let item = |c: Option<ClipId>| c.and_then(|c| q.find_item(c)).map(|(_, it)| it);
+    let short = |need: Tick, have: Tick| rate.frame_at(Tick((need - have).0.max(0)));
+    let a = item(tr.from).and_then(|it| room(it).map(|(after, _)| short(tr.end() - it.end(), after))).unwrap_or(0);
+    let b = item(tr.to).and_then(|it| room(it).map(|(_, before)| short(it.start - tr.start, before))).unwrap_or(0);
+    (a, b)
+}
+
+/// `{"from": n, "to": n}` repeated-frame counts of transition `id` with an English `warning` when
+/// any (the editor words its own message from the numbers).
+pub(crate) fn transition_report(s: &Session, id: TransitionId) -> Value {
+    let Some(q) = s.active_sequence() else { return json!({}) };
+    let Some(tr) = q.all_tracks().flat_map(|t| t.transitions.iter()).find(|x| x.id == id) else { return json!({}) };
+    let (a, b) = repeated_frames(&s.project, q, tr);
+    let warning = (a > 0 || b > 0).then(|| format!("not enough media: {a} repeated frame(s) of the outgoing clip, {b} of the incoming clip"));
+    json!({"repeatFrames": {"from": a, "to": b}, "warning": warning})
+}
+
 fn transition_p(p: &Value, cmd: &str) -> Result<TransitionId> {
     u64_p(p, "transition").map(TransitionId).ok_or_else(|| bad(cmd, "need `transition`"))
 }
@@ -80,7 +129,17 @@ fn set_transition_length(s: &mut Session, p: &Value) -> Result<Value> {
         Some("end") => Some(TransitionAlign::EndAtCut),
         Some(other) => return Err(bad(CMD, format!("`align` must be center, start or end, got `{other}`"))),
     };
-    let dur = s.sequence_rate().tick_of(frames);
+    let rate = s.sequence_rate();
+    let mut dur = rate.tick_of(frames);
+    // a transition longer than its clips is cut to what fits (`clamped`)
+    {
+        let q = s.active_sequence().ok_or(EngineError::NoSequence)?;
+        let tr = q.all_tracks().flat_map(|t| t.transitions.iter()).find(|x| x.id == id).ok_or_else(|| bad(CMD, format!("no transition {}", id.0)))?;
+        if let Some(room) = transition_room(q, tr.from, tr.to, align.unwrap_or(tr.align)) {
+            dur = dur.min(rate.snap(room).max(rate.tick_of(1)));
+        }
+    }
+    let clamped = dur < rate.tick_of(frames);
     s.edit_sequence("Set Transition Length", |q, ctx, _| Ok(edit::set_transition_span(q, id, dur, align, ctx)?))?;
     let q = s.active_sequence().ok_or(EngineError::NoSequence)?;
     let tr = q.all_tracks().flat_map(|t| t.transitions.iter()).find(|x| x.id == id).ok_or_else(|| bad(CMD, format!("no transition {}", id.0)))?;
@@ -89,7 +148,12 @@ fn set_transition_length(s: &mut Session, p: &Value) -> Result<Value> {
         TransitionAlign::StartAtCut => "start",
         TransitionAlign::EndAtCut => "end",
     };
-    Ok(json!({"transition": id.0, "start": tr.start.0, "duration": tr.duration.0, "align": align}))
+    let mut out =
+        json!({"transition": id.0, "start": tr.start.0, "duration": tr.duration.0, "frames": rate.frame_at(tr.duration), "align": align, "clamped": clamped});
+    if let (Some(o), Value::Object(r)) = (out.as_object_mut(), transition_report(s, id)) {
+        o.extend(r);
+    }
+    Ok(out)
 }
 
 fn intrinsic(e: &filmcraft_project::EffectInstance) -> bool {

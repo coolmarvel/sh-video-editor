@@ -3118,6 +3118,11 @@ fn set_transition_params(e: &mut filmcraft_project::EffectInstance, params: &Val
     let def = e.def().ok_or_else(|| bad(cmd, "unknown transition"))?;
     for (k, v) in obj {
         let pd = def.param(k).ok_or_else(|| bad(cmd, format!("`{}` has no param `{k}`", def.name)))?;
+        // sh-video-editor: inspect gives an unset point (the default centre) as [null, null]; sending
+        // it back keeps the default
+        if matches!(pd.kind, K::Point) && v.as_array().is_some_and(|a| a.iter().all(Value::is_null)) {
+            continue;
+        }
         let val = match (&pd.kind, v) {
             (K::Choice(opts), Value::String(sv)) => {
                 V::Choice(opts.iter().position(|o| o.eq_ignore_ascii_case(sv)).ok_or_else(|| bad(cmd, format!("`{k}` must be one of {opts:?}")))? as u32)
@@ -3221,6 +3226,17 @@ fn apply_transition(s: &mut Session, p: &Value, kind: TrackKind) -> Result<Value
         }
     }
     let (track, from, to, cut) = found.ok_or_else(|| EngineError::Other("no edit point at the playhead on targeted tracks".into()))?;
+    // sh-video-editor: a transition longer than its clips is cut to what fits (`clamped`)
+    let wanted = dur;
+    let align = match (from, to) {
+        (Some(_), Some(_)) => filmcraft_project::TransitionAlign::CenterAtCut,
+        (None, _) => filmcraft_project::TransitionAlign::StartAtCut,
+        (Some(_), None) => filmcraft_project::TransitionAlign::EndAtCut,
+    };
+    let dur = match crate::sh_commands::transition_room(q, from, to, align) {
+        Some(room) => dur.min(rate.snap(room).max(rate.tick_of(1))),
+        None => dur,
+    };
     let start = if from.is_some() && to.is_some() {
         cut - dur.mul_ratio(1, 2)
     } else if to.is_some() {
@@ -3231,7 +3247,11 @@ fn apply_transition(s: &mut Session, p: &Value, kind: TrackKind) -> Result<Value
     let tr = Transition { id: TransitionId(0), effect: instance, start: rate.snap(start), duration: dur, from, to, align: Default::default(), reverse };
     let label = format!("Apply {}", def.name);
     let id = s.edit_sequence(&label, |q, ctx, _| Ok(edit::add_transition(q, track, tr, ctx)?))?;
-    Ok(json!({"transition": id.0}))
+    let mut out = json!({"transition": id.0, "frames": rate.frame_at(dur), "clamped": dur < wanted});
+    if let (Some(o), Value::Object(r)) = (out.as_object_mut(), crate::sh_commands::transition_report(s, id)) {
+        o.extend(r);
+    }
+    Ok(out)
 }
 
 /// `project.thumbnail`: one frame of an item (clip, still, sequence) as a PNG, `width` pixels
@@ -3297,7 +3317,7 @@ pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence
                 "enabled": i.enabled, "link": i.link, "label": i.label.name(),
                 "effects": i.effects.iter().map(|e| json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": e.params.iter().map(|(k, p)| (k.clone(), param_json(i, p))).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
-            "transitions": t.transitions.iter().map(|x| json!({"id": x.id.0, "effect": x.effect.effect, "start": x.start.0, "duration": x.duration.0, "from": x.from.map(|c| c.0), "to": x.to.map(|c| c.0), "reverse": x.reverse, "params": x.effect.params.iter().map(|(k, v)| (k.clone(), serde_json::to_value(&v.value).unwrap_or_default())).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
+            "transitions": t.transitions.iter().map(|x| json!({"id": x.id.0, "effect": x.effect.effect, "start": x.start.0, "duration": x.duration.0, "from": x.from.map(|c| c.0), "to": x.to.map(|c| c.0), "reverse": x.reverse, "params": x.effect.params.iter().map(|(k, v)| (k.clone(), param_to_json(&v.value).1)).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
         })
     };
     json!({

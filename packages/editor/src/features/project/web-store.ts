@@ -3,6 +3,7 @@
  * 미디어 다시 연결. 엔진 호출은 web-files.ts 의 함수로만 한다. showSave 는 사용자가 저장하면 true, 닫으면 false 로 끝난다.
  */
 import { create } from 'zustand';
+import type { OpfsMediaUsage } from '../../engine/bridge';
 import { useEditor } from '../../store';
 import { useRecent } from './recent';
 import { useProject } from './store';
@@ -33,6 +34,8 @@ interface WebFilesState {
   projects: WebProjectEntry[];
   selected: string | null;
   missing: MissingMedia[];
+  /** 브라우저 안에 보관한 미디어와 저장 공간(열기 대화상자에 보인다). 모르면 null */
+  storage: OpfsMediaUsage | null;
   busy: boolean;
   error: string | null;
   showSave(defaultName: string): Promise<boolean>;
@@ -76,6 +79,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
     projects: [],
     selected: null,
     missing: [],
+    storage: null,
     busy: false,
     error: null,
 
@@ -88,8 +92,16 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
     },
 
     async showOpen() {
-      set({ mode: 'open', selected: null, error: null, busy: false, projects: [] });
+      set({ mode: 'open', selected: null, error: null, busy: false, projects: [], storage: null });
       await refreshProjects();
+      const b = bridge();
+      if (b?.opfs.mediaUsage) {
+        try {
+          set({ storage: await b.opfs.mediaUsage() });
+        } catch {
+          set({ storage: null });
+        }
+      }
       const first = get().projects[0];
       if (first) set({ selected: first.path });
     },

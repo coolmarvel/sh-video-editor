@@ -225,7 +225,7 @@ export const useProject = create<ProjectState>((set, get) => {
         get().notify(notes.length ? 'warning' : 'success', `열었습니다: ${get().name}${notes.length ? ` (${notes.join(', ')})` : ''}`);
         // 최근 목록: 데스크톱은 OS 경로, 웹은 OPFS 경로만(브라우저 File 은 web-store 가 OPFS 로 복사한 뒤 기록한다)
         if (!isWebFiles(b) || isOpfsPath(get().path)) void useRecent.getState().touch(get().path ?? path, get().name);
-        // 웹: 새로고침 뒤에는 File 핸들이 없으므로 다시 고르게 안내한다
+        // 웹: 브라우저 안에 보관하지 못한 파일(공간 부족 등)은 새로고침 뒤 읽을 수 없으므로 다시 고르게 안내한다
         if (r.missingMedia > 0 && isWebFiles(b)) void useWebFiles.getState().showRelink();
         return true;
       } catch (e) {

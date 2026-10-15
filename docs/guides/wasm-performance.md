@@ -1,7 +1,7 @@
 ---
 title: wasm 엔진 성능과 크기 (M4-4)
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 domain: web
 ---
 
@@ -160,6 +160,33 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
   샘플이 바로 오면 그 스트림은 폴백 1회 뒤 소프트웨어로 간다(`fallbacks` 로 보인다).
 - 공유 버퍼 복사가 한 번 더 있다(VideoFrame -> SAB -> wasm 메모리). 1080p I420 3.1MB, 프레임당 1ms 미만.
 
+## 큰 파일 범위 읽기와 브라우저 안 미디어 보관 (2026-10-15)
+
+가져온 `File` 은 Worker 에서 `registerBlob` 으로 핸들만 등록하고, 엔진은 필요한 범위만 `FileReaderSync` 로 1 MiB 청크씩 읽는다
+(청크 LRU 64 MiB, 4 MiB 이상 한 번 읽기는 캐시를 거치지 않음, `bindings/wasm/src/lib.rs`). 이 경로는 2026-10-14 부터 있었고 이번에 바꾸지
+않았다. 이번에 더한 것은 **보관**이다: Worker 가 가져온 파일을 1.5초 뒤 OPFS `media/` 에 8 MiB 조각으로 복사하고(`apps/web/src/opfs.ts`
+`copyIn`), 끝난 것만 `media/index.json` 에 적는다. 다음 시작 때 같은 엔진 경로(`/files/<이름>`)로 OPFS 파일을 다시 `registerBlob` 하므로
+프로젝트·복구본이 재연결 없이 열린다(`features/project/web-media.ts`). 작은 파일(`putFile` 메모리 경로)은 엔진이 쓴 파일과 OPFS 에서
+미리 읽어 두는 프로젝트에만 쓰며 그대로다.
+
+측정: `SH_E2E_LARGE_MP4=<경로> npx playwright test -c apps/web/playwright.config.ts web-files -g '큰 파일' --project desktop-1440`
+(Chromium headless, vite preview, WSL2). 파일은 ffmpeg `testsrc2` 1920x1080 30fps 130초 H.264 80 Mbps faststart(588 MB). 가져오기는 파일
+선택부터 미디어 목록에 항목이 보일 때까지, 탐색은 30초·50초·10초 위치를 0.5 배율로 그린 시간(엔진 직접 호출), 메모리는 Worker 의 wasm
+선형 메모리 크기. 각 2회.
+
+| 조건                      | 가져오기   | 탐색 30초 / 50초 / 10초       | wasm 메모리(시작, 가져오기 뒤, 탐색 뒤) | Blob 에서 읽은 양 |
+| ------------------------- | ---------- | ----------------------------- | --------------------------------------- | ----------------- |
+| 보관 없음(이전 동작)      | 141~175 ms | 827~951 / 57~63 / 296~380 ms  | 13, 31, 667~668 MB                      | 38 MB (38회)      |
+| 보관, 바로 복사           | 146~161 ms | 882~1373 / 64~98 / 298~494 ms | 13, 31~34, 665~667 MB                   | 38 MB (38회)      |
+| 보관, 1.5초 뒤 복사(채택) | 154~166 ms | 927~1028 / 52~57 / 294~321 ms | 13, 31~34, 667~671 MB                   | 38 MB (38회)      |
+
+- 588 MB 파일을 가져와 배치해도 wasm 메모리는 18 MB 만 늘고 Blob 에서 읽은 양은 38 MB 다(파일이 통째로 올라오지 않는다).
+- 탐색 뒤의 667 MB 는 디코드한 1080p 프레임 캐시다(파일 크기와 무관하며 wasm 메모리는 줄지 않는다). 아래 "남은 것".
+- 바로 복사하면 가져오자마자 그리는 첫 탐색이 최대 40% 느려져 복사 시작을 1.5초 미뤘다(첫 탐색이 기준과 비슷해졌다).
+- Playwright 의 임시 브라우저 문맥은 OPFS 한도가 약 450~530 MB 라 588 MB 사본은 중간에 막힌다. 이때 사본을 지우고 보관 실패로
+  끝나며(그 세션은 원본 File 로 계속 읽는다) 다시 열면 기존 "미디어 다시 연결" 이 뜬다. 막히기 전까지 복사 속도는 약 150 MB/s.
+- 같은 시각의 프레임은 Blob 경로와 메모리 경로가 같다(`packages/engine/tests/web-blob.test.ts`: 연속 12장과 앞뒤 탐색 4장 화소 차 0).
+
 ## 사용 방법
 
 - 빌드: `npm run build:engine:wasm`. 측정: `node scripts/bench-wasm.mjs` (여러 빌드 비교는 `--pkg a --pkg b`).
@@ -175,6 +202,8 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
 - 데모 생성기(`crates/media/src/generators.rs`)는 픽셀마다 fbm 노이즈를 계산해 960x540 에 150ms 안팎이다. 미리보기 60ms 목표는
   실제 mp4(WebCodecs)에서는 넘겼고 데모 영상에서는 생성기 최적화가 필요하다.
 - 글꼴은 매 시작마다 5.2MB 를 받는다(브라우저 캐시가 흡수). 서비스 워커나 OPFS 캐시는 두지 않았다.
+- 1080p 를 몇 번 탐색하면 디코드한 프레임 캐시로 wasm 선형 메모리가 약 670 MB 까지 늘고 줄지 않는다(위 표). wasm 에서는 `FrameCache` 예산을
+  더 작게 두거나 해상도별로 나누는 것이 좋다(`crates/media/src/cache.rs` 를 쓰는 소스들).
 
 ## 관련 코드
 
@@ -183,3 +212,5 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
 - `apps/web/src/webcodecs.ts` (동기 다리), `apps/web/src/decoder.worker.ts` (VideoDecoder 소유), `apps/web/src/fonts.ts`, `apps/web/src/engine.worker.ts`
 - `packages/engine/vendor/filmcraft/crates/text/src/fonts.rs` (`HOST_SUPPLIED_FONTS`), `crates/platform/src/hybrid.rs`, `crates/codecs/src/hw.rs`
 - `scripts/bench-wasm.mjs`, `packages/engine/tests/wasm-bench.mjs`, `packages/engine/tests/wasm-web.test.ts`, `apps/web/e2e/webcodecs.spec.ts`
+- 범위 읽기·보관: `bindings/wasm/src/lib.rs`(`registerBlob`, `BlobReader`), `apps/web/src/opfs.ts`(`copyIn`), `packages/editor/src/features/project/web-media.ts`,
+  `packages/engine/tests/web-blob.test.ts`, `apps/web/e2e/web-files.spec.ts`("가져온 파일 보관")

@@ -1,9 +1,54 @@
 /**
  * 웹 파일 e2e(1440 과 390): 브라우저 안(OPFS) 저장 -> 새로고침 -> 최근 프로젝트에서 열기(클립 수 같음), 파일 메뉴 최근 프로젝트,
- * 내 컴퓨터로 받기(다운로드), 내보내기 -> 다운로드 이벤트로 mp4 바이트 > 0, 자동 저장 스냅샷 -> 새로고침 -> 복구 제안 -> 복구 -> 저장.
+ * 내 컴퓨터로 받기(다운로드), 내보내기 -> 다운로드 이벤트로 mp4 바이트 > 0, 자동 저장 스냅샷 -> 새로고침 -> 복구 제안 -> 복구 -> 저장,
+ * 가져온 파일의 브라우저 안 보관(새로고침 뒤 다시 고르지 않고 그려짐, 열기 대화상자의 저장 공간 줄).
+ * 큰 파일 실측은 SH_E2E_LARGE_MP4(경로)를 줄 때만 돈다(wasm 메모리·가져오기·탐색·보관 시간을 로그로 남긴다).
  */
-import { statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Page } from '@playwright/test';
 import { clickRuler, expect, makeDemoSequence, test, toasts, ui } from './fixtures';
+
+type Diag = {
+  mediaIdle(): Promise<string | null>;
+  wasmMemory(): Promise<number>;
+  listFiles(): Promise<{ path: string; size: number; kind: string }[]>;
+  ioStats(): Promise<{ rangeReads: number; blobReads: number; blobBytes: number; chunkHits: number; cacheBytes: number }>;
+};
+/** window.shBridge.diag 의 메서드 하나를 부른다 */
+function diag<K extends keyof Diag>(page: Page, method: K): Promise<Awaited<ReturnType<Diag[K]>>> {
+  return page.evaluate((m) => (window as unknown as { shBridge: { diag: Diag } }).shBridge.diag[m as K]() as Promise<never>, method);
+}
+
+/** 파일 > 미디어 가져오기... 로 고른다(브라우저 파일 선택) */
+async function importViaMenu(app: Page, path: string): Promise<void> {
+  const chooser = app.waitForEvent('filechooser');
+  await app.getByRole('menubar').getByRole('button', { name: '파일' }).click();
+  await app.getByRole('menuitem', { name: '미디어 가져오기...' }).click();
+  await (await chooser).setFiles(path);
+}
+
+/** 모니터 평균 밝기와 색 있는 화소 비율 */
+function canvasColor(page: Page): Promise<{ luma: number; colored: number }> {
+  return page.locator('.mon-canvas').evaluate((c: HTMLCanvasElement) => {
+    const ctx = c.getContext('2d');
+    if (!ctx) return { luma: -1, colored: -1 };
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let luma = 0;
+    let colored = 0;
+    const n = c.width * c.height;
+    for (let i = 0; i < n; i++) {
+      const r = d[i * 4] ?? 0;
+      const g = d[i * 4 + 1] ?? 0;
+      const b = d[i * 4 + 2] ?? 0;
+      luma += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      if (Math.max(r, g, b) - Math.min(r, g, b) > 40) colored++;
+    }
+    return { luma: luma / n, colored: colored / n };
+  });
+}
 
 async function saveInBrowser(app: Parameters<typeof makeDemoSequence>[0], name: string): Promise<void> {
   await app.keyboard.press('Control+s');
@@ -130,5 +175,113 @@ test.describe('웹 파일', () => {
         .getByRole('button', { name: /복구본/ }),
     ).toBeVisible();
     await expect(app.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test.describe('가져온 파일 보관', () => {
+    let dir = '';
+    let clip = '';
+    test.beforeAll(() => {
+      dir = mkdtempSync(join(tmpdir(), 'sh-e2e-media-'));
+      clip = join(dir, 'bars.mp4');
+      execFileSync('ffmpeg', [
+        '-v',
+        'error',
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'smptebars=size=640x360:rate=30',
+        '-t',
+        '3',
+        '-c:v',
+        'libx264',
+        '-pix_fmt',
+        'yuv420p',
+        clip,
+      ]);
+    });
+    test.afterAll(() => {
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('가져온 파일은 브라우저 안에 보관되어 새로고침 뒤 다시 고르지 않아도 그려진다', async ({ app }) => {
+      await importViaMenu(app, clip);
+      const item = app.getByRole('treeitem', { name: /bars\.mp4/ });
+      await expect(item).toBeVisible({ timeout: 20_000 });
+      await item.click();
+      await app.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
+      await expect(ui.videoClips(app)).toHaveCount(1);
+      // 백그라운드 복사가 끝날 때까지
+      expect(await diag(app, 'mediaIdle')).toBeNull();
+      await saveInBrowser(app, '보관 테스트');
+
+      await app.reload();
+      await expect(app.locator('.ve-status')).toContainText(/준비됨: 커맨드 \d+개/, { timeout: 60_000 });
+      // 다시 등록된 파일: 같은 엔진 경로, OPFS 사본
+      const files = await diag(app, 'listFiles');
+      expect(files.map((f) => f.path)).toContain('/files/bars.mp4');
+      await ui
+        .timeline(app)
+        .getByLabel('최근 프로젝트')
+        .getByRole('button', { name: /보관 테스트/ })
+        .click();
+      const opened = toasts(app).filter({ hasText: '열었습니다: 보관 테스트' });
+      await expect(opened).toBeVisible();
+      await expect(opened).not.toContainText('찾을 수 없는 미디어');
+      await expect(app.getByRole('dialog', { name: '미디어 다시 연결' })).toHaveCount(0);
+      await expect(ui.videoClips(app)).toHaveCount(1);
+      await clickRuler(app, 60);
+      await expect.poll(async () => (await canvasColor(app)).colored, { timeout: 15_000 }).toBeGreaterThan(0.3);
+
+      // 열기 대화상자에 보관한 미디어와 저장 공간
+      await app.keyboard.press('Control+o');
+      const open = app.getByRole('dialog', { name: '프로젝트 열기' });
+      await expect(open.getByTestId('web-storage')).toContainText('보관한 미디어 1개');
+      await open.getByRole('button', { name: '취소' }).click();
+    });
+
+    test('큰 파일 실측(SH_E2E_LARGE_MP4 가 있을 때만)', async ({ app }) => {
+      const big = process.env.SH_E2E_LARGE_MP4;
+      test.skip(!big, 'SH_E2E_LARGE_MP4 없음');
+      test.setTimeout(600_000);
+      const size = statSync(big as string).size;
+      const mem0 = await diag(app, 'wasmMemory');
+      const t0 = Date.now();
+      await importViaMenu(app, big as string);
+      const name = (big as string).split('/').pop() as string;
+      const item = app.getByRole('treeitem', { name: new RegExp(name.replace('.', '\\.')) });
+      await expect(item).toBeVisible({ timeout: 120_000 });
+      const importMs = Date.now() - t0;
+      await item.click();
+      await app.getByRole('button', { name: '타임라인에 넣기', exact: true }).click();
+      await expect(ui.videoClips(app)).toHaveCount(1);
+      const mem1 = await diag(app, 'wasmMemory');
+      const io1 = await diag(app, 'ioStats');
+      // 탐색: 뒤쪽 세 곳을 그린 시간(엔진 직접 호출)
+      const seekMs = await app.evaluate(async () => {
+        const b = (window as unknown as { shBridge: { renderFrame(t: number, s: number): Promise<unknown> } }).shBridge;
+        const T = 254_016_000_000;
+        const out: number[] = [];
+        for (const sec of [30, 50, 10]) {
+          const s = performance.now();
+          await b.renderFrame(sec * T, 0.5);
+          out.push(Math.round(performance.now() - s));
+        }
+        return out;
+      });
+      const c0 = Date.now();
+      const copyError = await diag(app, 'mediaIdle');
+      const copyMs = Date.now() - c0 + importMs;
+      const mem2 = await diag(app, 'wasmMemory');
+      const io2 = await diag(app, 'ioStats');
+      const mb = (n: number) => Math.round(n / 1048576);
+      console.log(
+        `[large] file ${mb(size)}MB, import ${importMs}ms, seek ${seekMs.join('/')}ms, copy<=${copyMs}ms (error ${copyError}), wasm memory ${mb(mem0)} -> ${mb(mem1)} -> ${mb(mem2)} MB, blob read ${mb(io1.blobBytes)} -> ${mb(io2.blobBytes)} MB in ${io2.blobReads} reads`,
+      );
+      // 파일이 wasm 메모리로 통째로 올라오지 않는다: 가져오기·배치 뒤 메모리 증가와 Blob 에서 읽은 양이 파일보다 훨씬 작다.
+      // (탐색 뒤의 증가는 디코드한 프레임 캐시라 파일 크기와 무관하다)
+      expect(mem1 - mem0).toBeLessThan(64 << 20);
+      expect(io2.blobBytes).toBeLessThan(size / 4);
+    });
   });
 });

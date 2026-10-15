@@ -5,6 +5,16 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { useWebFiles } from './web-store';
 import { Dialog } from '../../shell/Dialog';
+import { formatBytes } from './web-media';
+import type { OpfsMediaUsage } from '../../engine/bridge';
+
+/** "보관한 미디어 3개 (1.2 GB), 복사 중 1개. 사이트 사용량 1.3 GB / 한도 50 GB" */
+export function storageText(u: OpfsMediaUsage): string {
+  const parts = [`보관한 미디어 ${u.files}개 (${formatBytes(u.bytes)})`];
+  if (u.pending > 0) parts[0] += `, 복사 중 ${u.pending}개`;
+  if (u.usage !== null && u.quota !== null) parts.push(`사이트 사용량 ${formatBytes(u.usage)} / 한도 ${formatBytes(u.quota)}`);
+  return `${parts.join('. ')}.`;
+}
 
 export function WebFilesDialog() {
   const mode = useWebFiles((s) => s.mode);
@@ -12,6 +22,7 @@ export function WebFilesDialog() {
   const projects = useWebFiles((s) => s.projects);
   const selected = useWebFiles((s) => s.selected);
   const missing = useWebFiles((s) => s.missing);
+  const storage = useWebFiles((s) => s.storage);
   const busy = useWebFiles((s) => s.busy);
   const error = useWebFiles((s) => s.error);
   const { close, setName, select, confirmSave, openSelected, openFile, deleteProject, relinkFiles } = useWebFiles.getState();
@@ -103,12 +114,18 @@ export function WebFilesDialog() {
                 </table>
               </div>
             )}
+            {storage && (
+              <p className="ve-hint" data-testid="web-storage">
+                {storageText(storage)}
+              </p>
+            )}
           </>
         )}
         {mode === 'relink' && (
           <>
             <p className="ve-dialog-text">
-              브라우저는 새로고침하면 파일을 다시 읽을 수 없습니다. 아래 파일을 다시 골라 주세요(같은 이름의 파일을 찾아 잇습니다).
+              브라우저 안에 보관하지 못한 파일(저장 공간이 모자랐거나 보관 전에 창을 닫음)은 새로고침하면 다시 읽을 수 없습니다. 아래 파일을 다시 골라
+              주세요(같은 이름의 파일을 찾아 잇습니다).
             </p>
             <ul className="ve-webfiles-missing">
               {missing.map((m) => (

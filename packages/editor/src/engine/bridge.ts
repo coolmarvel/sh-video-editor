@@ -81,6 +81,22 @@ export interface OpfsStore {
   remove(path: string): Promise<void>;
   /** 엔진이 `opfs:/` 경로로 쓴 큐가 비워질 때까지 기다린다 */
   flush(): Promise<void>;
+  /**
+   * 브라우저 안에 보관한 미디어(가져온 파일의 OPFS 사본, features/project/web-media.ts)와 사이트 저장 공간. 보관하지 않는
+   * 호스트는 없다.
+   */
+  mediaUsage?(): Promise<OpfsMediaUsage>;
+}
+
+export interface OpfsMediaUsage {
+  /** 보관한 미디어 파일 수와 바이트 */
+  files: number;
+  bytes: number;
+  /** 사이트 전체 사용량·한도(모르면 null) */
+  usage: number | null;
+  quota: number | null;
+  /** 아직 복사 중인 파일 수 */
+  pending: number;
 }
 
 /** 자동 자막(features/stt)의 진행 상황. 다운로드는 `done`·`total` 이 바이트, 인식은 `fraction`(0..1)만 뜻이 있다. */

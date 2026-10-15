@@ -48,6 +48,7 @@ export default defineConfig({
         'src/features/monitor/controller.ts',
         'src/features/project/store.ts',
         'src/features/project/menu.ts',
+        'src/features/project/web-media.ts',
         'src/features/effects/params.ts',
         'src/features/effects/catalog.ts',
         'src/features/effects/store.ts',

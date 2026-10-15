@@ -9,6 +9,10 @@ type Event = { event: 'fileWritten'; path: string; bytes: Uint8Array };
 /** 진단(QA 스크립트용): 등록된 파일과 범위 읽기 통계. 화면은 쓰지 않는다. */
 interface WebBridgeDiag {
   listFiles(): Promise<{ path: string; size: number; kind: 'blob' | 'memory' }[]>;
+  /** 줄 선 미디어 보관 복사가 모두 끝날 때까지 기다린다(e2e). 마지막 보관 오류(없으면 null)를 돌려준다 */
+  mediaIdle(): Promise<string | null>;
+  /** wasm 선형 메모리 크기(바이트) */
+  wasmMemory(): Promise<number>;
   ioStats(): Promise<{
     rangeReads: number;
     blobReads: number;
@@ -51,10 +55,16 @@ export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
     list: (dir) => call('opfsList', dir),
     remove: (path) => call('opfsRemove', path),
     flush: () => call('opfsFlush'),
+    mediaUsage: () => call('opfsMediaUsage'),
   };
 
   const bridge: EngineBridge & { diag: WebBridgeDiag } = {
-    diag: { listFiles: () => call('listFiles'), ioStats: () => call('ioStats') },
+    diag: {
+      listFiles: () => call('listFiles'),
+      ioStats: () => call('ioStats'),
+      mediaIdle: () => call('opfsMediaIdle'),
+      wasmMemory: () => call('wasmMemory'),
+    },
     version: () => call('version'),
     commands: () => call('commands'),
     execute: (id, params) => call('execute', id, params),

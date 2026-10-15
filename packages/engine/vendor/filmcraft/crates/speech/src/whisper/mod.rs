@@ -11,7 +11,13 @@
 //!    probability beats the best text token, and special tokens are suppressed. Windows whose
 //!    `<|nospeech|>` probability exceeds 0.6 while the text is improbable are skipped. A loop
 //!    guard stops a window that keeps repeating itself.
-//! 4. `seek` advances to the last complete timestamp pair (or the whole window).
+//! 4. `seek` advances to the last complete timestamp pair (or the whole window). When the window
+//!    ends on a single timestamp (the model closed its last segment and stopped) with at least 3 s
+//!    of the window left and at least 1 s of that voiced ([`crate::vad`]), `seek` resumes at that
+//!    timestamp instead: the model stopped early, and jumping the whole window would drop the
+//!    speech after it (sh-video-editor change; the reference procedure always jumps). Endings in
+//!    the last 3 s still jump: the audio there is the tail of the last word, and decoding it again
+//!    repeats or invents words.
 //! 5. **Word timestamps**: the window's text tokens are run once more through the decoder
 //!    (`<|notimestamps|>` prompt) and the cross-attention logits of the model's alignment heads
 //!    (`generation_config.json`; default: every head of the second half of the decoder) are
@@ -43,6 +49,13 @@ const N_FRAMES: usize = 3000;
 const FRAMES_PER_TS: usize = 2;
 const SAMPLES_PER_FRAME: usize = crate::mel::HOP;
 const MAX_TOKENS: usize = 224;
+/// A single-timestamp ending resumes there only if the timestamp is at least this far in (mel
+/// frames, 1 s), so a window that stops at once still moves on,
+const MIN_RESUME_FRAMES: usize = 100;
+/// at least this much of the window is left after it (3 s),
+const MIN_TAIL_FRAMES: usize = 300;
+/// and that rest holds at least this much voiced audio (10 ms frames, 1 s).
+const MIN_VOICED_FRAMES: usize = 100;
 
 fn merr(e: candle_core::Error) -> SpeechError {
     SpeechError::Model(e.to_string())
@@ -62,10 +75,15 @@ impl Whisper {
     /// `model.safetensors`).
     pub fn load(dir: &Path, id: &str) -> Result<Self, SpeechError> {
         let read = |n: &str| std::fs::read(dir.join(n)).map_err(|e| SpeechError::Model(format!("{}: {e}", dir.join(n).display())));
-        let cfg: Config = serde_json::from_slice(&read("config.json")?).map_err(|e| SpeechError::Model(format!("config.json: {e}")))?;
-        let gen_cfg: serde_json::Value = serde_json::from_slice(&read("generation_config.json")?).unwrap_or_default();
-        let tok = Tokenizer::from_json(&String::from_utf8_lossy(&read("tokenizer.json")?))?;
-        let weights = read("model.safetensors")?;
+        Self::from_bytes(&read("config.json")?, &read("generation_config.json")?, &read("tokenizer.json")?, read("model.safetensors")?, id)
+    }
+
+    /// Load a model from the bytes of its four files (hosts without a file system: the web keeps
+    /// them in OPFS and hands them over).
+    pub fn from_bytes(config: &[u8], generation_config: &[u8], tokenizer: &[u8], weights: Vec<u8>, id: &str) -> Result<Self, SpeechError> {
+        let cfg: Config = serde_json::from_slice(config).map_err(|e| SpeechError::Model(format!("config.json: {e}")))?;
+        let gen_cfg: serde_json::Value = serde_json::from_slice(generation_config).unwrap_or_default();
+        let tok = Tokenizer::from_json(&String::from_utf8_lossy(tokenizer))?;
         let alignment_heads = gen_cfg["alignment_heads"]
             .as_array()
             .map(|a| a.iter().filter_map(|p| Some((p[0].as_u64()? as usize, p[1].as_u64()? as usize))).collect::<Vec<_>>())
@@ -231,6 +249,43 @@ fn repeating(seq: &[u32], tb: u32) -> bool {
     false
 }
 
+/// Where the next window starts and how much of this window's text it covers.
+#[derive(Debug, PartialEq, Eq)]
+struct Advance {
+    /// Mel frames to move `seek` by (at least 1, at most the window).
+    frames: usize,
+    /// Tokens of the window whose text is kept (the rest is decoded again from the next window).
+    text_upto: usize,
+    /// Resumed at a single-timestamp ending because voiced audio follows it.
+    resumed: bool,
+}
+
+/// Plan the next window from this window's tokens: `ts_frames[i]` is the mel frame of token `i`
+/// when it is a timestamp. A complete pair ends the window at its start; a single-timestamp ending
+/// covers the whole window unless `voiced_after(frame)` (voiced 10 ms frames from `frame` to the
+/// window's end) shows speech the model never got to, then the window ends at that timestamp.
+fn plan_advance(ts_frames: &[Option<usize>], seg_frames: usize, voiced_after: impl Fn(usize) -> usize) -> Advance {
+    let n = ts_frames.len();
+    let is_ts = |i: usize| ts_frames[i].is_some();
+    let single_ending = n >= 2 && !is_ts(n - 2) && is_ts(n - 1);
+    let last_pair = (1..n).rev().find(|&i| is_ts(i) && is_ts(i - 1));
+    if let Some(i) = last_pair
+        && !single_ending
+    {
+        let frames = ts_frames[i - 1].unwrap_or(seg_frames).clamp(1, seg_frames);
+        return Advance { frames, text_upto: i, resumed: false };
+    }
+    if single_ending
+        && let Some(end) = ts_frames[n - 1]
+        && end >= MIN_RESUME_FRAMES
+        && end + MIN_TAIL_FRAMES <= seg_frames
+        && voiced_after(end) >= MIN_VOICED_FRAMES
+    {
+        return Advance { frames: end, text_upto: n, resumed: true };
+    }
+    Advance { frames: seg_frames, text_upto: n, resumed: false }
+}
+
 impl Transcriber for Whisper {
     fn id(&self) -> String {
         self.id.clone()
@@ -246,7 +301,7 @@ impl Transcriber for Whisper {
             return Err(SpeechError::Cancelled);
         }
         let trace = std::env::var_os("FILMCRAFT_SPEECH_TRACE").is_some();
-        let clock = std::time::Instant::now();
+        let clock = web_time::Instant::now();
         let (frames, mel) = crate::mel::log_mel(&padded, n_mels);
         if trace {
             eprintln!("mel {:.3}s", clock.elapsed().as_secs_f64());
@@ -255,6 +310,10 @@ impl Transcriber for Whisper {
         if language.as_deref().is_some_and(|l| self.tok.multilingual() && self.tok.language_token(l).is_none()) {
             return Err(SpeechError::Model(format!("the model does not know the language `{}`", language.unwrap_or_default())));
         }
+        // voiced 10 ms frames (one per mel frame), for resuming after an early single-timestamp ending
+        let db = crate::vad::frame_db(audio);
+        let th = crate::vad::threshold(&db);
+        let voiced: Vec<bool> = db.iter().map(|&v| v >= th).collect();
         let mut words: Vec<Word> = Vec::new();
         let mut seek = 0usize;
         while seek < content_frames {
@@ -283,21 +342,27 @@ impl Transcriber for Whisper {
                 eprintln!("decode {} tokens {:.3}s", toks.len(), clock.elapsed().as_secs_f64());
             }
             let skip = no_speech > 0.6 && avg_lp < -1.0;
+            if trace {
+                eprintln!(
+                    "window seek {:.2}s frames {seg_frames} no_speech {no_speech:.3} avg_lp {avg_lp:.3} skip {skip} tokens {}",
+                    seek as f64 * 0.01,
+                    toks.len()
+                );
+            }
             // where the next window starts
-            let is_ts: Vec<bool> = toks.iter().map(|&t| self.tok.is_timestamp(t)).collect();
-            let single_ending = is_ts.len() >= 2 && !is_ts[is_ts.len() - 2] && is_ts[is_ts.len() - 1];
-            let last_pair = (1..is_ts.len()).rev().find(|&i| is_ts[i] && is_ts[i - 1]);
-            let advance = match last_pair {
-                Some(i) if !single_ending => ((toks[i - 1] - self.tok.timestamp_begin) as usize * FRAMES_PER_TS).clamp(1, seg_frames),
-                _ => seg_frames,
-            };
+            let ts_frames: Vec<Option<usize>> =
+                toks.iter().map(|&t| self.tok.is_timestamp(t).then(|| (t - self.tok.timestamp_begin) as usize * FRAMES_PER_TS)).collect();
+            let voiced_after = |from: usize| voiced.get(seek + from..seek + seg_frames).map_or(0, |v| v.iter().filter(|&&x| x).count());
+            let step = plan_advance(&ts_frames, seg_frames, voiced_after);
+            let advance = step.frames;
+            if trace {
+                let ts: Vec<String> = ts_frames.iter().flatten().map(|f| format!("{:.2}", *f as f64 * 0.01)).collect();
+                eprintln!("  timestamps [{}] advance {:.2}s resumed {}", ts.join(" "), advance as f64 * 0.01, step.resumed);
+            }
             let text: Vec<u32> = toks.iter().copied().filter(|&t| t < self.tok.eot).collect();
             if !skip && !text.is_empty() {
                 // the text up to the last complete segment (what `advance` covers)
-                let upto = match last_pair {
-                    Some(i) if !single_ending => i,
-                    _ => toks.len(),
-                };
+                let upto = step.text_upto;
                 let text: Vec<u32> = toks[..upto].iter().copied().filter(|&t| t < self.tok.eot).collect();
                 let mut aprompt = prompt.clone();
                 aprompt.push(self.tok.no_timestamps);
@@ -334,6 +399,72 @@ impl Transcriber for Whisper {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const T: Option<usize> = None;
+
+    #[test]
+    fn a_complete_pair_ends_the_window_at_its_start() {
+        // <0> a b <500><520> c <900><950> d <1200>(single ending is not this case: pair is last)
+        let toks = [Some(0), T, T, Some(500), Some(520), T, Some(900), Some(950)];
+        let a = plan_advance(&toks, 3000, |_| 3000);
+        assert_eq!(a, Advance { frames: 900, text_upto: 7, resumed: false });
+    }
+
+    #[test]
+    fn a_single_timestamp_ending_with_speech_after_it_resumes_there() {
+        // the p9 case: <0.00> sentence <13.40> end-of-text, speech continues to 30 s
+        let toks = [Some(0), T, T, T, Some(1340)];
+        let a = plan_advance(&toks, 3000, |from| if from == 1340 { 1200 } else { 0 });
+        assert_eq!(a, Advance { frames: 1340, text_upto: 5, resumed: true });
+        // with a pair before it the rule is the same
+        let toks = [Some(0), T, Some(1000), Some(1700), T, Some(2000)];
+        assert_eq!(plan_advance(&toks, 3000, |_| 150).frames, 2000);
+    }
+
+    #[test]
+    fn a_single_timestamp_ending_followed_by_silence_jumps_the_window() {
+        let toks = [Some(0), T, T, Some(1340)];
+        assert_eq!(plan_advance(&toks, 3000, |_| 10), Advance { frames: 3000, text_upto: 4, resumed: false });
+        // too little voiced audio after it
+        let toks = [Some(0), T, T, Some(1340)];
+        assert_eq!(plan_advance(&toks, 3000, |_| 99).frames, 3000);
+        // an ending in the last 3 s: the tail of the last word, decoding it again repeats words
+        let toks = [Some(0), T, Some(1000), Some(1700), T, Some(2900)];
+        assert_eq!(plan_advance(&toks, 3000, |_| 100).frames, 3000);
+        // an ending right at the start never stalls the loop
+        let toks = [Some(0), T, Some(20)];
+        assert_eq!(plan_advance(&toks, 3000, |_| 3000).frames, 3000);
+        // a short last window
+        let toks = [Some(0), T, Some(400)];
+        assert_eq!(plan_advance(&toks, 400, |_| 400).frames, 400);
+        // decoding cut off without a final timestamp
+        let toks = [Some(0), T, T];
+        assert_eq!(plan_advance(&toks, 3000, |_| 3000).frames, 3000);
+        assert_eq!(plan_advance(&[], 3000, |_| 3000).frames, 3000);
+    }
+
+    /// Real model: a two-sentence clip where whisper-small used to stop after the first sentence
+    /// (a single-timestamp ending at 13.4 s) and jump the whole window, dropping the second one.
+    /// `FILMCRAFT_TEST_WHISPER=<model dir> FILMCRAFT_TEST_SPEECH=<16 kHz mono f32le> cargo test -p
+    /// filmcraft-speech --features whisper --release -- --ignored early_ending`; the speech must
+    /// run to the end of the clip (the last word must end in its last fifth).
+    #[test]
+    #[ignore = "needs a downloaded Whisper model and a speech file (env vars)"]
+    fn early_ending_does_not_drop_the_rest_of_the_window() {
+        let (Some(dir), Some(audio)) = (std::env::var_os("FILMCRAFT_TEST_WHISPER"), std::env::var_os("FILMCRAFT_TEST_SPEECH")) else {
+            eprintln!("SKIPPED: set FILMCRAFT_TEST_WHISPER and FILMCRAFT_TEST_SPEECH");
+            return;
+        };
+        let dir = std::path::PathBuf::from(dir);
+        let id = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let w = Whisper::load(&dir, &id).expect("model");
+        let bytes = std::fs::read(audio).expect("speech file");
+        let audio: Vec<f32> = bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
+        let t = w.transcribe(&audio, &Options::default(), &mut |_, _| true).expect("transcribe");
+        let end = t.words.last().map(|x| x.end).unwrap_or_default();
+        let total = sample_tick(audio.len() as i64);
+        assert!(end.0 * 5 >= total.0 * 4, "transcript stops at {end:?} of {total:?}: {}", t.text());
+    }
 
     #[test]
     fn repetition_guard() {

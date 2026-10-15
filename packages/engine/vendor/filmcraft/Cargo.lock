@@ -1275,6 +1275,7 @@ dependencies = [
  "sha2",
  "thiserror 2.0.21",
  "ureq",
+ "web-time",
 ]
 
 [[package]]

@@ -25,6 +25,7 @@ thiserror = { workspace = true }
 candle-core = { version = "0.9", default-features = false, optional = true }
 candle-nn = { version = "0.9", default-features = false, optional = true }
 rayon = { workspace = true }
+web-time = "1"
 ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "platform-verifier"], optional = true }
 rustls = { version = "0.23", default-features = false, optional = true }
 rustls-rustcrypto = { version = "0.0.2-alpha", optional = true }

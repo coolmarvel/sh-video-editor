@@ -1,7 +1,7 @@
 ---
 title: 데스크톱 인스톨러 패키징 (SH Video Editor)
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 domain: packaging
 ---
 
@@ -177,10 +177,23 @@ electron-vite 는 `node:` 빌트인을 외부 모듈로 두므로 `out/main/inde
 
 ## 배포 소스 보호
 
+렌더러는 먼저 압축하고(`electron.vite.config.ts` 의 `renderer.build.minify`, electron-vite 는 기본으로 압축하지 않는다) 그 뒤
 `apps/desktop/scripts/obfuscate.cjs` 가 `out/` 의 JS 를 난독화한다(`controlFlowFlattening`·`deadCodeInjection`·
-`selfDefending`·`debugProtection` OFF, `identifierNamesGenerator: hexadecimal`, `stringArray` 0.6).
-`bytecodePlugin` 은 쓰지 않는다(WSL 빌드 exe 가 Windows 에서 `cachedDataRejected` 크래시). 엔진은 네이티브 바이너리라
-별도 보호가 필요 없다.
+`selfDefending`·`debugProtection` OFF, `identifierNamesGenerator: mangled`, `stringArray` 0.6).
+
+2026-10-15 측정(렌더러 `out/renderer/assets/index-*.js`, 시작 시간은 xvfb 에서 Electron 을 5번 띄운 중앙값: 창이 뜬 뒤 상태 줄이
+"준비됨: 커맨드 N개" 가 될 때까지의 `performance.now()`, 두 번 반복). 압축하지 않은 번들이 이미 1.41MB 여서 "번들이 큰 이유는
+난독화" 가 아니라 "압축을 안 해서" 였다. 이름 생성기만 바꾼 hexadecimal 대 mangled 는 보호 수준이 같다(둘 다 뜻 없는 이름,
+문자열 배열은 그대로).
+
+| 빌드                                                                                                                  | 크기     | gzip   | 준비됨(중앙값) | DOMContentLoaded |
+| --------------------------------------------------------------------------------------------------------------------- | -------- | ------ | -------------- | ---------------- |
+| 압축 없음 + hexadecimal (이전)                                                                                        | 1,420 KB | 383 KB | 193~194 ms     | 140~144 ms       |
+| 압축 + hexadecimal                                                                                                    | 1,356 KB | 374 KB | (재지 않음)    |                  |
+| 압축 + mangled (지금)                                                                                                 | 925 KB   | 289 KB | 180~190 ms     | 130~138 ms       |
+| 압축 없음, 난독화 없음 (참고)                                                                                         | 1,411 KB | 301 KB | 177 ms         | 131 ms           |
+| `bytecodePlugin` 은 쓰지 않는다(WSL 빌드 exe 가 Windows 에서 `cachedDataRejected` 크래시). 엔진은 네이티브 바이너리라 |
+| 별도 보호가 필요 없다.                                                                                                |
 
 ## 공통 규칙 (발사대 가이드 요약)
 

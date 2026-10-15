@@ -2572,7 +2572,7 @@ dependencies = [
 
 [[package]]
 name = "sh-video-engine-node"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "filmcraft-audio-dsp",
  "filmcraft-engine",
@@ -2588,7 +2588,7 @@ dependencies = [
 
 [[package]]
 name = "sh-video-engine-wasm"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "console_error_panic_hook",
  "filmcraft-audio-dsp",

@@ -1,7 +1,7 @@
 ---
 title: 세션 로그
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 domain: development
 ---
 
@@ -11,6 +11,57 @@ domain: development
 (커밋은 검증 통과 후 에이전트가, 성긴 단위. git history 를 이력 SSOT 로 삼지 않는다.)
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
+
+## 2026-10-15 - 끊긴 세션 복구: AV1 내보내기, 움직이는 스티커(Lottie), 내 템플릿, 잡 진행률 (워크트리 4개 병합, v0.1.7)
+
+- **상황**: 어제 01:19 커밋 뒤 워크트리 4개(av1-export, jobs-progress, lottie-stickers, user-templates)에서 병렬 작업 중 01:46 에 세션이 끊겼다
+  (네 워크트리가 napi·wasm 빌드와 playwright 를 동시에 돌려 7GB RAM 을 넘긴 것으로 보임. session-log 에 기록이 없어 git worktree 와 파일
+  시각으로 복원). 이번에는 두 개씩(av1 + templates, lottie + jobs) `CARGO_BUILD_JOBS=6` 으로 마무리하고 main 에 templates, av1, lottie, jobs
+  순서로 병합했다.
+- **요청**: 끊긴 작업 파악·완료와 문서 갱신. 인스톨러는 앞으로 바탕화면 `seonghyun` 폴더에 이전 버전을 지우고 넣기(CLAUDE.md 4번 규칙).
+- **수정**:
+  - user-templates(엔진 변경 없음, M3-6 (a)(c)): 템플릿 탭 "지금 편집본을 템플릿으로 저장"(이름·설명 대화상자)이 sequence.inspect·effects.keyframes 로
+    편집본 구조(설정, 트랙·클립 길이·위치, 텍스트 내용·모양, 효과·키프레임, 전환)를 미디어와 떼어 템플릿 JSON(`features/templates/format.ts`,
+    timeline.md "템플릿 JSON")으로 적는다. 미디어 클립은 슬롯(같은 항목은 슬롯 하나), 썸네일은 플레이헤드 renderFrame PNG. "내 템플릿" 카드는
+    만들기(고른 미디어를 슬롯 순서대로, clip.fillFrame, 모자라면 비워 두고 알림)·메뉴(이름·설명 바꾸기, .json 내보내기, 삭제 확인), 가져오기는
+    검증 뒤 저장(파일 이름이 될 수 없는 id 는 새 id). 저장소 `EngineBridge.templates`: 데스크톱 `userData/templates/<id>.json + .png`
+    (id 는 글자·숫자·-·_ 만), 웹 IndexedDB, 없으면 메모리. 내장 4종과 같은 applyRecipe 경로. CI web-mobile job 을 web 에 합쳐 390 도 PR 을
+    막는다(todo P3). 워크트리 검증: 단위 701(커버리지 93.5/83.6/93.4/96.7), 웹 e2e user-templates·keyframes 14(1440·390), 데스크톱 스모크·e2e 7
+    (templates.spec 신규). 커밋 efd222d.
+  - av1-export(`engine(vendor):` + `feat:`): effectcraft `av1enc` 를 `crates/av1enc` 로 이식(의존성 0, unsafe 없음, 테스트 왕복 8·libdav1d 오라클 2 그대로).
+    export 에 `Format::Av1`(mp4 `av01` + `av1C`, AAC)·`Av1Encoder`·프리셋 `AV1 1080p`(10 Mbps)·`AV1 720p`(5 Mbps), WebM 은 `videoCodec: vp9 또는 av1`(V_AV1).
+    형식 콤보 4개("AV1 (mp4)"), `OVERRIDE_KBPS.av1`. 엔진 기능 테스트 `export-av1.test.ts` 5건(ffprobe av1 Main + aac, libdav1d 디코드 오류 0).
+    실측 1080p 18초: AV1 314.1초(1.7 fps, 5.8 MB) 대 H.264 30.1초(12.7 MB), HEVC 236.7초, VP9 128.6초. 레이트 컨트롤이 단순 영상에서 목표 10 Mbps 에
+    2.58 Mbps 로 못 미침(양자화 하한, 한계로 기록). wasm 14.2 에서 14.6MB. engine-commands.md 의 `"vp9" | "av1"` 파이프가 표 행을 깨던 것 수정.
+    워크트리 검증: cargo test(av1enc·export·engine 프리셋 전수), clippy·fmt, lint, 엔진 빌드, typecheck, 단위 687, 엔진 175, 워크플로 회귀, 데스크톱 e2e 6,
+    웹 e2e 내보내기 2. 커밋 6fb0df1·22062ac.
+  - lottie-stickers(M3-4 (a)(c), 커밋 483e00d·485ee8e): effectcraft `lottie` 는 가져오기 쪽(값·키프레임 이즈·도형·레이어 읽기, base64·ZIP)만
+    `crates/lottie` 로 이식하고 평가·래스터(평탄화·스트로크·대시·트림·리피터·마스크·매트·프리컴프·타임 리맵, filmcraft-text 스캔라인 채우기 +
+    짝홀 규칙)는 새로 썼다. `graphics.newLottie` 대신 미디어 풀 오프너로 `.json`/`.lottie` 를 알파 있는 반복 영상 미디어(`LOOP_SECONDS` 60초)로 열고,
+    `graphics.newFromFile` 에 `duration` 을 더해 화면이 5초만 놓는다. 어제 끊긴 크레이트는 자기 테스트가 깨져 있었다: 별 꼭지 1e12 가 32TB 할당,
+    마스크 경로가 늘 비던 것(`{a,k}` 포장 없이 읽음), 평탄화 분할 부족, 트림이 위쪽 스타일(bodymovin 은 `st` 뒤에 `tm`)에 안 먹던 것을 고침.
+    화면: 스티커 탭 "움직이는 스티커" 10종(직접 적은 bodymovin JSON 512x512 30fps 4KB 미만 + 미리보기 SVG, 사이드카 40개), 카드 재생 표식,
+    JSON 바이트를 `.json` 호스트 파일로 올려 `graphics.newFromFile {path, time, duration}`. 워크트리 검증: lottie 28, engine 409, clippy, lint,
+    typecheck, 단위 687, 엔진 기능 184(lottie.test 14: napi 에셋별 렌더 골든·반복·거부, wasm putFile), 워크플로 회귀, 웹 e2e keyframes 12(1440·390).
+    실측 1080p 스티커 한 장 renderFrame napi 32~36ms, wasm 139ms. 문서: usage 3.18, engine-commands, VENDOR, NOTICE, 로드맵 M3-4.
+  - jobs-progress(`engine(vendor):` + `feat:`, todo P2 두 건): 흔들림 분석을 렌더 밖 엔진 잡 `effects.analyzeStabilizer {clip, smoothness?, wait}`
+    (kind stabilizer, 없으면 효과를 붙이는 한 단계 "Warp Stabilizer", 결과는 렌더 캐시로)로 빼고, 장면 찾기 `clip.sceneEditDetection` 을 같은
+    `SteppedTask` 모양으로(네이티브 스레드, 웹은 `pump_jobs` 가 프레임 2장씩) 바꿔 `wait: false` 가 wasm 에서도 된다. `Job.kind` 와
+    `jobProgress {id, kind, label, progress, done, cancelled, error}` 이벤트(permille 바뀔 때만), `jobs.cancel` 은 웹 단계 작업을 바로 끝냄.
+    새 프로젝트·열기 때 분석 캐시를 비움(키가 item·clip id 라 새 프로젝트가 옛 경로를 재사용하던 상류 결함, 엔진 테스트가 잡음). 화면
+    `features/jobs`(store: track·applyEvents·waitFor·cancel, 웹 펌프 루프 16ms/60ms; `JobsPane`: 상태 줄 진행 막대 + "흔들림 분석 42%" + 취소,
+    둘 이상이면 "작업 N개" + 목록 팝오버, DESIGN.md 4.25), 흔들림 줄이기 절 "분석 중... N%", 취소하면 효과 해제, 장면 찾기는 늘어난 클립 수로
+    셈. `installEnginePoller` 로 단위 테스트가 폴러를 세움. 한글 라벨 2개. 실측 16초 데모: napi 10.7초(OceanSunset), wasm 49초(어제와 같은
+    시간이지만 화면이 응답하고 취소됨), 장면 찾기 4초 조각 2.4초. 워크트리 검증: cargo test engine 412·render 154, clippy·fmt, lint, 엔진 빌드,
+    typecheck, 단위 699(커버리지 94.1/84.9/93.2/97.0), 엔진 기능 177(jobs.test.ts napi 4 + wasm 3), 워크플로 회귀, 웹 e2e motion-fx·audio-cleanup
+    20(1440·390, 취소 테스트 신규), 데스크톱 스모크(687 커맨드)·e2e 6. 커밋 ac1cbae·57c31b3.
+  - 병합 충돌: NOTICE·VENDOR.md(av1enc 와 lottie 둘 다 이식으로), vendor Cargo.toml(크레이트 두 줄), usage.md(탭 목록, 3.17 템플릿·3.18 스티커·
+    3.19 작업 칸으로 번호 정리), engine-commands.md(export 행은 AV1 쪽, sceneEditDetection·jobs 행 추가).
+- **병합 뒤 검증(v0.1.7, main)**: prettier, clippy, 엔진 빌드(napi·wasm 14.7MB), typecheck, cargo test(바인딩), 단위 719, 엔진 기능 196(napi + wasm), 워크플로 회귀 16.3초, 앱 빌드(web·desktop),
+  웹 e2e 151 통과(skip 1, 11.3분, 1440·390), 데스크톱 스모크(687 커맨드)·e2e 7(templates.spec 포함), vendor `cargo xtask ci`(테스트 1972, wasm 45 크레이트).
+  Windows 엔진 0.1.7 크로스 빌드(cargo-xwin, 39.5MB), 인스톨러 0.1.7(122.7MB)을 바탕화면 `seonghyun` 폴더에(0.1.6 제거).
+- **다음**: todo P2 의 AV1 레이트 컨트롤 하한, 스티커 `at_size` 확대, 흔들림 캐시 무효화; P3 의 DESIGN.md 절 번호 중복, 390 작업 칸 눈 확인;
+  Windows 실기(HW 디코드, AV1 재생 확장).
 
 ## 2026-10-14 - 크래시 리포트, 워크플로 회귀, 한글 라벨, 이벤트·썸네일 정리 (M4, feat/ops-quality 병합, v0.1.6)
 

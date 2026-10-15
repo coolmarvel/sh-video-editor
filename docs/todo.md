@@ -1,7 +1,7 @@
 ---
 title: TODO
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 domain: development
 ---
 
@@ -23,9 +23,10 @@ domain: development
 - [ ] 데스크톱 drainEvents 의 projectChanged 에 revision 이 없어(useEngineEvents.revision 이 -1 로 남음) RevisionGate 중복 제거가 데스크톱에서는 작동하지 않음. 웹(wasm)만 효과. engine-host 또는 napi 이벤트 JSON 에 revision 을 싣기 (`apps/desktop/src/engine-host`, `packages/engine/bindings/napi`)
 - [ ] 크래시 보고에 `history.list` 스냅샷(engine-host 가 주기적으로 main 에 보내야 함)과 패키지본 productName (`apps/desktop/src/main/crash-report.ts`)
 - [ ] 스모크(`SH_SMOKE`)가 실제 userData 에 crash-reports 파일을 남김. 스모크 때는 crashDir 비우기 (`apps/desktop/src/main/engine-supervisor.ts`)
-- [ ] VP9·HEVC 인코더가 단일 스레드라 1080p 는 4 fps·2.3 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`, `crates/hevcenc`)
-- [ ] 흔들림 줄이기 분석을 엔진 잡(`jobs.*`)으로 빼서 진행률·취소 (지금은 첫 renderFrame 안에서 동기, wasm 16초 클립 40~50초) (`vendor/.../render`, `features/motion-fx`)
-- [ ] 장면마다 자르기 진행률(`clip.sceneEditDetection wait:true` 동기) (`features/audio/cleanup.ts`)
+- [ ] VP9·HEVC·AV1 인코더가 단일 스레드라 1080p 는 4 fps·2.3 fps·1.7 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`, `crates/hevcenc`, `crates/av1enc`)
+- [ ] AV1 레이트 컨트롤이 단순 영상에서 양자화 하한에 머물러 목표 10 Mbps 에 2.6 Mbps 로 못 미침(프리셋 비트레이트가 파일 크기를 거의 못 바꿈). q 하한 완화 또는 품질 모드 (`crates/av1enc/src/decide.rs`, `docs/guides/webm-export.md` 3.5)
+- [ ] 움직이는 스티커가 512px 문서 크기로 래스터되어 그보다 훨씬 키우면 가장자리가 부드러워짐. 항목 크기를 모션 scale 에 맞춰 `at_size` 로 다시 열기 (`vendor/.../media_pool.rs`, `features/stickers/store.ts`)
+- [ ] 흔들림 분석 캐시가 프로세스 전역이고 새 프로젝트·열기 때만 비움. 클립 삭제·미디어 교체 때도 무효화 (`vendor/.../render/src/vfx/temporal.rs`, `crates/engine/src/stabilize.rs`)
 - [ ] 엔진 toast 이벤트 영문 문구("Scene Edit Detection found no cut points" 등)를 번역표로 (`features/events/poller.ts`)
 - [ ] SNS 프리셋 카드가 H.264 비트레이트로 WebM 을 고르면 VP9 가 16~45 Mbps 로 인코딩. WebM 용 비트레이트 표 (`features/ratio/SnsPresets.tsx`, `features/export/presets.ts`)
 - [ ] 미리보기의 4096 프레임 블록에서 WSOLA 가 1초 블록의 3.5배 비용. `SYNC_SEGMENTS` 조정 또는 renderAudio 요청 크기 (`crates/audio-dsp/src/timestretch.rs`)
@@ -37,13 +38,14 @@ domain: development
 
 ## P3 - 품질
 
+- [ ] windows-installer dispatch job(wine 패키지명)은 아직 미실행 (`.github/workflows/ci.yml`)
+- [ ] DESIGN.md 절 번호 중복(4.24 가 둘, 4.17 재사용). 번호를 다시 매기고 usage.md·코드 주석의 참조도 함께 (`DESIGN.md`)
+- [ ] 390 폭에서 잡 진행 칸이 켜진 상태 줄은 e2e 로만 확인했고 눈으로 안 봄. 스크린샷 확인 (`features/jobs/jobs.css`, `shell/layout.css`)
 - [ ] 웹 e2e `keyframes.spec.ts` 모바일에서 부하(load 13) 때 상태 줄 기대가 1회 어긋남(재실행 통과). flaky 후보로 관찰
-- [ ] CI web-mobile job 이 통과하므로 continue-on-error 를 빼고 web job 에 합치기. windows-installer dispatch job(wine 패키지명)은 아직 미실행 (`.github/workflows/ci.yml`)
 - [ ] 웹에서 Ctrl+N 은 Chrome 예약 키라 가로채지 못함. 메뉴 표기만 두거나 다른 키로
 - [ ] 바인딩 단위 테스트(napi: Node 스크립트, wasm: wasm-bindgen-test)와 Playwright e2e 를 `npm run verify` 에 포함
 - [ ] 데스크톱 렌더러 번들 651KB 원인 확인(난독화 전후 비교)
 
 ## P4 - 아이디어
 
-- [ ] effectcraft av1enc 이식으로 AV1 내보내기 (WebM·HEVC 는 끝남, `docs/guides/webm-export.md`)
 - [ ] 템플릿 갤러리(인트로·세로 SNS·슬라이드쇼)

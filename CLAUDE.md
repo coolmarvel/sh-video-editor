@@ -26,7 +26,8 @@
    두 크기에서 확인한다. 이식 엔진(`packages/engine/vendor/filmcraft`)을 고쳤으면 그 안에서 `cargo xtask ci` 도 돌린다.
 3. 버전을 판단해 올린다 (아래 "버전 정책"). 루트·apps·packages 의 `package.json` 과 `packages/engine/Cargo.toml` 의
    `workspace.package.version` 을 함께 올린다.
-4. 산출물 전달: Windows 인스톨러(`release/SH-Video-Editor-Setup-<v>.exe`)를 바탕화면으로 복사. 웹은 `npm run dev:web`
+4. 산출물 전달: Windows 인스톨러(`release/SH-Video-Editor-Setup-<v>.exe`)를 바탕화면의 `seonghyun` 폴더
+   (`/mnt/c/Users/user/Desktop/seonghyun/`)로 복사하고, 그 폴더의 이전 버전 `SH-Video-Editor-Setup-*.exe` 는 지운다(2026-10-15 사용자 지시). 웹은 `npm run dev:web`
    또는 `vite preview` 로 localhost 에서 확인시킨다. Windows 용 `.node` 제약은 `docs/guides/packaging.md`.
 
 ## 버전 정책 (semver `MAJOR.MINOR.PATCH`)

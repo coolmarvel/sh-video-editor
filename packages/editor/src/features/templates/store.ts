@@ -60,7 +60,7 @@ export async function applyRecipe(spec: ApplySpec, itemIds?: number[]): Promise<
   useTemplates.setState({ busy: true });
   useMedia.setState({ busy: true });
   try {
-    const r = await runRecipe(bridge, useEditor.getState().commands, `템플릿: ${spec.label}`, spec.run, { name, items });
+    const r = await runRecipe(bridge, `템플릿: ${spec.label}`, spec.run, { name, items });
     await refreshAll(`템플릿으로 편집본 "${name}" 을 만들었습니다`);
     if (r.focusTab) useInspectorRegistry.getState().setActive(r.focusTab);
     useTimeline.getState().requestFit();

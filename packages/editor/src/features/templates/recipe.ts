@@ -2,11 +2,11 @@
  * 템플릿 "레시피" 실행기. 템플릿은 엔진 커맨드를 순서대로 보내는 함수(Recipe)이고, 여기 모아 둔 보조 함수(배치, 제목, 전환,
  * 페이드)만 쓴다. 편집 로직은 전부 엔진 커맨드이며 화면은 순서만 정한다.
  *
- * 묶음 실행 취소: 엔진에 `edit.beginTransaction` / `edit.endTransaction` 이 있으면(엔진 작업 중, 2026-10-14 카탈로그에는
- * 없음) 레시피 전체를 한 단계로 묶는다. 없으면 단계별 커맨드가 각각 실행 취소 항목이 된다. 바꿀 곳은 `runRecipe` 하나다.
+ * 레시피 전체는 `withTransaction` 으로 실행 취소 한 단계가 된다. 중간에 실패하면 묶음을 취소해 처음 상태로 돌린다.
  */
-import type { CommandSpec, EngineBridge } from '../../engine/bridge';
+import type { EngineBridge } from '../../engine/bridge';
 import { TICKS_PER_SECOND } from '../../engine/time';
+import { withTransaction } from '../../engine/transaction';
 import type { MediaItem } from '../media/types';
 
 export type Exec = (id: string, params?: Record<string, unknown>) => Promise<unknown>;
@@ -29,30 +29,10 @@ export interface RecipeResult {
 
 export type Recipe = (ctx: RecipeContext) => Promise<RecipeResult>;
 
-export const BEGIN_TRANSACTION = 'edit.beginTransaction';
-export const END_TRANSACTION = 'edit.endTransaction';
-
-export function hasTransactions(commands: ReadonlyArray<Pick<CommandSpec, 'id'>>): boolean {
-  const ids = new Set(commands.map((c) => c.id));
-  return ids.has(BEGIN_TRANSACTION) && ids.has(END_TRANSACTION);
-}
-
-/** 레시피를 실행한다. 묶음 커맨드가 있으면 그 안에서. 실패는 던진다(끝내기 커맨드는 보낸다) */
-export async function runRecipe(
-  bridge: EngineBridge,
-  commands: ReadonlyArray<Pick<CommandSpec, 'id'>>,
-  label: string,
-  recipe: Recipe,
-  ctx: Omit<RecipeContext, 'exec'>,
-): Promise<RecipeResult> {
+/** 레시피를 묶음 실행 취소 한 단계로 실행한다. 실패하면 묶음을 취소하고 다시 던진다 */
+export async function runRecipe(bridge: EngineBridge, label: string, recipe: Recipe, ctx: Omit<RecipeContext, 'exec'>): Promise<RecipeResult> {
   const exec: Exec = (id, params) => bridge.execute(id, params);
-  const grouped = hasTransactions(commands);
-  if (grouped) await exec(BEGIN_TRANSACTION, { label });
-  try {
-    return await recipe({ ...ctx, exec });
-  } finally {
-    if (grouped) await exec(END_TRANSACTION).catch(() => undefined);
-  }
+  return withTransaction(bridge, label, () => recipe({ ...ctx, exec }));
 }
 
 // ------------------------------------------------------------------ 보조 함수(엔진 커맨드 순서)

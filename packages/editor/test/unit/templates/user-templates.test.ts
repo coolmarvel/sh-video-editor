@@ -334,7 +334,8 @@ describe('저장소와 적용', () => {
     expect(seq.selection).toEqual([title.clip]);
     expect(useInspectorRegistry.getState().active).toBe('text');
     expect(useProject.getState().notices.at(-1)).toMatchObject({ kind: 'success', text: expect.not.stringContaining('빈 자리') });
-    expect(engine.calls.slice(from).map((c) => c.id)).not.toContain('edit.beginTransaction');
+    // 적용 전체가 실행 취소 한 단계
+    expect(engine.calls.slice(from).map((c) => c.id)).toContain('edit.beginTransaction');
   });
 
   it('미디어가 모자라면 그 슬롯 클립은 비워 두고 알리고, 없으면 안내만', async () => {

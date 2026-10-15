@@ -11,10 +11,13 @@ import './stt.css';
  * store 가 모델 확인(동의 대화상자) -> 인식 -> 자막 트랙 생성까지 진행한다. 아래 "음성 정리" 소절은 군말 제거·무음 자르기.
  * 웹(호스트에 bridge.stt 가 없음)에서는 안내 문구만 보인다.
  */
+/** 편집본이 없을 때의 선택. 셀렉터가 매번 새 배열을 돌려주면 zustand 5 가 무한 갱신한다 */
+const NO_SELECTION: readonly number[] = [];
+
 export function SttSection() {
   const s = useStt();
   const version = useEditor((st) => st.version);
-  const selection = useTimeline((st) => st.sequence?.selection ?? []);
+  const selection = useTimeline((st) => st.sequence?.selection ?? NO_SELECTION);
   const revision = useEditor((st) => st.engineRevision);
   const [hasTranscript, setHasTranscript] = useState(false);
 

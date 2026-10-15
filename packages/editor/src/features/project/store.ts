@@ -36,7 +36,7 @@ export interface Notice {
   action?: NoticeAction;
 }
 
-export interface ConfirmRequest {
+interface ConfirmRequest {
   title: string;
   message: string;
   /** 저장 후 계속 */
@@ -73,12 +73,12 @@ interface ProjectState {
   dismiss(id: number): void;
 }
 
-export const PROJECT_FILTER = [{ name: 'SH Video Editor 프로젝트', extensions: ['fcproj'] }];
+const PROJECT_FILTER = [{ name: 'SH Video Editor 프로젝트', extensions: ['fcproj'] }];
 const UNTITLED = '제목 없음';
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 let noticeSeq = 0;
 /** 토스트가 저절로 닫히기까지(ms). 오류(danger)는 저절로 닫히지 않는다 */
-export const NOTICE_TTL_MS = 6000;
+const NOTICE_TTL_MS = 6000;
 
 export const useProject = create<ProjectState>((set, get) => {
   const bridge = (): EngineBridge | null => useEditor.getState().bridge;

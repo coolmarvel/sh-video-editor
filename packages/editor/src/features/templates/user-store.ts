@@ -71,8 +71,6 @@ export function resetUserTemplateMemory(): void {
 /** 테스트에서 바꿔 끼우는 다운로드 */
 export const templateDownload = { fn: downloadBytes };
 
-export const MEDIA_HINT = '미디어 패널에서 슬롯에 넣을 영상·사진(소리 슬롯은 음악)을 먼저 고르세요.';
-
 export function slotHint(t: TemplateFile): string {
   if (t.slots.length === 0) return '미디어 없이 만듭니다.';
   const visual = t.slots.filter((s) => s.kind !== 'audio').length;

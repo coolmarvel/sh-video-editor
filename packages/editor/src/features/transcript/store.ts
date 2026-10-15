@@ -26,19 +26,19 @@ export interface Paragraph {
   text: string;
 }
 
-export interface SearchHit {
+interface SearchHit {
   from: number;
   to: number;
   start: number;
   end: number;
 }
 
-export interface TranscriptNotice {
+interface TranscriptNotice {
   tone: 'info' | 'danger' | 'success';
   text: string;
 }
 
-export interface TranscriptState {
+interface TranscriptState {
   /** 전사를 한 번이라도 읽었는가(빈 상태 안내와 로딩 구분) */
   loaded: boolean;
   words: number;

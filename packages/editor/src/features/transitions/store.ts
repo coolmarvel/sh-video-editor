@@ -24,7 +24,7 @@ import {
 
 export type ApplyEdges = 'both' | 'in' | 'out';
 
-export interface DropTarget {
+interface DropTarget {
   trackId: number;
   point: EditPoint;
   frames: number;

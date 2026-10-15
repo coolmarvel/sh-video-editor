@@ -27,7 +27,7 @@ export interface SetParamOptions {
   begin?: boolean;
 }
 
-export interface CompareState {
+interface CompareState {
   /** 클립별로 꺼 둔 효과 index */
   clips: Record<number, number[]>;
   /** 끈 직후의 엔진 revision. 같으면 undo 로 되돌린다 */
@@ -36,7 +36,7 @@ export interface CompareState {
   steps: number;
 }
 
-export interface ThumbCache {
+interface ThumbCache {
   key: string;
   urls: Record<string, string>;
 }

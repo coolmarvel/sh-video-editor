@@ -5,10 +5,10 @@
  */
 import type { Frame } from '../../engine/bridge';
 
-export const THUMB_WIDTH = 96;
-export const THUMB_HEIGHT = 54;
+const THUMB_WIDTH = 96;
+const THUMB_HEIGHT = 54;
 
-export interface ThumbRecipe {
+interface ThumbRecipe {
   id: string;
   css: string;
 }

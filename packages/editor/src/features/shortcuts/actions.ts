@@ -288,7 +288,3 @@ export async function runAction(id: string, params?: Params): Promise<void> {
   const spec = useEditor.getState().commands.find((c) => c.id === id);
   await execCommand(id, params, `${commandLabelKo(id, spec?.label)} 실행`);
 }
-
-export function hasAction(id: string): boolean {
-  return id in TABLE;
-}

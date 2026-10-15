@@ -15,7 +15,7 @@ import { useJobs } from '../jobs/store';
 import { PERSISTENCE_MS, classify, pollInterval, type Classified } from './classify';
 import { useEngineEvents, type EngineEventsState } from './store';
 
-export interface PollerOptions {
+interface PollerOptions {
   /** 재생 중인지. 기본은 useMonitor.playing */
   isPlaying?: () => boolean;
   /** 탭이 숨겨졌는지. 기본은 document.hidden */
@@ -27,9 +27,9 @@ export interface PollerOptions {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export const RESTART_STATUS = '엔진을 다시 시작했습니다. 저장하지 않은 변경은 복구 후보에서 되살릴 수 있습니다.';
+const RESTART_STATUS = '엔진을 다시 시작했습니다. 저장하지 않은 변경은 복구 후보에서 되살릴 수 있습니다.';
 /** 문제 보고 파일을 남겼을 때의 토스트 문구(데스크톱, M4-6) */
-export const RESTART_REPORT_TEXT = '엔진이 예기치 않게 종료되어 다시 시작했습니다. 문제 보고 파일을 남겼습니다.';
+const RESTART_REPORT_TEXT = '엔진이 예기치 않게 종료되어 다시 시작했습니다. 문제 보고 파일을 남겼습니다.';
 
 export class EnginePoller {
   private timer = 0;

@@ -14,12 +14,12 @@ import { findClip } from '../timeline/types';
 import { anchorAlign, clampPosition, presetPosition, quadBounds, type Anchor9 } from './geometry';
 import { DEFAULT_FONT, DEFAULT_SECONDS, titlePreset, type TitlePresetId } from './presets';
 
-export interface FontFamily {
+interface FontFamily {
   family: string;
   styles: string[];
 }
 
-export interface GraphicLayer {
+interface GraphicLayer {
   layer: number;
   kind: string;
   name: string;
@@ -29,7 +29,7 @@ export interface GraphicLayer {
   enabled: boolean;
 }
 
-export interface GraphicInfo {
+interface GraphicInfo {
   clip: number;
   canvas: [number, number];
   start: number;
@@ -37,7 +37,7 @@ export interface GraphicInfo {
   layers: GraphicLayer[];
 }
 
-export interface TextState {
+interface TextState {
   fonts: FontFamily[];
   fontsLoaded: boolean;
   /** 클립별 graphics.list 결과와 그것을 읽은 engineRevision */

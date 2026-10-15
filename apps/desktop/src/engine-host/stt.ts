@@ -5,7 +5,7 @@
  */
 import * as engine from '@sh-video-editor/engine-node';
 
-export interface SttProgress {
+interface SttProgress {
   fraction: number;
   done: number;
   total: number;

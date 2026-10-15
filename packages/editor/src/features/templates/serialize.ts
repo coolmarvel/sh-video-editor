@@ -155,7 +155,7 @@ function textProps(clip: ClipInfo): Record<string, ParamValue> {
   };
 }
 
-export interface SerializeOptions {
+interface SerializeOptions {
   id?: string;
   name: string;
   description?: string;

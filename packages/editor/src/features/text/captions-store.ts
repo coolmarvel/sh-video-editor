@@ -19,7 +19,7 @@ export interface CaptionCue {
   out: string;
 }
 
-export interface CaptionStyle {
+interface CaptionStyle {
   font: string;
   size: number;
   color: string;
@@ -32,7 +32,7 @@ export interface CaptionStyle {
   outlineColor: string;
 }
 
-export interface CaptionTrack {
+interface CaptionTrack {
   id: number;
   label: string;
   name: string;
@@ -42,12 +42,12 @@ export interface CaptionTrack {
   style: CaptionStyle;
 }
 
-export interface CaptionsNotice {
+interface CaptionsNotice {
   tone: 'info' | 'danger' | 'success';
   text: string;
 }
 
-export interface CaptionsState {
+interface CaptionsState {
   tracks: CaptionTrack[];
   /** 목록·편집 대상 트랙 id */
   track: number | null;

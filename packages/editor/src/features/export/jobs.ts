@@ -25,7 +25,7 @@ export interface QueueList {
   items: QueueItem[];
 }
 
-export interface JobReport {
+interface JobReport {
   id: number;
   finished: boolean;
   result: { bytes?: number; frames?: number; seconds?: number; path?: string; error?: string } | null;

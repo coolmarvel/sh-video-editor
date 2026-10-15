@@ -39,7 +39,7 @@ export interface Keyframe {
 }
 
 /** 엔진 Keyframe::new 의 기본 influence */
-export const DEFAULT_INFLUENCE = 1 / 3;
+const DEFAULT_INFLUENCE = 1 / 3;
 
 export function makeKeyframe(time: number, value: KeyframeValue, interp: Interpolation = 'linear'): Keyframe {
   return { time, value, interp, inInfluence: DEFAULT_INFLUENCE, outInfluence: DEFAULT_INFLUENCE };
@@ -61,7 +61,7 @@ export function parseParamKey(key: ParamKey): { clip: number; effect: string; pa
 }
 
 /** 클립 안의 시퀀스 시각 범위 [start, end-1] 로 자른다(엔진이 키프레임 시각을 이렇게 자른다) */
-export function clampToClip(clip: Pick<ClipInfo, 'start' | 'end'>, t: number): number {
+function clampToClip(clip: Pick<ClipInfo, 'start' | 'end'>, t: number): number {
   return Math.min(Math.max(t, clip.start), Math.max(clip.start, clip.end - 1));
 }
 

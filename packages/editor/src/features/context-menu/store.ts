@@ -19,7 +19,7 @@ export interface ContextMenuSep {
 }
 export type ContextMenuEntry = ContextMenuItem | ContextMenuSep;
 
-export interface OpenMenu {
+interface OpenMenu {
   /** 뷰포트 기준 좌표(px) */
   x: number;
   y: number;
@@ -29,7 +29,7 @@ export interface OpenMenu {
 }
 
 /** 입력 대화상자 요청(이름 바꾸기, 폴더 만들기). resolve(null) 은 취소 */
-export interface PromptRequest {
+interface PromptRequest {
   title: string;
   label: string;
   value: string;
@@ -40,7 +40,7 @@ export interface PromptRequest {
 }
 
 /** 확인 대화상자 요청(되돌리기 어려운 삭제). resolve(false) 는 취소 */
-export interface ConfirmRequest {
+interface ConfirmRequest {
   title: string;
   message: string;
   confirmLabel: string;

@@ -10,7 +10,7 @@ interface Pending {
   reject: (e: Error) => void;
 }
 
-export interface EngineCrash {
+interface EngineCrash {
   code: number;
   /** main 이 남긴 문제 보고 파일 경로(<userData>/crash-reports/*.json). 쓰지 못했으면 null */
   report: string | null;

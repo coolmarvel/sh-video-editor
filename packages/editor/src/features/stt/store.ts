@@ -17,7 +17,6 @@ import {
   captionParams,
   defaultCaptionOptions,
   describeDownloadError,
-  overallFraction,
   parseFillers,
   pickModel,
   transcriptWordCount,
@@ -27,15 +26,15 @@ import {
   type SttLanguage,
 } from './rules';
 
-export type SttPhase = 'idle' | 'consent' | 'downloading' | 'transcribing' | 'cleaning' | 'creating';
-export type SttScope = 'selection' | 'all';
+type SttPhase = 'idle' | 'consent' | 'downloading' | 'transcribing' | 'cleaning' | 'creating';
+type SttScope = 'selection' | 'all';
 
-export interface SttNotice {
+interface SttNotice {
   tone: 'info' | 'danger' | 'success';
   text: string;
 }
 
-export interface SttState {
+interface SttState {
   /** 호스트가 자동 자막을 지원하는가(bridge.stt). 웹은 false */
   supported: boolean;
   catalog: SpeechModelCatalog | null;

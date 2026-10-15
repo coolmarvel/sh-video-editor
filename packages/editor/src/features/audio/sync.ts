@@ -28,7 +28,7 @@ export const START_LATENCY = 0.04;
 /** 영상 tick 과 오디오 위치가 이보다 벌어지면 탐색으로 보고 앵커를 다시 놓는다(80 ms) */
 export const RESYNC_TICKS = Math.round(TICKS_PER_SECOND * 0.08);
 
-export interface ChunkRequest {
+interface ChunkRequest {
   /** 엔진에 넘길 시작 tick(샘플 경계의 정수). 역방향이면 블록의 앞쪽 끝 */
   tick: number;
   /** 엔진에서 받을 소스 프레임 수(배속이면 outFrames 의 |rate| 배) */

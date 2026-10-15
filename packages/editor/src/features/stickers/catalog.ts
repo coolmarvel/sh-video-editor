@@ -47,9 +47,9 @@ import sparkleTwinklePreview from './assets/sparkle-twinkle.svg?raw';
 import starSpin from './assets/star-spin.json?raw';
 import starSpinPreview from './assets/star-spin.svg?raw';
 
-export type StickerCategory = 'bubble' | 'arrow' | 'shape' | 'badge' | 'highlight' | 'animated';
+type StickerCategory = 'bubble' | 'arrow' | 'shape' | 'badge' | 'highlight' | 'animated';
 
-export interface StickerDef {
+interface StickerDef {
   id: string;
   label: string;
   category: StickerCategory;

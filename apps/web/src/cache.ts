@@ -55,7 +55,7 @@ function openDb(): Promise<IDBDatabase> {
   return request(req);
 }
 
-export function idbAvailable(): boolean {
+function idbAvailable(): boolean {
   return typeof indexedDB !== 'undefined';
 }
 

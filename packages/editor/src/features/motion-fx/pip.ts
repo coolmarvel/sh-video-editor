@@ -14,13 +14,13 @@ export const PIP_CORNERS: ReadonlyArray<{ id: PipCorner; label: string }> = [
 
 /** 작은 화면 크기(화면 폭 대비 %) */
 export const PIP_SIZES: readonly number[] = [25, 33];
-export const PIP_MARGIN = 0.05;
+const PIP_MARGIN = 0.05;
 
 export function pipCornerLabel(id: PipCorner): string {
   return PIP_CORNERS.find((c) => c.id === id)?.label ?? id;
 }
 
-export interface PipPlacement {
+interface PipPlacement {
   /** motion scale(%) */
   scale: number;
   /** motion position(시퀀스 픽셀, 소재 가운데) */

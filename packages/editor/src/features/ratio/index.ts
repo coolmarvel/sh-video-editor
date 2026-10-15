@@ -2,6 +2,4 @@
 export { RatioDialog } from './RatioDialog';
 export { RatioBar } from './RatioBar';
 export { SnsPresets } from './SnsPresets';
-export { useRatio, currentRatio } from './store';
-export { useSnsPresets, buildSnsCards, describeSns, isSnsPreset } from './sns';
 export * from './model';

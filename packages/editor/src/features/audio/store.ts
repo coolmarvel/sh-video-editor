@@ -23,7 +23,7 @@ export interface AudioStats {
   fetchMs: number;
 }
 
-export interface AudioState {
+interface AudioState {
   muted: boolean;
   /** 마스터 볼륨 0..1 */
   volume: number;

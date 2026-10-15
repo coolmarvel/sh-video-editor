@@ -15,7 +15,7 @@ export const RAMP_MAX_POINTS = 8;
 
 export type RampPresetId = 'montage' | 'hero' | 'bullet';
 
-export interface RampPreset {
+interface RampPreset {
   id: RampPresetId;
   label: string;
   description: string;

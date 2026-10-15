@@ -7,11 +7,11 @@ import type { CacheStore, PeaksCacheKey, RecentProject, ThumbCacheKey } from '..
 /** 최근 프로젝트 목록 상한(메뉴·안내 카드가 보이는 수) */
 export const RECENT_LIMIT = 10;
 
-export function thumbKeyString(k: ThumbCacheKey): string {
+function thumbKeyString(k: ThumbCacheKey): string {
   return `${k.path}\u0000${k.tick}\u0000${k.width}`;
 }
 
-export function peaksKeyString(k: PeaksCacheKey): string {
+function peaksKeyString(k: PeaksCacheKey): string {
   return `${k.path}\u0000${k.perSecond}`;
 }
 

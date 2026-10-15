@@ -24,7 +24,7 @@ export interface JobView {
   startedAt: number;
 }
 
-export interface JobsState {
+interface JobsState {
   /** 진행 중·막 끝난 잡(id 순). 끝난 잡은 `applyEvents` 가 `finished` 로 옮긴다 */
   jobs: JobView[];
   /** 끝난 잡(최근 20개) */
@@ -68,7 +68,7 @@ export function visibleJobs(s: Pick<JobsState, 'jobs'>): JobView[] {
 
 /** 펌프 루프 간격(ms). 웹에서 한 번에 16ms 예산으로 몇 프레임씩 나아간다 */
 export const PUMP_INTERVAL_MS = 60;
-export const PUMP_BUDGET_MS = 16;
+const PUMP_BUDGET_MS = 16;
 const FINISHED_KEEP = 20;
 
 let pumpTimer: ReturnType<typeof setTimeout> | undefined;

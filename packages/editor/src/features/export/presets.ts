@@ -75,7 +75,7 @@ export function buildUiPresets(presets: EnginePreset[], format = 'h264'): UiPres
 }
 
 /** 화면이 다루는 동영상 확장자. 형식 콤보에는 이 확장자의 형식만 보인다. */
-export const VIDEO_EXTENSIONS = ['mp4', 'webm'] as const;
+const VIDEO_EXTENSIONS = ['mp4', 'webm'] as const;
 
 /**
  * 화면에 보일 형식: 사용할 수 있고 영상+소리를 담는 MP4(H.264, HEVC, AV1)·WebM(VP9/Opus)만.

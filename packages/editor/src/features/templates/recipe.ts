@@ -58,10 +58,10 @@ export async function runRecipe(
 // ------------------------------------------------------------------ 보조 함수(엔진 커맨드 순서)
 
 export const T = TICKS_PER_SECOND;
-export const DEFAULT_FONT = 'Pretendard';
-export const STILL_SECONDS = 3;
-export const DISSOLVE_FRAMES = 30;
-export const FADE_SECONDS = 1;
+const DEFAULT_FONT = 'Pretendard';
+const STILL_SECONDS = 3;
+const DISSOLVE_FRAMES = 30;
+const FADE_SECONDS = 1;
 
 interface SeqInfo {
   id: number;
@@ -101,9 +101,9 @@ export async function placeBackdrop(exec: Exec, seconds: number, time = 0, color
   return r.clips?.[0] ?? null;
 }
 
-export type Anchor = 'top' | 'center' | 'bottom';
+type Anchor = 'top' | 'center' | 'bottom';
 
-export interface TitleSpec {
+interface TitleSpec {
   text: string;
   size: number;
   bold?: boolean;

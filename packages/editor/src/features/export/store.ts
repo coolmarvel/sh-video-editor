@@ -15,7 +15,7 @@ import {
 } from './presets';
 import { captureWrittenFile, downloadExport, isWebExport, webExportPath, type WrittenCapture } from './web-download';
 
-export interface Resolved {
+interface Resolved {
   frames: number;
   seconds: number;
   width: number;
@@ -24,7 +24,7 @@ export interface Resolved {
   targetKbps: number;
 }
 
-export interface Outcome {
+interface Outcome {
   kind: 'success' | 'warning' | 'danger';
   text: string;
 }

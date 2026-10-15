@@ -36,7 +36,7 @@ export function templateSequenceName(label: string): string {
   return editionName(names, `${useProject.getState().name.trim() || '제목 없음'} ${label}`);
 }
 
-export interface ApplySpec {
+interface ApplySpec {
   label: string;
   media: MediaNeed;
   mediaHint: string;

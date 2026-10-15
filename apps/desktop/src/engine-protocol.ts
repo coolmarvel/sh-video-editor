@@ -79,7 +79,7 @@ export function isQueryCommand(id: string): boolean {
   return /\.(inspect|list|items|status|models|resolve|peek)$/.test(id) || id === 'command.list';
 }
 /** params·오류 문구를 자르는 길이 */
-export const RECORD_TEXT_LIMIT = 200;
+const RECORD_TEXT_LIMIT = 200;
 
 export function clipText(s: string | undefined | null, limit = RECORD_TEXT_LIMIT): string | null {
   if (s === undefined || s === null) return null;

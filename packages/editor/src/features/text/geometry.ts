@@ -78,7 +78,7 @@ export function anchorAlign(anchor: Anchor9): 'left' | 'center' | 'right' {
 }
 
 /** 안전 여백 비율(프레임 폭·높이의 5%). 방송 안전 영역보다 좁은 자막용 여백 */
-export const SAFE_MARGIN = 0.05;
+const SAFE_MARGIN = 0.05;
 
 /**
  * 레이어의 경계 상자(bounds, 시퀀스 px)를 프리셋 칸으로 옮겼을 때의 새 position.
@@ -115,7 +115,7 @@ export function nearestAnchor(canvas: [number, number], bounds: Rect): Anchor9 {
   return ANCHORS[row * 3 + col] ?? 'center';
 }
 
-export function round2(n: number): number {
+function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 

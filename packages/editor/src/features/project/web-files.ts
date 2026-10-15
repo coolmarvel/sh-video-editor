@@ -12,9 +12,9 @@
 import type { EngineBridge, OpfsStore } from '../../engine/bridge';
 import type { RecoveryCandidate } from './store';
 
-export const PROJECTS_DIR = 'projects';
-export const RECOVERY_DIR = 'recovery';
-export const PROJECT_EXT = '.fcproj';
+const PROJECTS_DIR = 'projects';
+const RECOVERY_DIR = 'recovery';
+const PROJECT_EXT = '.fcproj';
 /** 자동 저장 주기(ms) */
 export const AUTOSAVE_MS = 30_000;
 /** 복구 후보 id 접두(엔진 저널의 id 와 구분) */
@@ -95,7 +95,7 @@ export function downloadBytes(name: string, bytes: Uint8Array, mime = 'applicati
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export interface OpenResult {
+interface OpenResult {
   migrated: boolean;
   schemaVersion: number;
   missingMedia: number;
@@ -116,7 +116,7 @@ export async function openBrowserFile(bridge: EngineBridge & { opfs: OpfsStore }
 
 // ----- 자동 저장·복구 -----
 
-export interface RecoveryMeta {
+interface RecoveryMeta {
   session: string;
   projectName: string;
   /** 원래 프로젝트 경로(저장한 적 없으면 null) */
@@ -125,7 +125,7 @@ export interface RecoveryMeta {
   revision: number;
 }
 
-export function newSessionId(now = Date.now()): string {
+function newSessionId(now = Date.now()): string {
   return `${now.toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`;
 }
 

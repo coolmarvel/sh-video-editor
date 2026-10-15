@@ -39,9 +39,9 @@ import {
 } from './model';
 import { type MotionPresetId, motionPreset, presetKeyframes } from './presets';
 
-export type Tracks = Record<ParamKey, ParamTrack>;
+type Tracks = Record<ParamKey, ParamTrack>;
 
-export interface SetValueOptions {
+interface SetValueOptions {
   merge?: boolean;
   begin?: boolean;
   /** 값을 넣을 시퀀스 시각. 없으면 플레이헤드(곡선 편집기가 점을 끌 때 준다) */
@@ -104,7 +104,7 @@ function playhead(): number {
 }
 
 /** 클립 효과의 정적 값(inspect). 없으면 fallback */
-export function staticValue(clip: ClipInfo | null, effect: string, param: string, fallback: KeyframeValue): KeyframeValue {
+function staticValue(clip: ClipInfo | null, effect: string, param: string, fallback: KeyframeValue): KeyframeValue {
   const fx = clip?.effects?.find((e) => e.effect === effect);
   const v = readParam(fx, param);
   if (!v) return fallback;

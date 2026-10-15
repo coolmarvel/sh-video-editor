@@ -23,7 +23,7 @@ import {
 } from './web-files';
 import { afterWebSave } from './web-session';
 
-export type WebFilesMode = 'save' | 'open' | 'relink';
+type WebFilesMode = 'save' | 'open' | 'relink';
 
 interface WebFilesState {
   mode: WebFilesMode | null;

@@ -7,7 +7,7 @@ import { create } from 'zustand';
 
 export const MEDIA_TAB = 'media';
 
-export interface MediaPanelTab {
+interface MediaPanelTab {
   id: string;
   label: string;
   /** 작을수록 앞. 기본 100 */

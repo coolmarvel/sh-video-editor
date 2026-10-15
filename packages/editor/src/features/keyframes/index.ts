@@ -11,11 +11,4 @@ import { MotionTab } from './MotionTab';
 registerInspectorTab({ id: 'motion', label: '모션', order: 15, when: (ctx) => ctx.clips.some((c) => hasVideoEffects(c)), component: MotionTab });
 registerMonitorOverlay(MonitorTransformOverlay);
 
-export { useKeyframes, keyframeCount, staticValue, valueNow, keyframeUnderPlayhead } from './store';
-export type { Tracks } from './store';
-export { ClipKeyframeMarkers } from './ClipKeyframeMarkers';
-export { MotionTab } from './MotionTab';
-export { MonitorTransformOverlay, parseVideoInfo } from './MonitorTransformOverlay';
 export * from './model';
-export { MOTION_PRESETS, PRESET_SECONDS, motionPreset, presetKeyframes } from './presets';
-export type { MotionPresetId, MotionPreset } from './presets';

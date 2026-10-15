@@ -7,7 +7,7 @@ import type { EngineBridge } from '../../engine/bridge';
 import type { ClipInfo, SequenceInfo, TrackInfo } from '../timeline/types';
 import { findClip } from '../timeline/types';
 
-export interface DuckingPlan {
+interface DuckingPlan {
   music: number;
   /** 겹치는 다른 트랙의 켜진 소리 클립(음성 후보) */
   others: number[];
@@ -32,7 +32,7 @@ interface EssentialInspect {
   clips?: Array<{ clip: number; type: string | null }>;
 }
 
-export interface DuckingResult {
+interface DuckingResult {
   keyframes: number;
   triggers: number;
 }
@@ -54,12 +54,12 @@ export async function applyDucking(bridge: EngineBridge, seq: SequenceInfo, clip
 }
 
 /** 오디오 트랜지션 효과 id(엔진 effects.list 의 오디오 전환) */
-export const FADE_EFFECT = 'constant_power';
+const FADE_EFFECT = 'constant_power';
 
 /** 페이드 길이 선택지(초) */
 export const FADE_SECONDS = [0.25, 0.5, 1, 2, 3] as const;
 
-export interface FadeInfo {
+interface FadeInfo {
   /** tick */
   in: number | null;
   out: number | null;

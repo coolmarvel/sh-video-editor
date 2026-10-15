@@ -20,7 +20,7 @@ export function linkGroups(clips: ClipInfo[]): number {
 }
 
 /** 연결된 상대 클립(같은 link id)까지 넓힌 목록. 엔진 clip.link / clip.enable 은 상대까지 함께 바꾸므로(`linked` 기본 true) 안내 문구의 수에만 쓴다 */
-export function withPartners(clips: ClipInfo[]): ClipInfo[] {
+function withPartners(clips: ClipInfo[]): ClipInfo[] {
   const seq = useTimeline.getState().sequence;
   if (!seq) return clips;
   const links = new Set(clips.map((c) => c.link).filter((l): l is number => l !== null));
@@ -130,7 +130,7 @@ export async function synchronizeByAudio(clips: ClipInfo[]): Promise<void> {
   }
 }
 
-export interface SceneResult {
+interface SceneResult {
   /** 분석한 영상 클립 수 */
   clips: number;
   /** 잘린 곳 수(모든 클립 합) */

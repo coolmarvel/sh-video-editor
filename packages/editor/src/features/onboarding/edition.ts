@@ -14,7 +14,7 @@ import { DEMO_EDITION_NAME, editionName } from './naming';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export interface AddResult {
+interface AddResult {
   /** 새로 만든 편집본 id(만들었을 때만) */
   sequence: number | null;
   /** 놓은 항목 수 */

@@ -19,7 +19,7 @@ const PUMP_INTERVAL_MS = 15;
 /** 통계를 store 에 올리는 주기(ms) */
 const STATS_INTERVAL_MS = 250;
 
-export interface AudioPlayerOptions {
+interface AudioPlayerOptions {
   /** 테스트용: AudioContext 를 대신 만든다 */
   createContext?: () => AudioContext;
 }

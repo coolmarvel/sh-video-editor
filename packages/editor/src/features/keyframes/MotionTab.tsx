@@ -14,7 +14,7 @@ import { MOTION_PRESETS } from './presets';
 import { keyframeCount, keyframeUnderPlayhead, useKeyframes, valueNow } from './store';
 import './keyframes.css';
 
-export function motionClip(ctx: InspectorContext): ClipInfo | null {
+function motionClip(ctx: InspectorContext): ClipInfo | null {
   return ctx.clips.find((c) => hasVideoEffects(c)) ?? null;
 }
 

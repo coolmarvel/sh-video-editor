@@ -162,3 +162,32 @@ test('데모 영상을 넣고 자르기·삭제·실행 취소', async () => {
     await close(ctx);
   }
 });
+
+test('데모 넣기와 타임라인에 넣기 동안 읽기 커맨드가 중복되지 않는다(napi 이벤트의 revision 으로 RevisionGate 가 합친다)', async () => {
+  const ctx = await launch();
+  const { page } = ctx;
+  try {
+    // 렌더러의 window.shBridge(화면과 같은 객체)를 감싸 커맨드 id 별로 센다. 웹 events.spec 과 같은 방법
+    await page.evaluate(() => {
+      const w = window as unknown as { shBridge: { execute: (id: string, p?: unknown) => Promise<unknown> }; __counts: Record<string, number> };
+      const counts: Record<string, number> = {};
+      w.__counts = counts;
+      const orig = w.shBridge.execute.bind(w.shBridge);
+      w.shBridge.execute = (id, p) => {
+        counts[id] = (counts[id] ?? 0) + 1;
+        return orig(id, p);
+      };
+    });
+    await makeDemoSequence(page);
+    await page.waitForTimeout(700);
+    const counts = await page.evaluate(() => (window as unknown as { __counts: Record<string, number> }).__counts);
+    console.log(`[desktop events] execute 호출 수: ${JSON.stringify(counts)}`);
+    // 2026-10-15 실측(바다 노을, 2회): sequence.inspect 4~6, project.inspect 3~4, media.status 2. 웹(events.spec)과 같은 상한
+    expect(counts['sequence.inspect'] ?? 0).toBeLessThanOrEqual(7);
+    expect(counts['project.inspect'] ?? 0).toBeLessThanOrEqual(5);
+    expect(counts['media.status'] ?? 0).toBeLessThanOrEqual(4);
+    expect(ctx.errors).toEqual([]);
+  } finally {
+    await close(ctx);
+  }
+});

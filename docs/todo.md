@@ -16,8 +16,7 @@ domain: development
 
 ## P2 - 가까운 로드맵
 
-- [ ] VP9·HEVC·AV1 인코더가 단일 스레드라 1080p 는 4 fps·2.3 fps·1.7 fps. 타일 병렬 또는 720p 안내 (`vendor/filmcraft/crates/vp9enc`, `crates/hevcenc`, `crates/av1enc`)
-- [ ] AV1 레이트 컨트롤이 단순 영상에서 양자화 하한에 머물러 목표 10 Mbps 에 2.6 Mbps 로 못 미침(프리셋 비트레이트가 파일 크기를 거의 못 바꿈). q 하한 완화 또는 품질 모드 (`crates/av1enc/src/decide.rs`, `docs/guides/webm-export.md` 3.5)
+- [ ] HEVC 내보내기 바이트가 wasm 과 napi 에서 다름(0.1.9 부터, 같은 플랫폼 안에서는 작업자 수와 무관하게 같음). lambda·레이트 컨트롤의 `powf`·`log` 부동소수 의심 (`crates/hevcenc`)
 - [ ] 움직이는 스티커가 512px 문서 크기로 래스터되어 그보다 훨씬 키우면 가장자리가 부드러워짐. 항목 크기를 모션 scale 에 맞춰 `at_size` 로 다시 열기 (`vendor/.../media_pool.rs`, `features/stickers/store.ts`)
 - [ ] 흔들림 분석 캐시가 프로세스 전역이고 새 프로젝트·열기 때만 비움. 클립 삭제·미디어 교체 때도 무효화 (`vendor/.../render/src/vfx/temporal.rs`, `crates/engine/src/stabilize.rs`)
 - [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
@@ -27,6 +26,8 @@ domain: development
 
 ## P3 - 품질
 
+- [ ] AV1 슈퍼블록 band 할당이 매번 약 380KB. 작업자마다 band 버퍼 재사용 (`crates/av1enc`)
+- [ ] 새 워크트리는 `speech-wasm/pkg` 가 없어 typecheck·웹 빌드 전에 `npm run build:engine:speech` 또는 main 에서 복사가 필요. 워크트리 안내에 적기 (`docs/guides/testing.md`)
 - [ ] 웹 e2e `web-files.spec` 390 의 최근 프로젝트 메뉴 테스트가 부하(load 10~15) 중 1회 실패(단독 5회 통과). flaky 관찰
 - [ ] Windows 스냅 레이아웃(최대화 버튼 hover)이 투명 titleBarOverlay 에서도 뜨는지 눈으로 확인 (`apps/desktop/src/main/index.ts`)
 - [ ] vendor hevc conformance `draft_mode_changes_only_flagged_non_reference_pictures` 가 부하 중 1회 실패(단독 5회·스위트 5회 통과). flaky 관찰 (`crates/hevc`)

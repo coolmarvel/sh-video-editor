@@ -3,7 +3,7 @@
 # 여기서는 path 의존으로 가져다 쓴다 (ADR-0003).
 [workspace]
 resolver = "3"
-members = ["bindings/napi", "bindings/wasm"]  # crates/sh-* 가 생기면 "crates/*" 추가
+members = ["bindings/napi", "bindings/wasm", "bindings/speech-wasm"]  # crates/sh-* 가 생기면 "crates/*" 추가
 exclude = ["vendor"]
 
 [workspace.package]
@@ -63,6 +63,19 @@ opt-level = "s"
 codegen-units = 1
 panic = "abort"
 
+# 음성 모듈(bindings/speech-wasm): 행렬 곱이 전부라 3. 엔진 wasm 에는 들어가지 않는다
+[profile.wasm-release.package.filmcraft-speech]
+opt-level = 3
+[profile.wasm-release.package.candle-core]
+opt-level = 3
+[profile.wasm-release.package.candle-nn]
+opt-level = 3
+[profile.wasm-release.package.gemm]
+opt-level = 3
+[profile.wasm-release.package.gemm-common]
+opt-level = 3
+[profile.wasm-release.package.gemm-f32]
+opt-level = 3
 [profile.wasm-release.package.filmcraft-h264]
 opt-level = 3
 [profile.wasm-release.package.filmcraft-hevc]

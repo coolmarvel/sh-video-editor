@@ -123,6 +123,29 @@ fn item_audio(s: &Session, item: ItemId) -> Option<Vec<f32>> {
     Some(filmcraft_speech::downmix(&buf.channels))
 }
 
+/// Longest audio a host may hand to speech recognition (16 kHz f32 is 230 MB at this length).
+pub const MAX_TRANSCRIBE_SECONDS: i64 = 3 * 60 * 60;
+
+/// Mono 16 kHz audio of media item `item` for a host-run transcription (the desktop's background
+/// thread, the web's speech worker): subclips read their media, a clip without audio, an
+/// unreadable source or one longer than [`MAX_TRANSCRIBE_SECONDS`] is an error with a message for
+/// the user (sh-video-editor addition, shared by the napi and wasm bindings).
+pub fn host_item_audio(s: &Session, item: ItemId) -> std::result::Result<Vec<f32>, String> {
+    let (root, clip, _) = s.project.resolve_media(item).ok_or_else(|| "no such media item".to_string())?;
+    let dur = clip.duration();
+    let src = s.source(root).ok_or_else(|| "the media cannot be opened".to_string())?;
+    if !src.info().has_audio() {
+        return Err("the clip has no audio to transcribe".into());
+    }
+    let sr = i64::from(filmcraft_speech::SAMPLE_RATE);
+    let len = dur.to_units_floor(sr).max(0);
+    if len > MAX_TRANSCRIBE_SECONDS * sr {
+        return Err(format!("the clip is longer than {} hours; cut it before transcribing", MAX_TRANSCRIBE_SECONDS / 3600));
+    }
+    let buf = src.audio(0, len as usize, filmcraft_speech::SAMPLE_RATE).map_err(|e| e.to_string())?;
+    Ok(filmcraft_speech::downmix(&buf.channels))
+}
+
 fn speech_err(e: SpeechError) -> EngineError {
     EngineError::Other(e.to_string())
 }

@@ -10,11 +10,6 @@ authors.workspace = true
 [lints]
 workspace = true
 
-[features]
-default = []
-# 자동 자막(Whisper 추론)을 wasm 에서도 켜 보는 실험용. 기본 off. 결과는 docs/guides/packaging.md "STT 모델" 절.
-stt = ["filmcraft-engine/whisper"]
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 

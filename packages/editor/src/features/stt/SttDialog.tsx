@@ -19,6 +19,8 @@ export function SttDialog() {
   const agree = useStt((s) => s.agree);
   const decline = useStt((s) => s.decline);
   const cancel = useStt((s) => s.cancel);
+  // 목록의 dir 이 null 이면 모델이 브라우저 저장소에 놓인다(웹)
+  const inBrowser = useStt((s) => s.catalog !== null && s.catalog.dir === null);
   const primaryRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -42,7 +44,11 @@ export function SttDialog() {
             <dt>라이선스</dt>
             <dd>{model.license}</dd>
             <dt>보관</dt>
-            <dd>이 컴퓨터의 앱 데이터 폴더에 저장되어 이후에는 인터넷 없이 씁니다. 영상·소리는 컴퓨터 밖으로 나가지 않습니다.</dd>
+            <dd>
+              {inBrowser
+                ? '이 브라우저의 사이트 저장소에 저장되어 이후에는 인터넷 없이 씁니다(같은 브라우저에서만). 영상·소리는 컴퓨터 밖으로 나가지 않습니다.'
+                : '이 컴퓨터의 앱 데이터 폴더에 저장되어 이후에는 인터넷 없이 씁니다. 영상·소리는 컴퓨터 밖으로 나가지 않습니다.'}
+            </dd>
           </dl>
         </div>
         <div className="sh-dialog__buttons">

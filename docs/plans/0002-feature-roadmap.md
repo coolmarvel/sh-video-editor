@@ -131,8 +131,8 @@ domain: development
   - (b) features/text: 모니터 위 드래그로 위치, 인스펙터(글꼴·크기·색·외곽선·배경), 타임라인 그래픽 클립
   - (c) 한글·영문 혼합 문장을 1080p 로 내보내 ffmpeg 로 프레임 추출, 글리프 누락(네모) 없음
   - (d) M
-- [~] **M2-2 자동 자막(STT)** (2026-10-14 feat/stt-captions: 데스크톱 (a)(b) 구현. 모델은 첫 사용 때 동의 뒤 내려받아 `<userData>/engine/models` 에 보관(인스톨러 미동봉). 웹은 candle 이 wasm32 에서 컴파일되지만 모델 적재·fetch 경로가 없어 안내 문구만(M4). 실측·배포는 `guides/packaging.md` "STT 음성 모델")
-  - (a) napi 바인딩 feature `stt`(기본 on) 로 `whisper`·`speech-download` 를 켬. 진행률·취소를 위해 바인딩 `downloadSpeechModel`·`Engine.transcribeItem`(libuv 스레드, 세션을 막지 않음) 신규, 결과는 `transcript.set` -> `transcript.createCaptions`. `transcript.generate` 도 그대로 동작(동기, 진행률 없음). 웹 `putModel` 은 미착수
+- [x] **M2-2 자동 자막(STT)** (2026-10-14 feat/stt-captions: 데스크톱 (a)(b) 구현. 모델은 첫 사용 때 동의 뒤 내려받아 `<userData>/engine/models` 에 보관(인스톨러 미동봉). 2026-10-15 feat/whisper-fix: whisper 가 창 중간에서 멈추면 둘째 문장을 통째로 버리던 것 수정(타임스탬프 하나로 끝나고 뒤에 말소리가 있으면 그 자리부터), 웹 자동 자막(음성 전용 wasm + 음성 Worker, 모델 tiny·base 는 OPFS, 30초를 base 로 Chromium 에서 약 17초). 실측·배포는 `guides/packaging.md` "STT 음성 모델")
+  - (a) napi 바인딩 feature `stt`(기본 on) 로 `whisper`·`speech-download` 를 켬. 진행률·취소를 위해 바인딩 `downloadSpeechModel`·`Engine.transcribeItem`(libuv 스레드, 세션을 막지 않음) 신규, 결과는 `transcript.set` -> `transcript.createCaptions`. `transcript.generate` 도 그대로 동작(동기, 진행률 없음). 웹은 `putModel` 대신 음성 wasm(`bindings/speech-wasm`)이 모델 바이트를 직접 연다(2026-10-15)
   - (b) features/stt: 자막 탭의 "자동 자막" 절(모델·언어·줄당 글자·최소 시간, 선택 클립/편집본 전체), 동의 대화상자(크기·출처·라이선스·보관), 진행률·취소, "음성 정리"(군말 제거·무음 자르기: 생성 시 옵션 + 인식 뒤 버튼). 자막 목록·스타일·SRT 는 M2-1 의 자막 탭 그대로
   - (c) 한국어 30초 낭독 샘플(zeroth-korean): whisper-base 8.5초(모델 적재 포함), 단어 39개, 자막 6개(12줄), 한 줄 20자 규칙으로 자막 생성(엔진 테스트 `tests/stt.test.ts` 가 모델이 있을 때 검증). 단어 시간 오차 0.5초 이내는 수동 확인 미실시. CER 은 98초 세트에서 base 32.5%, small 24.6%
   - (d) L

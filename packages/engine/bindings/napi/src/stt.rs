@@ -29,9 +29,6 @@ pub struct SttProgress {
 /// 호스트가 넘기는 진행 콜백 `(p: SttProgress) => void`. 호출 스레드에서 큐에 넣고 바로 돌아온다.
 pub type Progress = ThreadsafeFunction<SttProgress, (), SttProgress, Status, false>;
 
-/// 인식할 수 있는 소리 길이 상한(초). 그보다 길면 메모리(16 kHz f32)와 시간을 지키려고 거부한다.
-const MAX_SECONDS: i64 = 3 * 60 * 60;
-
 fn err(e: impl std::fmt::Display) -> Error {
     Error::from_reason(e.to_string())
 }
@@ -153,31 +150,11 @@ pub fn release_speech_model() {
     *loaded().lock().unwrap_or_else(|e| e.into_inner()) = None;
 }
 
-/// 미디어 항목의 소리를 모노 16 kHz 로 읽는다(엔진 `transcript.generate` 의 `item_audio` 와 같은 규칙:
-/// 서브클립은 원본 미디어로, 소리가 없으면 오류).
+/// 미디어 항목의 소리를 모노 16 kHz 로 읽는다(엔진 `transcript::host_item_audio`: 서브클립은 원본 미디어로,
+/// 소리가 없거나 3시간보다 길면 오류). 웹 바인딩도 같은 함수를 쓴다.
 pub fn item_audio(s: &Session, item: i64) -> Result<Vec<f32>> {
     let id = u64::try_from(item).map_err(|_| Error::from_reason("item id must be non-negative"))?;
-    let (root, clip, _) = s
-        .project
-        .resolve_media(ItemId(id))
-        .ok_or_else(|| Error::from_reason("no such media item"))?;
-    let dur = clip.duration();
-    let src = s
-        .source(root)
-        .ok_or_else(|| Error::from_reason("the media cannot be opened"))?;
-    if !src.info().has_audio() {
-        return Err(Error::from_reason("the clip has no audio to transcribe"));
-    }
-    let sr = filmcraft_speech::SAMPLE_RATE;
-    let len = dur.to_units_floor(i64::from(sr)).max(0);
-    if len > MAX_SECONDS * i64::from(sr) {
-        return Err(Error::from_reason(format!(
-            "the clip is longer than {} hours; cut it before transcribing",
-            MAX_SECONDS / 3600
-        )));
-    }
-    let buf = src.audio(0, len as usize, sr).map_err(err)?;
-    Ok(filmcraft_speech::downmix(&buf.channels))
+    filmcraft_engine::transcript::host_item_audio(s, ItemId(id)).map_err(Error::from_reason)
 }
 
 pub struct Transcribe {

@@ -1,0 +1,25 @@
+[package]
+name = "sh-video-speech-wasm"
+description = "sh-video-editor 웹 자동 자막: Whisper(candle, CPU) 추론만 담은 WebAssembly 모듈. apps/web 의 음성 Worker 가 import 한다"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+filmcraft-speech = { workspace = true, features = ["whisper"] }
+serde_json = { workspace = true }
+sha2 = "0.10"
+wasm-bindgen = "0.2.129"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }

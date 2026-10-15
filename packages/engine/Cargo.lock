@@ -1008,6 +1008,7 @@ dependencies = [
  "sha2",
  "thiserror 2.0.21",
  "ureq",
+ "web-time",
 ]
 
 [[package]]
@@ -2605,6 +2606,19 @@ dependencies = [
  "getrandom 0.3.4",
  "js-sys",
  "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "sh-video-speech-wasm"
+version = "0.1.7"
+dependencies = [
+ "console_error_panic_hook",
+ "filmcraft-speech",
+ "getrandom 0.3.4",
+ "js-sys",
+ "serde_json",
+ "sha2",
  "wasm-bindgen",
 ]
 

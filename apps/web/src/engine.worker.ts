@@ -230,6 +230,11 @@ async function handle(method: string, args: unknown[]): Promise<{ result: unknow
       const pcm = engine.renderAudio(BigInt(tick), frames, sampleRate);
       return { result: pcm, transfer: [pcm.buffer] };
     }
+    case 'itemAudio16k': {
+      // 웹 자동 자막: 항목의 모노 16 kHz 소리. 음성 Worker 로 그대로 넘어간다(stt.ts)
+      const pcm = engine.itemAudio16k(args[0] as number);
+      return { result: pcm, transfer: [pcm.buffer] };
+    }
     case 'audioPeaks': {
       const [item, perSecond] = args as [number, number];
       const peaks = engine.audioPeaks(item, perSecond);

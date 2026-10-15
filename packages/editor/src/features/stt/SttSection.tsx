@@ -9,7 +9,7 @@ import './stt.css';
 /**
  * 자막 탭의 "자동 자막" 절. 모델·언어·배치 옵션을 고르고 "자동 자막 만들기"(선택 클립 / 편집본 전체)를 누르면
  * store 가 모델 확인(동의 대화상자) -> 인식 -> 자막 트랙 생성까지 진행한다. 아래 "음성 정리" 소절은 군말 제거·무음 자르기.
- * 웹(호스트에 bridge.stt 가 없음)에서는 안내 문구만 보인다.
+ * 호스트에 bridge.stt 가 없으면(SharedArrayBuffer·OPFS 가 없는 브라우저) 안내 문구만 보인다.
  */
 /** 편집본이 없을 때의 선택. 셀렉터가 매번 새 배열을 돌려주면 zustand 5 가 무한 갱신한다 */
 const NO_SELECTION: readonly number[] = [];
@@ -49,7 +49,7 @@ export function SttSection() {
       ) : null}
       {!s.supported ? (
         <p className="tx-hint" data-testid="stt-unsupported">
-          자동 자막(음성 인식)은 데스크톱 앱에서만 쓸 수 있습니다. 웹에서는 SRT 가져오기로 자막을 넣으세요.
+          이 브라우저에서는 자동 자막(음성 인식)을 쓸 수 없습니다. 데스크톱 앱이나 최신 Chrome·Edge 를 쓰거나, SRT 가져오기로 자막을 넣으세요.
         </p>
       ) : (
         <>

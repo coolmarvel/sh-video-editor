@@ -2,6 +2,7 @@ import type { EngineBridge, EngineEvent, Frame } from '@editor';
 import type { OpfsStore } from '@editor/engine/bridge';
 import { createIdbCache } from './cache';
 import { createIdbTemplates } from './templates';
+import { createWebStt } from './stt';
 
 type Res = { id: number; ok: boolean; result?: unknown; error?: string };
 type Event = { event: 'fileWritten'; path: string; bytes: Uint8Array };
@@ -105,5 +106,8 @@ export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
   // 사용자 템플릿(JSON + 썸네일): IndexedDB. 없으면 화면이 메모리 저장소를 쓴다
   const templates = createIdbTemplates();
   if (templates) bridge.templates = templates;
+  // 자동 자막: 음성 Worker(모델은 OPFS). SharedArrayBuffer·OPFS 가 없으면 화면은 "데스크톱 전용" 안내를 보인다
+  const stt = createWebStt((item) => call<Float32Array>('itemAudio16k', item));
+  if (stt) bridge.stt = stt;
   return bridge;
 }

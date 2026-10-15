@@ -113,7 +113,7 @@ impl GeneratorSource {
             start_timecode: None,
             file_size: None,
         };
-        Self { generator, info, cache: FrameCache::new(crate::cache::SOURCE_CACHE_BUDGET) }
+        Self { generator, info, cache: FrameCache::new(256 << 20) }
     }
 
     pub fn with_name(mut self, name: &str) -> Self {

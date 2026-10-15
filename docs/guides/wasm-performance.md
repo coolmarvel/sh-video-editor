@@ -140,33 +140,38 @@ opt-level "s" 를 전부에 주면 25~40% 느려지고, 디코더·렌더·DSP �
 - renderFrame 고정 비용(빈 편집본, napi): scale 0.25 1.7ms, 0.5 3.8ms, 1.0 7.4ms. 선형광 f32 합성과 sRGB 변환인데 변환은 이미 4096칸 표와
   rayon 이라 줄일 곳이 뚜렷하지 않았다. H.264 1080p 두 겹 재생 scale 0.5 중앙값 17.7ms(디코드 2.7ms/프레임).
 
-## 메모리 예산, 남은 데모 장면, 교환 형식 빼기 (2026-10-15 오후)
+## 웹 메모리, 남은 데모 장면, 교환 형식 빼기 (2026-10-15 오후)
 
-### 프레임 캐시와 평면 선반 예산 (wasm 만)
+### WebCodecs 평면 재사용 (캐시 예산은 그대로)
 
-- 원인 두 가지. (1) 디코드 프레임 캐시(`crates/codecs/src/gop.rs`)가 네이티브와 같은 예산(트랙당 384MB, 최소 64장, 전체 1GB)이라 1080p 를
-  몇 번 탐색하면 384MB 를 채웠다. (2) WebCodecs 경로(`bindings/wasm/src/webcodecs.rs`)가 프레임 평면을 매번 새로 할당하고, 캐시가 버린 평면은
-  재활용 선반(`crates/frame/src/pool.rs`)으로 가는데 아무도 꺼내 쓰지 않아 선반 상한(192MB)까지 쌓였다(브라우저 perf.stats: `planePoolMB` 201,
-  `planesReused` 0). wasm 선형 메모리는 한 번 늘면 줄지 않는다.
-- 고친 것: wasm 빌드에서만 트랙당 192MB(1080p 약 60장, 30fps 2초), 최소 16장(웹은 한 스레드 디코드라 앞서 디코드하는 장이 적다), 전체
-  320MB, 생성기·이미지 시퀀스 캐시 256MB 에서 64MB, 평면 선반 192MB 에서 64MB, 부동소수 이미지 선반 320MB 에서 128MB. WebCodecs 프레임은 선반에서
-  평면을 꺼내 쓴다. 데스크톱(네이티브) 값은 그대로다.
-- 측정 A(브라우저): 위 "큰 파일" 절과 같은 방법(`SH_E2E_LARGE_MP4`, ffmpeg testsrc2 1080p30 130초 80Mbps ultrafast, 키프레임 간격 250장 = 8.3초,
-  588MB), 각 2회. 측정 B(Node, 소프트웨어 디코드): 같은 파일을 Blob 범위 읽기로 등록해 30·50·10초를 0.5 배율로 그린 뒤, 30초에서 0.5초씩 26초까지
-  뒤로 문지르기 8번, 10초부터 60장 연속(재생 흉내). 스크립트는 세션 스크래치(`em-bench/mem.mjs`)로, 방법은 이 문단이 전부다.
+- 원인: WebCodecs 경로(`bindings/wasm/src/webcodecs.rs`)가 프레임 평면을 매번 새로 할당하고, 디코드 캐시가 버린 평면은 재활용
+  선반(`crates/frame/src/pool.rs`)으로 가는데 아무도 꺼내 쓰지 않아 선반 상한(192MB)까지 쌓였다(브라우저 perf.stats: `planePoolMB` 201,
+  `planesReused` 0). 소프트웨어 디코드(Node)는 원래 선반에서 꺼내 써서 이 문제가 없다. wasm 선형 메모리는 한 번 늘면 줄지 않는다.
+- 고친 것: WebCodecs 프레임이 평면을 선반에서 꺼내 쓴다(`filmcraft_frame::pool::take_u8`). 디코드 캐시·선반의 예산은 main 과 같다.
+- 먼저 시도한 것(채택 안 함, V1): wasm 만 디코드 캐시를 트랙당 192MB·최소 16장·전체 320MB, 생성기 캐시 64MB, 선반 64MB 로 줄였다. 메모리는
+  더 줄었지만(아래 표) 캐시가 붙드는 길이가 4초에서 2초로 줄어, 키프레임 간격 8초 영상을 2초 넘게 뒤로 문지르거나 3초 재생한 뒤 뒤로 문지르면
+  키프레임부터 다시 디코드했다(키프레임 간격 2초 영상도 재생 뒤 뒤로 문지르기가 2~3배). "사용자가 하는 일은 하나도 느려지지 않는다" 규칙에
+  어긋나 되돌렸다.
+- 측정(같은 날, 부하 평균 4~14): 브라우저는 큰 파일 e2e 와 같은 파일(ffmpeg testsrc2 1080p30 130초 80Mbps ultrafast, 키프레임 간격 250장 = 8.3초,
+  588MB)과 키프레임 간격 2초 파일(`-g 60` 20Mbps 60초)로, 30·50·10초 탐색 뒤 30초에서 0.5초씩 26초까지 뒤로 8단계, 40초에서 44초까지 앞으로
+  8단계, 45초부터 3초 재생 뒤 47.5초에서 45초까지 뒤로 6단계, 각 단계는 0.5 배율 renderFrame(엔진 직접 호출)의 시간. 표는 8초 파일, main 과 V2
+  각 10회의 중앙값(범위), V1 은 2회. Node(소프트웨어 디코드, Blob 범위 읽기)도 같은 시나리오로 main·V1·V2 를 2회씩.
 
-| 조건                       | wasm 메모리(시작, 가져오기 뒤, 탐색 뒤) | 탐색 30초 / 50초 / 10초        | 디코드 캐시 | 평면 선반       |
-| -------------------------- | --------------------------------------- | ------------------------------ | ----------- | --------------- |
-| 브라우저 전                | 13, 31~34, 666~667 MB                   | 1091~2807 / 54~146 / 401~773ms | 재지 않음   | 재지 않음       |
-| 브라우저 중간(캐시 예산만) | 13, 34, 471~473 MB                      | 1442~1575 / 71~77 / 417~540ms  | 199MB       | 201MB(재사용 0) |
-| 브라우저 후                | 13, 31, 276~277 MB                      | 984~1058 / 53~66 / 284~367ms   | 199MB       | 6MB(재사용 414) |
-| Node 전                    | 13, 16, 461 MB (재생 뒤 469)            | 1786~1957 / 45~47 / 521~637ms  | 401MB       | 3MB             |
-| Node 후                    | 13, 16, 269 MB (재생 뒤 277)            | 1716~2186 / 53~54 / 554~608ms  | 199MB       | 3MB             |
+| 브라우저, 8초 GOP          | 탐색 뒤 wasm 메모리 | 뒤로 8단계 합        | 앞으로 8단계 합     | 재생 뒤 뒤로 6단계 합 |
+| -------------------------- | ------------------- | -------------------- | ------------------- | --------------------- |
+| main                       | 707~718 MB          | 241.5ms (224~257)    | 984.5ms (910~1057)  | 205.5ms (191~240)     |
+| V1 (예산 축소, 채택 안 함) | 320~322 MB          | 750~768ms (최대 549) | 990~998ms           | 995~1007ms (최대 804) |
+| V2 (채택: 평면 재사용)     | 513~515 MB          | 231.5ms (219~267)    | 1011.5ms (869~1276) | 213ms (195~260)       |
 
-- 브라우저 메모리 59% 감소, 탐색은 같거나 빠르다(평면을 다시 쓰니 할당이 준다). 재생 흉내는 프레임당 44~64ms 로 전후 같다(부하에 따른 흔들림).
-- 대가: 키프레임 간격이 긴 영상(이 시험 파일처럼 8초, 화면 녹화 등)을 2초 넘게 뒤로 문지르면 그 자리에서 키프레임부터 다시 디코드한다(Node
-  측정 B: 8번 중 1번 약 1초, 예전은 4초까지 캐시에 있어 0번). 키프레임 간격 2초 파일(휴대폰 영상에 가까운 `-g 60` 20Mbps 60초)에서는 전후의 문지르기
-  시간이 같고(GOP 경계의 멈춤은 원래 있다: 전 878·733ms, 후 957·588ms), 메모리만 442MB 에서 251MB 로 준다.
+| 2초 GOP         | 브라우저 메모리 | 브라우저 재생 뒤 뒤로 6단계 | Node 메모리 | Node 재생 뒤 뒤로 6단계 |
+| --------------- | --------------- | --------------------------- | ----------- | ----------------------- |
+| main            | 651 MB          | 154~170ms                   | 459 MB      | 174~184ms               |
+| V1 (채택 안 함) | 261 MB          | 466~476ms                   | 264 MB      | 487~507ms               |
+| V2 (채택)       | 456~458 MB      | 175~188ms                   | 459 MB      | 160~173ms               |
+
+- 원래 큰 파일 e2e(탐색만, 2회): main 666~667MB, V2 473~474MB(-29%), 탐색 726~916 / 51~60 / 320~367ms(main 의 범위 안).
+- V2 의 앞으로 문지르기 중앙값이 27ms 높지만 main 자신의 범위(147ms)보다 작고 두 범위가 겹친다(이상치 2회 1238·1276ms 를 빼면 985~1026ms).
+  Node 는 소프트웨어 디코드라 V2 와 main 이 같은 코드 경로이며 전 시나리오가 같은 범위다.
 
 ### 남은 두 데모 장면 (OceanSunset, Forest)
 
@@ -312,8 +317,8 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
 - 코덱 feature 분리(약 1MB): 웹 사용자가 MPEG-2·AV1 등을 가져올 수 있어 보류. 하려면 `filmcraft-codecs` 에 `av1`·`mpeg`·`ac3`·`apv`·`mxf` feature 를 두고
   `filmcraft-engine` 이 `default-features = false` 로 받게 해야 한다.
 - 글꼴은 매 시작마다 5.2MB 를 받는다(브라우저 캐시가 흡수). 서비스 워커나 OPFS 캐시는 두지 않았다.
-- wasm 메모리는 1080p 탐색 뒤 약 276MB 로 줄었지만 여전히 줄어들지는 않는다(선형 메모리의 성질). 4K 는 프레임이 4배라 같은 예산에 장 수가 준다.
-- 키프레임 간격이 긴 영상을 2초 넘게 뒤로 문지르면 키프레임부터 다시 디코드한다(위 "프레임 캐시와 평면 선반 예산").
+- 1080p 탐색 뒤 wasm 메모리는 약 474MB 다(디코드 캐시 384MB 한도 + 엔진). 캐시를 줄이면 메모리는 더 주지만 뒤로 문지르기가 느려져(위 V1) 하지 않았다.
+  키프레임 간격이 짧은 영상만 따로 예산을 줄이는 것도 재생 뒤 뒤로 문지르기에서 같은 문제가 생긴다.
 
 ## 관련 코드
 
@@ -322,7 +327,6 @@ symphonia 0.4, 글꼴 셰이핑(harfrust·read_fonts·skrifa) 0.8.
 - `apps/web/src/webcodecs.ts` (동기 다리), `apps/web/src/decoder.worker.ts` (VideoDecoder 소유), `apps/web/src/fonts.ts`, `apps/web/src/engine.worker.ts`
 - `packages/engine/vendor/filmcraft/crates/text/src/fonts.rs` (`HOST_SUPPLIED_FONTS`), `crates/platform/src/hybrid.rs`, `crates/codecs/src/hw.rs`
 - `scripts/bench-wasm.mjs`, `packages/engine/tests/wasm-bench.mjs`, `packages/engine/tests/wasm-web.test.ts`, `apps/web/e2e/webcodecs.spec.ts`
-- 메모리 예산: `crates/codecs/src/gop.rs`(`FRAME_BUDGET`, `CACHE_BUDGET`, `MIN_FRAMES`), `crates/media/src/cache.rs`(`SOURCE_CACHE_BUDGET`),
-  `crates/frame/src/pool.rs`(`MAX_BYTES`, `F32_MAX_BYTES`). 교환 형식: `crates/engine/Cargo.toml`(`interchange`), `crates/engine/src/interchange_off.rs`
+- 평면 재사용: `bindings/wasm/src/webcodecs.rs`, 선반 `crates/frame/src/pool.rs`. 교환 형식: `crates/engine/Cargo.toml`(`interchange`), `crates/engine/src/interchange_off.rs`
 - 범위 읽기·보관: `bindings/wasm/src/lib.rs`(`registerBlob`, `BlobReader`), `apps/web/src/opfs.ts`(`copyIn`), `packages/editor/src/features/project/web-media.ts`,
   `packages/engine/tests/web-blob.test.ts`, `apps/web/e2e/web-files.spec.ts`("가져온 파일 보관")

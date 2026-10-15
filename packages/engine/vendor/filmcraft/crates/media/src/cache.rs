@@ -20,10 +20,6 @@ struct Inner<K> {
     misses: u64,
 }
 
-/// Budget of a source's own rendered-frame cache (generated demo footage, image sequences).
-/// sh-video-editor: wasm linear memory never shrinks, so the web build keeps a quarter.
-pub const SOURCE_CACHE_BUDGET: usize = if cfg!(target_arch = "wasm32") { 64 << 20 } else { 256 << 20 };
-
 pub struct FrameCache<K: Eq + Hash + Clone = (u64, i64, u16)> {
     inner: Mutex<Inner<K>>,
     budget: usize,

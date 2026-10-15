@@ -219,16 +219,7 @@ const IDLE: Duration = Duration::from_secs(3);
 /// Decoded frames all caches may hold together before idle ones give theirs up. Each cache also
 /// has its own budget, which alone let every clip on a timeline keep hundreds of MB of frames
 /// nobody was looking at.
-///
-/// sh-video-editor: wasm linear memory never shrinks once grown, and a browser tab shares the
-/// machine with everything else, so the web build keeps a third of the native budget (a few 1080p
-/// seeks grew the worker to about 670 MB with the native numbers).
-pub const FRAME_BUDGET: usize = if cfg!(target_arch = "wasm32") { 320 << 20 } else { 1 << 30 };
-
-/// Bytes of frames one cache keeps around the working position (native / web, see [`FRAME_BUDGET`]).
-/// At 1080p 8-bit 4:2:0 that is about 120 / 60 frames: the web still holds two seconds at 30 fps
-/// behind the playhead, so scrubbing back a little does not re-decode from the keyframe.
-const CACHE_BUDGET: usize = if cfg!(target_arch = "wasm32") { 192 << 20 } else { 384 << 20 };
+pub const FRAME_BUDGET: usize = 1 << 30;
 
 /// What the caches of a process share: the cap on live decoders and the frame budget.
 struct Pool {
@@ -360,9 +351,8 @@ pub struct GopCache {
 /// The cache always has room for this many frames, whatever their size: a frame-threaded decoder
 /// runs up to ~2x its thread count ahead of the frame it returns, and playback prefetches ahead
 /// of the playhead, so a byte budget alone would evict 4K frames before they are shown and force
-/// a re-decode from the keyframe. The web decodes on one thread (or WebCodecs one frame at a
-/// time), so it needs far fewer; 64 there forced 530 MB for 4K whatever the budget.
-const MIN_FRAMES: usize = if cfg!(target_arch = "wasm32") { 16 } else { 64 };
+/// a re-decode from the keyframe.
+const MIN_FRAMES: usize = 64;
 
 /// A running decoder up to this many samples before the wanted sample's sync sample keeps going
 /// rather than restarting at the sync sample.
@@ -392,7 +382,7 @@ impl GopCache {
             pool: pool.clone(),
         });
         pool.register(&shared);
-        Self { shared, explicit_color, rotation: 0, budget: CACHE_BUDGET }
+        Self { shared, explicit_color, rotation: 0, budget: 384 << 20 }
     }
 
     /// Turn every decoded frame clockwise by `quarter_turns` × 90° (the container's display

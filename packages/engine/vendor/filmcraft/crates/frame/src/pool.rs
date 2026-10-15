@@ -16,8 +16,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use crate::{PixelData, VideoFrame};
 
 /// Bytes of idle buffers kept per sample type; a buffer that does not fit is freed.
-/// sh-video-editor: wasm linear memory never shrinks, so the web keeps a third.
-const MAX_BYTES: usize = if cfg!(target_arch = "wasm32") { 64 << 20 } else { 192 << 20 };
+const MAX_BYTES: usize = 192 << 20;
 
 /// Smaller buffers are not worth keeping (the allocator recycles those well).
 const MIN_BYTES: usize = 64 << 10;
@@ -69,8 +68,8 @@ static REUSED: AtomicU64 = AtomicU64::new(0);
 /// whoever overwrites every element gets it back without a zero-fill pass over tens of megabytes.
 static F32: Mutex<Vec<Vec<f32>>> = Mutex::new(Vec::new());
 
-/// Bytes of idle float images kept; a buffer that does not fit is freed (web: see [`MAX_BYTES`]).
-const F32_MAX_BYTES: usize = if cfg!(target_arch = "wasm32") { 128 << 20 } else { 320 << 20 };
+/// Bytes of idle float images kept; a buffer that does not fit is freed.
+const F32_MAX_BYTES: usize = 320 << 20;
 
 fn take<T>(shelf: &Mutex<Shelf<T>>, len: usize) -> Vec<T> {
     let found = shelf.lock().unwrap_or_else(PoisonError::into_inner).take(len);

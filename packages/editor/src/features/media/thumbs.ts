@@ -9,9 +9,9 @@ import { hostCache, mediaPathOf } from '../cache/keys';
 import { pngBytesFromDataUrl, pngDataUrlFromBytes } from '../cache/png';
 
 /** 화면 표시 폭 48px 의 2배(HiDPI). 높이는 원본 비율을 따른다 */
-export const THUMB_WIDTH = 96;
+const THUMB_WIDTH = 96;
 /** 기본 캐시 항목 수 */
-export const THUMB_CAPACITY = 512;
+const THUMB_CAPACITY = 512;
 /** 포스터 프레임(없으면 0) 을 뜻하는 tick */
 export const POSTER_TICK = -1;
 
@@ -72,9 +72,9 @@ export class LruCache<V> {
 }
 
 /** Frame 을 img 가 보여 줄 URL 로. 기본은 canvas.toDataURL(PNG) */
-export type Encode = (frame: Frame) => string;
+type Encode = (frame: Frame) => string;
 
-export function encodeWithCanvas(frame: Frame): string {
+function encodeWithCanvas(frame: Frame): string {
   const canvas = document.createElement('canvas');
   canvas.width = frame.width;
   canvas.height = frame.height;
@@ -88,7 +88,7 @@ export function thumbKey(item: number, tick: number, width: number, salt = 0): s
   return `${item}:${tick}:${width}:${salt}`;
 }
 
-export interface ThumbnailLoaderOptions {
+interface ThumbnailLoaderOptions {
   width?: number;
   capacity?: number;
   encode?: Encode;
@@ -99,7 +99,7 @@ export interface ThumbnailLoaderOptions {
 }
 
 /** 썸네일 하나의 상태: 아직 없음(undefined), 실패(null), URL */
-export type ThumbState = string | null | undefined;
+type ThumbState = string | null | undefined;
 
 export class ThumbnailLoader {
   readonly cache: LruCache<string | null>;

@@ -34,7 +34,7 @@ export interface MenuSepDef {
 }
 export type MenuEntry = MenuItemDef | MenuSubDef | MenuSepDef;
 
-export interface MenuDef {
+interface MenuDef {
   id: string;
   label: string;
   items: MenuEntry[];

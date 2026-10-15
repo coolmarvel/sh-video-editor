@@ -5,22 +5,22 @@
 import { KEYMAP, type ShortcutDef, type ShortcutScope } from './keymap';
 
 /** 표의 "묶음" 열. 실제로는 입력란·대화상자가 열려 있지 않으면 어느 패널에서나 통한다(useShortcuts) */
-export const SCOPE_LABEL: Record<ShortcutScope, string> = {
+const SCOPE_LABEL: Record<ShortcutScope, string> = {
   global: '어디서나',
   timeline: '타임라인',
   monitor: '미리보기',
 };
 
-export interface ShortcutRow {
+interface ShortcutRow {
   /** 키 조합들. 둘 이상이면 쉼표로 잇는다. 각 조합은 백틱으로 감싼다 */
   keys: string;
   label: string;
   scope: string;
 }
 
-export const SHORTCUT_TABLE_HEADER = ['키', '동작', '묶음'] as const;
+const SHORTCUT_TABLE_HEADER = ['키', '동작', '묶음'] as const;
 
-export function shortcutRows(defs: readonly ShortcutDef[] = KEYMAP): ShortcutRow[] {
+function shortcutRows(defs: readonly ShortcutDef[] = KEYMAP): ShortcutRow[] {
   return defs.map((d) => ({ keys: d.keys.map((k) => `\`${k}\``).join(', '), label: d.label, scope: SCOPE_LABEL[d.scope] }));
 }
 

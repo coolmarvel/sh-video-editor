@@ -6,9 +6,9 @@ import type { EngineBridge, Frame } from '../../engine/bridge';
 import { pngBytesFromDataUrl } from '../cache/png';
 
 /** 카드 미리보기 폭 96px 의 2배(HiDPI) */
-export const THUMB_WIDTH = 192;
+const THUMB_WIDTH = 192;
 /** renderFrame 배율. 1080p 기준 480px 로 받아 줄인다 */
-export const THUMB_RENDER_SCALE = 0.25;
+const THUMB_RENDER_SCALE = 0.25;
 
 /** Frame 을 폭 width 의 PNG data URL 로. 캔버스 컨텍스트가 없으면 null */
 export function encodeFrame(frame: Frame, width = THUMB_WIDTH): string | null {

@@ -6,7 +6,3 @@ import { registerInspectorTab } from '../inspector/registry';
 import { TranscriptTab } from './TranscriptTab';
 
 registerInspectorTab({ id: 'transcript', label: '전사', order: 95, when: () => true, component: TranscriptTab });
-
-export { TranscriptTab, clock } from './TranscriptTab';
-export { useTranscript, selectedRanges, hitParagraphs } from './store';
-export type { Paragraph, SearchHit, TranscriptState } from './store';

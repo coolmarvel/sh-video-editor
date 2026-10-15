@@ -10,7 +10,7 @@ import type { ParamDef } from './types';
 
 export const DRAG_DEBOUNCE_MS = 50;
 
-export interface NumberParamProps {
+interface NumberParamProps {
   def: ParamDef;
   value: number;
   disabled?: boolean;
@@ -124,7 +124,7 @@ function formatNumber(def: ParamDef, v: number): string {
   return formatParam({ ...def, unit: undefined }, v);
 }
 
-export interface BoolParamProps {
+interface BoolParamProps {
   def: ParamDef;
   value: boolean;
   disabled?: boolean;
@@ -143,7 +143,7 @@ export function BoolParam({ def, value, disabled, onChange }: BoolParamProps) {
   );
 }
 
-export interface ChoiceParamProps {
+interface ChoiceParamProps {
   def: ParamDef;
   value: number;
   disabled?: boolean;
@@ -165,7 +165,7 @@ export function ChoiceParam({ def, value, disabled, onChange }: ChoiceParamProps
   );
 }
 
-export interface ColorParamProps {
+interface ColorParamProps {
   def: ParamDef;
   rgba: [number, number, number, number];
   disabled?: boolean;
@@ -183,7 +183,7 @@ export function ColorParam({ def, rgba, disabled, onChange }: ColorParamProps) {
   );
 }
 
-export interface PointParamProps {
+interface PointParamProps {
   def: ParamDef;
   x: number;
   y: number;

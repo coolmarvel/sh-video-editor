@@ -68,11 +68,11 @@ describe('속도 램프', () => {
     expect(engine.callsOf('effects.toggleAnimation')).toEqual([{ clip: a.clip, effect: 'time_remap', param: 'speed' }]);
     expect(keyframeCount(clipNow(), 'time_remap', 'speed')).toBe(4);
     expect(labelsOf()).toEqual(['속도 곡선: 몽타주', '속도 곡선: 히어로']);
-    // 실행 취소 한 번이면 몽타주로 돌아가고 화면 목록도 스냅샷에서 되살아난다
+    // 실행 취소 한 번이면 몽타주로 돌아가고 화면 목록도 엔진에서 다시 읽는다
     await useTimeline.getState().undo();
+    await useKeyframes.getState().synced();
     expect(keyframeCount(clipNow(), 'time_remap', 'speed')).toBe(3);
     expect(useKeyframes.getState().tracks[rampKey()]!.map((k) => k.value)).toEqual([50, 100, 300]);
-    expect(useKeyframes.getState().stale[rampKey()]).toBeUndefined();
   });
 
   it('점 목록으로 바꾸기, 빈 목록이면 지우기, 모르는 프리셋·클립은 거부', async () => {
@@ -105,21 +105,18 @@ describe('속도 램프', () => {
     expect(engine.calls.length).toBe(n);
   });
 
-  it('엔진 effects.keyframes 로 목록을 다시 읽는다(stale 해소)', async () => {
+  it('목록은 엔진 effects.keyframes 에서 읽은 시각·값·보간이다(화면 목록을 지워도 다음 inspect 에 되살아난다)', async () => {
     await fx().applyRamp(a.clip, 'montage');
-    useKeyframes.setState({ tracks: {}, stale: { [rampKey()]: true } });
-    expect(await useKeyframes.getState().load(a.clip, 'time_remap', 'speed')).toBe(true);
+    useKeyframes.setState({ tracks: {} });
+    await useTimeline.getState().refresh();
+    await useKeyframes.getState().synced();
     const track = useKeyframes.getState().tracks[rampKey()]!;
     expect(track.map((k) => [k.time / T, k.value, k.interp])).toEqual([
       [0, 50, 'linear'],
       [2, 100, 'linear'],
       [4 - 1 / 30, 300, 'linear'],
     ]);
-    expect(useKeyframes.getState().stale[rampKey()]).toBeUndefined();
-    expect(await useKeyframes.getState().load(a.clip, 'time_remap', 'nope')).toBe(false);
-    expect(await useKeyframes.getState().load(999, 'time_remap', 'speed')).toBe(false);
-    // 키프레임이 없는 파라미터는 목록에서 뺀다
-    expect(await useKeyframes.getState().load(a.clip, 'motion', 'scale')).toBe(true);
+    // 키프레임이 없는 파라미터는 목록에 없다
     expect(useKeyframes.getState().tracks[paramKey(a.clip, 'motion', 'scale')]).toBeUndefined();
   });
 });

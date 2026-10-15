@@ -13,6 +13,7 @@ import { refreshAll } from '../shortcuts/actions';
 import { parseFillers } from '../stt/rules';
 import { useStt } from '../stt/store';
 import { useTimeline } from '../timeline/store';
+import { errorMessage } from '../../errors';
 
 /** `transcript.inspect` 의 문장(paragraphs[]) 하나 */
 export interface Paragraph {
@@ -26,19 +27,19 @@ export interface Paragraph {
   text: string;
 }
 
-export interface SearchHit {
+interface SearchHit {
   from: number;
   to: number;
   start: number;
   end: number;
 }
 
-export interface TranscriptNotice {
+interface TranscriptNotice {
   tone: 'info' | 'danger' | 'success';
   text: string;
 }
 
-export interface TranscriptState {
+interface TranscriptState {
   /** 전사를 한 번이라도 읽었는가(빈 상태 안내와 로딩 구분) */
   loaded: boolean;
   words: number;
@@ -67,8 +68,6 @@ export interface TranscriptState {
   removeFillers(): Promise<void>;
   setNotice(n: TranscriptNotice | null): void;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function bridge() {
   return useEditor.getState().bridge;
@@ -160,7 +159,7 @@ export const useTranscript = create<TranscriptState>((set, get) => {
         const r = (await exec('transcript.search', { query: q })) as { matches?: SearchHit[] };
         if (get().query === query) set({ hits: r.matches ?? [] });
       } catch (e) {
-        set({ hits: [], notice: { tone: 'danger', text: `검색할 수 없습니다: ${message(e)}` } });
+        set({ hits: [], notice: { tone: 'danger', text: `검색할 수 없습니다: ${errorMessage(e)}` } });
       }
     },
 
@@ -208,7 +207,7 @@ export const useTranscript = create<TranscriptState>((set, get) => {
         const n = get().selected.length;
         await afterEdit(`문장 ${n}개를 지웠습니다 (${(ticks / TICKS_PER_SECOND).toFixed(1)}초)`);
       } catch (e) {
-        set({ notice: { tone: 'danger', text: `문장을 지우지 못했습니다: ${message(e)}` } });
+        set({ notice: { tone: 'danger', text: `문장을 지우지 못했습니다: ${errorMessage(e)}` } });
         await refreshAll();
         await get().refresh();
       } finally {
@@ -228,7 +227,7 @@ export const useTranscript = create<TranscriptState>((set, get) => {
         await exec('transcript.select', { from: first.from, to: last.to });
         await refreshAll('선택한 문장 구간을 인, 아웃 점으로 표시했습니다');
       } catch (e) {
-        set({ notice: { tone: 'danger', text: `구간을 표시하지 못했습니다: ${message(e)}` } });
+        set({ notice: { tone: 'danger', text: `구간을 표시하지 못했습니다: ${errorMessage(e)}` } });
       }
     },
 
@@ -239,7 +238,7 @@ export const useTranscript = create<TranscriptState>((set, get) => {
         const r = (await exec('transcript.removePauses', { minSeconds: min, keepSeconds: 0.15 })) as { removed?: number; seconds?: number };
         await afterEdit(r.removed ? `무음 ${r.removed}곳을 잘랐습니다 (${(r.seconds ?? 0).toFixed(1)}초)` : `${min}초 이상 무음이 없습니다`);
       } catch (e) {
-        set({ notice: { tone: 'danger', text: `무음을 자르지 못했습니다: ${message(e)}` } });
+        set({ notice: { tone: 'danger', text: `무음을 자르지 못했습니다: ${errorMessage(e)}` } });
       } finally {
         set({ busy: false });
       }
@@ -252,7 +251,7 @@ export const useTranscript = create<TranscriptState>((set, get) => {
         const r = (await exec('transcript.removeFillers', { fillers })) as { removed?: number; seconds?: number };
         await afterEdit(r.removed ? `군말 ${r.removed}개를 지웠습니다 (${(r.seconds ?? 0).toFixed(1)}초)` : '지울 군말이 없습니다');
       } catch (e) {
-        set({ notice: { tone: 'danger', text: `군말을 지우지 못했습니다: ${message(e)}` } });
+        set({ notice: { tone: 'danger', text: `군말을 지우지 못했습니다: ${errorMessage(e)}` } });
       } finally {
         set({ busy: false });
       }

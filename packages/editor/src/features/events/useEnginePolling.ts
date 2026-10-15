@@ -9,11 +9,6 @@ import { EnginePoller } from './poller';
 
 let current: EnginePoller | null = null;
 
-/** 지금 돌고 있는 폴러. 없으면 null */
-export function enginePoller(): EnginePoller | null {
-  return current;
-}
-
 /** 커맨드를 막 실행한 쪽이 다음 주기를 기다리지 않고 바로 반영하고 싶을 때 */
 export function pollEngineNow(): Promise<void> {
   return current ? current.tick() : Promise.resolve();

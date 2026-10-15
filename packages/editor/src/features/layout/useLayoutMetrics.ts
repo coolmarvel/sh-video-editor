@@ -2,7 +2,7 @@ import { useEffect, useState, type RefObject } from 'react';
 import { LAYOUT_LIMITS } from './store';
 
 /** 화면에서 잰 현재 크기와 그에 따른 한계. 모두 px. */
-export interface LayoutMetrics {
+interface LayoutMetrics {
   /** 측정 전이거나 한 열 배치(모바일)라서 스플리터가 없는 상태 */
   ready: boolean;
   mediaWidth: number;

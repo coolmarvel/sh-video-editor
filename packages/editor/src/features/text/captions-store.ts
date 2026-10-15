@@ -9,6 +9,7 @@ import { TICKS_PER_SECOND } from '../../engine/time';
 import { refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
 import { parseSrt } from './srt';
+import { errorMessage } from '../../errors';
 
 export interface CaptionCue {
   id: number;
@@ -19,7 +20,7 @@ export interface CaptionCue {
   out: string;
 }
 
-export interface CaptionStyle {
+interface CaptionStyle {
   font: string;
   size: number;
   color: string;
@@ -32,7 +33,7 @@ export interface CaptionStyle {
   outlineColor: string;
 }
 
-export interface CaptionTrack {
+interface CaptionTrack {
   id: number;
   label: string;
   name: string;
@@ -42,12 +43,12 @@ export interface CaptionTrack {
   style: CaptionStyle;
 }
 
-export interface CaptionsNotice {
+interface CaptionsNotice {
   tone: 'info' | 'danger' | 'success';
   text: string;
 }
 
-export interface CaptionsState {
+interface CaptionsState {
   tracks: CaptionTrack[];
   /** 목록·편집 대상 트랙 id */
   track: number | null;
@@ -69,7 +70,6 @@ export interface CaptionsState {
   exportSrt(): Promise<void>;
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const SRT_FILTER = [{ name: '자막 파일', extensions: ['srt', 'vtt'] }];
 
 function bridge() {
@@ -139,7 +139,7 @@ export const useCaptions = create<CaptionsState>((set, get) => {
       await get().refresh();
       return r;
     } catch (e) {
-      set({ notice: { tone: 'danger', text: `자막을 편집할 수 없습니다: ${message(e)}` } });
+      set({ notice: { tone: 'danger', text: `자막을 편집할 수 없습니다: ${errorMessage(e)}` } });
       await get().refresh();
       return undefined;
     } finally {

@@ -4,6 +4,7 @@ import { useTimeline } from '../timeline/store';
 import { FIT_MODES, RATIOS, describeSize } from './model';
 import { useRatio } from './store';
 import './ratio.css';
+import { Dialog } from '../../shell/Dialog';
 
 export function RatioDialog() {
   const open = useRatio((s) => s.open);
@@ -23,62 +24,54 @@ export function RatioDialog() {
   const submit = () => void apply(pending, fit);
 
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog ve-dialog--narrow"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ve-ratio-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            hide();
-          } else if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      >
-        <div className="sh-dialog__title">
-          <span id="ve-ratio-title">화면 비율</span>
-        </div>
-        <div className="sh-dialog__body ve-ratio">
-          <p className="ve-dialog-text">
-            지금 {settings ? describeSize(settings.width, settings.height) : '-'}. 비율을 바꾸면 편집본 크기가 바뀌고 영상 클립 {clipCount}개를 새 화면에
-            맞춥니다.
-          </p>
-          <fieldset className="sh-group ve-ratio__group">
-            <legend>비율</legend>
-            {RATIOS.map((r) => (
-              <label key={r.id} className="sh-check ve-ratio__option">
-                <input type="radio" name="ve-ratio" value={r.id} checked={pending === r.id} onChange={() => setPending(r.id)} />
-                <span className="ve-ratio__label">{r.label}</span>
-                <span className="ve-ratio__meta sh-tnum">
-                  {r.width} x {r.height}, {r.hint}
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <fieldset className="sh-group ve-ratio__group">
-            <legend>클립 맞춤</legend>
-            {FIT_MODES.map((m) => (
-              <label key={m.id} className="sh-check ve-ratio__option">
-                <input type="radio" name="ve-ratio-fit" value={m.id} checked={fit === m.id} onChange={() => setFit(m.id)} />
-                <span className="ve-ratio__label">{m.label}</span>
-                <span className="ve-ratio__meta">{m.hint}</span>
-              </label>
-            ))}
-          </fieldset>
-        </div>
-        <div className="sh-dialog__buttons">
-          <button type="button" className="sh-btn sh-btn--dialog" onClick={hide}>
-            취소
-          </button>
-          <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={submit}>
-            적용
-          </button>
-        </div>
+    <Dialog
+      titleId="ve-ratio-title"
+      title="화면 비율"
+      onClose={() => hide()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') {
+          e.preventDefault();
+          submit();
+        }
+      }}
+      className="ve-dialog--narrow"
+    >
+      <div className="sh-dialog__body ve-ratio">
+        <p className="ve-dialog-text">
+          지금 {settings ? describeSize(settings.width, settings.height) : '-'}. 비율을 바꾸면 편집본 크기가 바뀌고 영상 클립 {clipCount}개를 새 화면에
+          맞춥니다.
+        </p>
+        <fieldset className="sh-group ve-ratio__group">
+          <legend>비율</legend>
+          {RATIOS.map((r) => (
+            <label key={r.id} className="sh-check ve-ratio__option">
+              <input type="radio" name="ve-ratio" value={r.id} checked={pending === r.id} onChange={() => setPending(r.id)} />
+              <span className="ve-ratio__label">{r.label}</span>
+              <span className="ve-ratio__meta sh-tnum">
+                {r.width} x {r.height}, {r.hint}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <fieldset className="sh-group ve-ratio__group">
+          <legend>클립 맞춤</legend>
+          {FIT_MODES.map((m) => (
+            <label key={m.id} className="sh-check ve-ratio__option">
+              <input type="radio" name="ve-ratio-fit" value={m.id} checked={fit === m.id} onChange={() => setFit(m.id)} />
+              <span className="ve-ratio__label">{m.label}</span>
+              <span className="ve-ratio__meta">{m.hint}</span>
+            </label>
+          ))}
+        </fieldset>
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <button type="button" className="sh-btn sh-btn--dialog" onClick={hide}>
+          취소
+        </button>
+        <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={submit}>
+          적용
+        </button>
+      </div>
+    </Dialog>
   );
 }

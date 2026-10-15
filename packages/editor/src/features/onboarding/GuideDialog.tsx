@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react';
 import { UsageDoc } from './UsageDoc';
 import { useOnboarding } from './store';
+import { Dialog } from '../../shell/Dialog';
 
 export function GuideDialog() {
   const open = useOnboarding((s) => s.guideOpen);
@@ -17,32 +18,16 @@ export function GuideDialog() {
 
   if (!open) return null;
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog ve-dialog--usage"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ve-guide-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            setOpen(false);
-          }
-        }}
-      >
-        <div className="sh-dialog__title">
-          <span id="ve-guide-title">사용 안내</span>
-        </div>
-        <div className="sh-dialog__body ve-dialog__body--usage">
-          <UsageDoc />
-        </div>
-        <div className="sh-dialog__buttons">
-          <span className="ve-usage__source">docs/guides/usage.md</span>
-          <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={() => setOpen(false)}>
-            확인
-          </button>
-        </div>
+    <Dialog titleId="ve-guide-title" title="사용 안내" onClose={() => setOpen(false)} className="ve-dialog--usage">
+      <div className="sh-dialog__body ve-dialog__body--usage">
+        <UsageDoc />
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <span className="ve-usage__source">docs/guides/usage.md</span>
+        <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={() => setOpen(false)}>
+          확인
+        </button>
+      </div>
+    </Dialog>
   );
 }

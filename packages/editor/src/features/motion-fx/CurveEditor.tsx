@@ -16,7 +16,7 @@ export interface CurvePointView {
   value: number;
 }
 
-export interface CurveEditorProps {
+interface CurveEditorProps {
   /** 클립 안 시각 범위(키프레임을 둘 수 있는 첫·마지막 프레임) */
   start: number;
   last: number;

@@ -15,7 +15,7 @@ import { findClip, type ClipInfo } from '../timeline/types';
 import { FILTER_PRESETS, LUMETRI_EFFECT, effectLabel, filterPreset, isIntrinsic } from './catalog';
 import { makeThumbnails } from './thumbnails';
 import type { ClipEffectInfo, FilterPreset } from './types';
-import { useKeyframes } from '../keyframes/store';
+import { errorMessage } from '../../errors';
 
 /** `effects.setParam` 의 value: 숫자, 불, "#rrggbb", [x, y] */
 export type ParamInput = number | boolean | string | [number, number];
@@ -27,7 +27,7 @@ export interface SetParamOptions {
   begin?: boolean;
 }
 
-export interface CompareState {
+interface CompareState {
   /** 클립별로 꺼 둔 효과 index */
   clips: Record<number, number[]>;
   /** 끈 직후의 엔진 revision. 같으면 undo 로 되돌린다 */
@@ -36,7 +36,7 @@ export interface CompareState {
   steps: number;
 }
 
-export interface ThumbCache {
+interface ThumbCache {
   key: string;
   urls: Record<string, string>;
 }
@@ -69,7 +69,7 @@ function bridgeOrNull(): EngineBridge | null {
 }
 
 function describeError(e: unknown): string {
-  return `효과를 바꿀 수 없습니다: ${e instanceof Error ? e.message : String(e)}`;
+  return `효과를 바꿀 수 없습니다: ${errorMessage(e)}`;
 }
 
 /** 지금 타임라인 store 가 아는 클립. 없으면 null */
@@ -162,9 +162,8 @@ export const useEffects = create<EffectsState>((set, get) => {
     const params: Record<string, unknown> = { clip, effect, param, value };
     if (opts?.merge) params['merge'] = true;
     if (opts?.begin) params['begin'] = true;
+    // 애니메이션 중인 파라미터면 플레이헤드에 키프레임이 생긴다(엔진 규칙). 키프레임 목록은 inspect 뒤 features/keyframes 가 다시 읽는다
     await bridge.execute('effects.setParam', params);
-    // 애니메이션 중인 파라미터면 플레이헤드에 키프레임이 생긴다(엔진 규칙). 키프레임 목록에 알린다
-    useKeyframes.getState().noteParamSet(clip, effect, param, value);
   }
 
   /** 클립의 lumetri 효과를 전부 뗀다(뒤에서부터). 뗀 개수 */

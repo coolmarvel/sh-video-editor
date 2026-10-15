@@ -1,7 +1,7 @@
 /** features/templates: 레시피가 가짜 엔진에서 기대한 커맨드 순서를 내고, 묶음 커맨드가 있을 때만 begin/end 로 감싼다. */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TEMPLATES, templateDef } from '@editor/features/templates/catalog';
-import { BEGIN_TRANSACTION, END_TRANSACTION, hasTransactions, runRecipe } from '@editor/features/templates/recipe';
+import { runRecipe } from '@editor/features/templates/recipe';
 import { pickItems, templateSequenceName, useTemplates } from '@editor/features/templates/store';
 import { useInspectorRegistry } from '@editor/features/inspector/registry';
 import { useMedia } from '@editor/features/media/store';
@@ -41,7 +41,17 @@ describe('레시피 커맨드 순서', () => {
     const seq = await useTemplates.getState().applyTemplate('intro-title', []);
     expect(seq).toBe(engine.state.sequence!.id);
     const order = ids(from).filter(
-      (id) => !['sequence.inspect', 'project.inspect', 'project.items', 'graphics.list', 'export.queue.list', 'file.autoSaveStatus'].includes(id),
+      (id) =>
+        ![
+          'sequence.inspect',
+          'project.inspect',
+          'project.items',
+          'graphics.list',
+          'export.queue.list',
+          'file.autoSaveStatus',
+          'edit.beginTransaction',
+          'edit.endTransaction',
+        ].includes(id),
     );
     expect(order.slice(0, 9)).toEqual([
       'file.newSequence',
@@ -147,30 +157,23 @@ describe('레시피 커맨드 순서', () => {
 });
 
 describe('묶음 실행 취소', () => {
-  it('edit.beginTransaction/endTransaction 이 카탈로그에 있을 때만 감싼다(실패해도 end 를 보낸다)', async () => {
-    expect(hasTransactions([{ id: 'file.newSequence' }])).toBe(false);
-    expect(hasTransactions([{ id: BEGIN_TRANSACTION }, { id: END_TRANSACTION }])).toBe(true);
+  it('레시피 전체를 한 묶음으로 감싸고, 실패하면 묶음을 취소한다', async () => {
     const log: string[] = [];
     const bridge = {
       ...engine.bridge,
       execute: async (id: string, params?: Record<string, unknown>) => {
         log.push(id);
-        if (id === BEGIN_TRANSACTION || id === END_TRANSACTION) return null;
         return engine.bridge.execute(id, params);
       },
     };
-    const r = await runRecipe(bridge, [{ id: BEGIN_TRANSACTION }, { id: END_TRANSACTION }], '템플릿', templateDef('ending-card')!.run, {
-      name: '엔딩',
-      items: [],
-    });
-    expect(log[0]).toBe(BEGIN_TRANSACTION);
-    expect(log.at(-1)).toBe(END_TRANSACTION);
+    const r = await runRecipe(bridge, '템플릿', templateDef('ending-card')!.run, { name: '엔딩', items: [] });
+    expect(log[0]).toBe('edit.beginTransaction');
+    expect(log.at(-1)).toBe('edit.endTransaction');
     expect(r.sequence).toBe(engine.state.sequence!.id);
     log.length = 0;
     await expect(
       runRecipe(
         bridge,
-        [{ id: BEGIN_TRANSACTION }, { id: END_TRANSACTION }],
         '템플릿',
         async () => {
           throw new Error('x');
@@ -178,10 +181,6 @@ describe('묶음 실행 취소', () => {
         { name: 'n', items: [] },
       ),
     ).rejects.toThrow('x');
-    expect(log).toEqual([BEGIN_TRANSACTION, END_TRANSACTION]);
-    // 묶음 커맨드가 없으면 보내지 않는다
-    log.length = 0;
-    await runRecipe(bridge, [], '템플릿', async () => ({ sequence: null }), { name: 'n', items: [] });
-    expect(log).toEqual([]);
+    expect(log).toEqual(['edit.beginTransaction', 'edit.cancelTransaction']);
   });
 });

@@ -5,7 +5,7 @@
 import type { EffectDef, FilterPreset, ParamDef, PresetFolder } from './types';
 
 /** 클립이 처음부터 갖는 고정 효과. 효과 목록에서 숨기고 "기본" 묶음으로 보인다 */
-export const INTRINSIC_EFFECTS = ['motion', 'opacity', 'time_remap'] as const;
+const INTRINSIC_EFFECTS = ['motion', 'opacity', 'time_remap'] as const;
 
 export function isIntrinsic(effectId: string): boolean {
   return (INTRINSIC_EFFECTS as readonly string[]).includes(effectId);
@@ -96,7 +96,7 @@ export function effectLabel(effectId: string): string {
 }
 
 /** "기본" 묶음: 클립 고정 효과(motion, opacity)에서 사용자에게 보이는 네 가지 */
-export interface BasicParam {
+interface BasicParam {
   effect: 'motion' | 'opacity';
   def: ParamDef;
 }

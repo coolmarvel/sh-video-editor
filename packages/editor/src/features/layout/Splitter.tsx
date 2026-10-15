@@ -2,7 +2,7 @@ import { useCallback, useRef, type KeyboardEvent, type PointerEvent } from 'reac
 import { LAYOUT_LIMITS, clamp, useLayoutStore, type ResizeAxis } from './store';
 import './splitter.css';
 
-export interface SplitterProps {
+interface SplitterProps {
   /** 구분선의 방향. vertical 은 좌우 너비를, horizontal 은 위아래 높이를 조절한다 */
   orientation: 'vertical' | 'horizontal';
   /** 조절 대상 패널의 현재 크기(px) */

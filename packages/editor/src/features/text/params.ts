@@ -6,7 +6,7 @@
  */
 import type { ClipInfo } from '../timeline/types';
 
-export type ParamValue =
+type ParamValue =
   | { kind: 'text'; text: string }
   | { kind: 'float'; value: number }
   | { kind: 'bool'; value: boolean }
@@ -90,10 +90,10 @@ export function parseParamValue(raw: unknown): ParamValue {
 }
 
 export type TextAlign = 'left' | 'center' | 'right' | 'justify';
-export const ALIGN_BY_INDEX: TextAlign[] = ['left', 'center', 'right', 'justify'];
+const ALIGN_BY_INDEX: TextAlign[] = ['left', 'center', 'right', 'justify'];
 
 /** 텍스트 레이어(graphic_text 효과)의 현재 값. 인스펙터가 보여 주는 모양 */
-export interface TextLayerStyle {
+interface TextLayerStyle {
   text: string;
   font: string;
   fontStyle: string;

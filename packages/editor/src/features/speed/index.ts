@@ -4,10 +4,4 @@ import { SpeedTab } from './SpeedTab';
 
 registerInspectorTab({ id: 'speed', label: '속도', order: 30, component: SpeedTab });
 
-export { useSpeed, FREEZE_SECONDS } from './store';
-export { SpeedForm } from './SpeedForm';
-export { SpeedBadge } from './SpeedBadge';
-export { SpeedTab } from './SpeedTab';
 export * from './model';
-export { registerSpeedSection, useSpeedSections } from './sections';
-export type { SpeedSection } from './sections';

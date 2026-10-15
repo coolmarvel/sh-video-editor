@@ -18,10 +18,10 @@ export const LAYOUT_LIMITS = {
   keyStep: 8,
 } as const;
 
-export const LAYOUT_STORAGE_KEY = 'sh-video-editor.layout.v1';
+const LAYOUT_STORAGE_KEY = 'sh-video-editor.layout.v1';
 
 /** null 은 "기본값(CSS 가 정한 크기)" 을 뜻한다. */
-export interface LayoutSizes {
+interface LayoutSizes {
   mediaWidth: number | null;
   timelineHeight: number | null;
 }

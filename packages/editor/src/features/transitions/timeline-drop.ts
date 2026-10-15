@@ -11,7 +11,7 @@ import { useTransitions } from './store';
 import { defaultFrames, nearestEditPoint } from './types';
 
 /** 편집점에 들러붙는 거리(px). 클립 스냅(SNAP_PX)보다 넉넉하게 */
-export const EDIT_POINT_PX = SNAP_PX * 3;
+const EDIT_POINT_PX = SNAP_PX * 3;
 
 function pointFor(row: TrackRow, tick: number) {
   const pxPerSec = useTimeline.getState().pxPerSec;

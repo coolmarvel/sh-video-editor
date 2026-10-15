@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { formatBytes } from './rules';
 import { useStt } from './store';
+import { Dialog } from '../../shell/Dialog';
 
 /**
  * 자동 자막 대화상자 하나로 두 상태를 그린다.
@@ -28,48 +29,31 @@ export function SttDialog() {
 
   if (phase === 'consent' && model) {
     return (
-      <div className="sh-scrim ve-layer" role="presentation">
-        <div
-          className="sh-dialog sh-dialog--inline ve-dialog stt-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="stt-consent-title"
-          data-testid="stt-consent"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              decline();
-            }
-          }}
-        >
-          <div className="sh-dialog__title">
-            <span id="stt-consent-title">음성 모델 내려받기</span>
-          </div>
-          <div className="sh-dialog__body stt-dialog__body">
-            <p className="ve-dialog-text">
-              자동 자막을 처음 쓰려면 음성 인식 모델 <strong>{model.name}</strong> 을 한 번 내려받아야 합니다.
-            </p>
-            <dl className="stt-facts">
-              <dt>크기</dt>
-              <dd>{formatBytes(model.size)}</dd>
-              <dt>출처</dt>
-              <dd>{model.source}</dd>
-              <dt>라이선스</dt>
-              <dd>{model.license}</dd>
-              <dt>보관</dt>
-              <dd>이 컴퓨터의 앱 데이터 폴더에 저장되어 이후에는 인터넷 없이 씁니다. 영상·소리는 컴퓨터 밖으로 나가지 않습니다.</dd>
-            </dl>
-          </div>
-          <div className="sh-dialog__buttons">
-            <button type="button" className="sh-btn sh-btn--dialog" onClick={decline}>
-              취소
-            </button>
-            <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={agree}>
-              동의하고 내려받기
-            </button>
-          </div>
+      <Dialog titleId="stt-consent-title" title="음성 모델 내려받기" onClose={() => decline()} className="stt-dialog" testId="stt-consent">
+        <div className="sh-dialog__body stt-dialog__body">
+          <p className="ve-dialog-text">
+            자동 자막을 처음 쓰려면 음성 인식 모델 <strong>{model.name}</strong> 을 한 번 내려받아야 합니다.
+          </p>
+          <dl className="stt-facts">
+            <dt>크기</dt>
+            <dd>{formatBytes(model.size)}</dd>
+            <dt>출처</dt>
+            <dd>{model.source}</dd>
+            <dt>라이선스</dt>
+            <dd>{model.license}</dd>
+            <dt>보관</dt>
+            <dd>이 컴퓨터의 앱 데이터 폴더에 저장되어 이후에는 인터넷 없이 씁니다. 영상·소리는 컴퓨터 밖으로 나가지 않습니다.</dd>
+          </dl>
         </div>
-      </div>
+        <div className="sh-dialog__buttons">
+          <button type="button" className="sh-btn sh-btn--dialog" onClick={decline}>
+            취소
+          </button>
+          <button ref={primaryRef} type="button" className="sh-btn sh-btn--dialog sh-btn--primary" onClick={agree}>
+            동의하고 내려받기
+          </button>
+        </div>
+      </Dialog>
     );
   }
 
@@ -86,40 +70,29 @@ export function SttDialog() {
   const determinate = phase === 'downloading' || phase === 'transcribing';
 
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog stt-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="stt-progress-title"
-        data-testid="stt-progress"
-      >
-        <div className="sh-dialog__title">
-          <span id="stt-progress-title">{title}</span>
+    <Dialog titleId="stt-progress-title" title={title} onClose={() => {}} className="stt-dialog" testId="stt-progress">
+      <div className="sh-dialog__body stt-dialog__body">
+        <div
+          className="sh-progress stt-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={determinate ? percent : undefined}
+          aria-label={title}
+        >
+          <span style={{ width: `${determinate ? percent : 100}%` }} />
         </div>
-        <div className="sh-dialog__body stt-dialog__body">
-          <div
-            className="sh-progress stt-progress"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={determinate ? percent : undefined}
-            aria-label={title}
-          >
-            <span style={{ width: `${determinate ? percent : 100}%` }} />
-          </div>
-          <p className="ve-dialog-text sh-tnum" data-testid="stt-progress-detail">
-            {determinate ? `${percent}% ` : ''}
-            {detail}
-          </p>
-          {phase === 'transcribing' ? <p className="tx-hint">긴 영상은 재생 시간의 절반쯤 걸립니다. 그동안 다른 편집은 계속할 수 있습니다.</p> : null}
-        </div>
-        <div className="sh-dialog__buttons">
-          <button type="button" className="sh-btn sh-btn--dialog" disabled={cancelled || !determinate} onClick={() => void cancel()}>
-            {cancelled ? '멈추는 중' : '취소'}
-          </button>
-        </div>
+        <p className="ve-dialog-text sh-tnum" data-testid="stt-progress-detail">
+          {determinate ? `${percent}% ` : ''}
+          {detail}
+        </p>
+        {phase === 'transcribing' ? <p className="tx-hint">긴 영상은 재생 시간의 절반쯤 걸립니다. 그동안 다른 편집은 계속할 수 있습니다.</p> : null}
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <button type="button" className="sh-btn sh-btn--dialog" disabled={cancelled || !determinate} onClick={() => void cancel()}>
+          {cancelled ? '멈추는 중' : '취소'}
+        </button>
+      </div>
+    </Dialog>
   );
 }

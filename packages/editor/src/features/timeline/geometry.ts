@@ -1,5 +1,5 @@
 /** 시간(tick)과 화면(px) 사이 변환, 프레임·스냅 계산. 엔진 상태를 바꾸지 않는 순수 함수만 둔다. */
-import { TICKS_PER_SECOND } from '../../engine/time';
+import { TICKS_PER_SECOND, framesToTimecode } from '../../engine/time';
 import type { FrameRate } from './types';
 
 export const MIN_PX_PER_SEC = 4;
@@ -88,13 +88,7 @@ export function rulerStep(pxPerSec: number, fr: FrameRate, minLabelPx = 80): { m
 export function timecodeAt(tick: number, fr: FrameRate): string {
   const nominal = Math.round(fpsOf(fr));
   const totalFrames = Math.max(0, Math.round(tick / frameTicks(fr)));
-  const f = totalFrames % nominal;
-  const totalSeconds = Math.floor(totalFrames / nominal);
-  const s = totalSeconds % 60;
-  const m = Math.floor(totalSeconds / 60) % 60;
-  const h = Math.floor(totalSeconds / 3600);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
+  return framesToTimecode(totalFrames, nominal);
 }
 
 /**

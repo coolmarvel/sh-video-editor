@@ -11,10 +11,9 @@ import { useProject } from '../project/store';
 import { refreshAll } from '../shortcuts/actions';
 import type { SequenceInfo } from '../timeline/types';
 import { DEMO_EDITION_NAME, editionName } from './naming';
+import { errorMessage } from '../../errors';
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-export interface AddResult {
+interface AddResult {
   /** 새로 만든 편집본 id(만들었을 때만) */
   sequence: number | null;
   /** 놓은 항목 수 */
@@ -87,7 +86,7 @@ async function startEdition(name: string, items: MediaItem[]): Promise<AddResult
     useProject.getState().notify('success', `${label(items)} 으로 편집을 시작합니다. 타임라인에서 자르고 다듬어 보세요.`);
     return { sequence: r.sequence, placed };
   } catch (e) {
-    useProject.getState().notify('danger', `타임라인에 넣지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `타임라인에 넣지 못했습니다. ${errorMessage(e)}`);
     await refreshAll();
     return { sequence: null, placed: 0 };
   } finally {
@@ -113,7 +112,7 @@ export async function addToTimeline(ids: number[]): Promise<AddResult> {
     useProject.getState().notify('success', `${label(items)} 을 타임라인 끝에 넣었습니다.`);
     return { sequence: null, placed };
   } catch (e) {
-    useProject.getState().notify('danger', `타임라인에 넣지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `타임라인에 넣지 못했습니다. ${errorMessage(e)}`);
     await refreshAll();
     return { sequence: null, placed: 0 };
   } finally {
@@ -142,7 +141,7 @@ export async function createDemoEdition(): Promise<AddResult> {
     }
     await useMedia.getState().refresh();
   } catch (e) {
-    useProject.getState().notify('danger', `데모 영상을 넣지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `데모 영상을 넣지 못했습니다. ${errorMessage(e)}`);
     await refreshAll();
     return { sequence: null, placed: 0 };
   } finally {
@@ -160,6 +159,6 @@ export async function openEdition(itemId: number): Promise<void> {
     const name = findItem(useMedia.getState().root, itemId)?.name ?? '';
     await refreshAll(name ? `"${name}" 편집본을 열었습니다` : '편집본을 열었습니다');
   } catch (e) {
-    useProject.getState().notify('danger', `편집본을 열지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `편집본을 열지 못했습니다. ${errorMessage(e)}`);
   }
 }

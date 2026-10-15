@@ -14,7 +14,7 @@ import { MOTION_PRESETS } from './presets';
 import { keyframeCount, keyframeUnderPlayhead, useKeyframes, valueNow } from './store';
 import './keyframes.css';
 
-export function motionClip(ctx: InspectorContext): ClipInfo | null {
+function motionClip(ctx: InspectorContext): ClipInfo | null {
   return ctx.clips.find((c) => hasVideoEffects(c)) ?? null;
 }
 
@@ -26,7 +26,6 @@ function numberOf(v: KeyframeValue, axis: 0 | 1 | undefined): number {
 export function MotionTab(ctx: InspectorContext) {
   const clip = motionClip(ctx);
   const tracks = useKeyframes((s) => s.tracks);
-  const stale = useKeyframes((s) => s.stale);
   const busy = useKeyframes((s) => s.busy);
   const act = useKeyframes.getState();
   if (!clip) return <p className="ve-inspector__hint">영상, 텍스트, 스티커 클립을 선택하세요.</p>;
@@ -52,7 +51,7 @@ export function MotionTab(ctx: InspectorContext) {
       step: row.step,
       unit: row.unit,
     };
-    return { row, key, count, value, current, def, isStale: stale[key] === true };
+    return { row, key, count, value, current, def };
   });
 
   const setRow = (row: MotionRow, v: number, opts: { merge?: boolean; begin?: boolean }) => {
@@ -97,7 +96,7 @@ export function MotionTab(ctx: InspectorContext) {
 
       <fieldset className="sh-group kf-group">
         <legend>모션</legend>
-        {rows.map(({ row, count, value, current, def, isStale }) => (
+        {rows.map(({ row, count, value, current, def }) => (
           <div key={row.id} className="kf-row" data-row={row.id} data-animated={count > 0} data-keyframe={current !== undefined}>
             <NumberParam def={def} value={Math.round(value * 100) / 100} disabled={busy} onChange={(v, opts) => setRow(row, v, opts)} />
             <button
@@ -114,9 +113,7 @@ export function MotionTab(ctx: InspectorContext) {
             </button>
             {count > 0 ? (
               <div className="kf-row__detail">
-                <span className="kf-row__count sh-tnum">
-                  키프레임 {count}개{isStale ? ' (목록을 다시 읽을 수 없어 마커가 비어 있습니다)' : ''}
-                </span>
+                <span className="kf-row__count sh-tnum">키프레임 {count}개</span>
                 {current ? (
                   <select
                     className="sh-select kf-interp"

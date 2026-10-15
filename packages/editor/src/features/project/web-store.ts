@@ -22,8 +22,9 @@ import {
   type WebProjectEntry,
 } from './web-files';
 import { afterWebSave } from './web-session';
+import { errorMessage } from '../../errors';
 
-export type WebFilesMode = 'save' | 'open' | 'relink';
+type WebFilesMode = 'save' | 'open' | 'relink';
 
 interface WebFilesState {
   mode: WebFilesMode | null;
@@ -48,7 +49,6 @@ interface WebFilesState {
   close(): void;
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** 테스트용: 다운로드를 바꿔 끼운다 */
 export const webDownload = { fn: downloadBytes };
 
@@ -66,7 +66,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
     try {
       set({ projects: await listProjects(b.opfs) });
     } catch (e) {
-      set({ projects: [], error: `저장된 프로젝트 목록을 읽지 못했습니다: ${message(e)}` });
+      set({ projects: [], error: `저장된 프로젝트 목록을 읽지 못했습니다: ${errorMessage(e)}` });
     }
   }
 
@@ -102,7 +102,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
         if (missing.length === 0) return;
         set({ mode: 'relink', missing, error: null, busy: false });
       } catch (e) {
-        notify('danger', `찾을 수 없는 미디어 목록을 읽지 못했습니다: ${message(e)}`);
+        notify('danger', `찾을 수 없는 미디어 목록을 읽지 못했습니다: ${errorMessage(e)}`);
       }
     },
 
@@ -136,7 +136,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
         resolveSave?.(true);
         resolveSave = null;
       } catch (e) {
-        set({ busy: false, error: `저장하지 못했습니다: ${message(e)}` });
+        set({ busy: false, error: `저장하지 못했습니다: ${errorMessage(e)}` });
       }
     },
 
@@ -171,7 +171,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
         set({ mode: null, busy: false });
         if (result.missingMedia > 0) await get().showRelink();
       } catch (e) {
-        set({ busy: false, error: `파일을 열 수 없습니다: ${message(e)}` });
+        set({ busy: false, error: `파일을 열 수 없습니다: ${errorMessage(e)}` });
       }
     },
 
@@ -182,7 +182,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
         await b.opfs.remove(opfsRelative(path));
         await useRecent.getState().forget(path);
       } catch (e) {
-        set({ error: `지우지 못했습니다: ${message(e)}` });
+        set({ error: `지우지 못했습니다: ${errorMessage(e)}` });
       }
       await refreshProjects();
       if (get().selected === path) set({ selected: get().projects[0]?.path ?? null });
@@ -202,7 +202,7 @@ export const useWebFiles = create<WebFilesState>((set, get) => {
           set({ missing: remaining, busy: false, error: relinked > 0 ? null : '고른 파일 중에 같은 이름의 파일이 없습니다.' });
         }
       } catch (e) {
-        set({ busy: false, error: `다시 연결하지 못했습니다: ${message(e)}` });
+        set({ busy: false, error: `다시 연결하지 못했습니다: ${errorMessage(e)}` });
       }
     },
 

@@ -14,14 +14,13 @@ import { refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
 import { templateDef, type MediaNeed } from './catalog';
 import { runRecipe, type Recipe, type RecipeResult } from './recipe';
+import { errorMessage } from '../../errors';
 
 interface TemplatesState {
   busy: boolean;
   /** 템플릿으로 편집본을 만든다. 만든 편집본 id, 실패·취소면 null */
   applyTemplate(id: string, itemIds?: number[]): Promise<number | null>;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** 선택(또는 ids)에서 타임라인에 넣을 수 있는 항목만 */
 export function pickItems(ids?: number[]): MediaItem[] {
@@ -36,7 +35,7 @@ export function templateSequenceName(label: string): string {
   return editionName(names, `${useProject.getState().name.trim() || '제목 없음'} ${label}`);
 }
 
-export interface ApplySpec {
+interface ApplySpec {
   label: string;
   media: MediaNeed;
   mediaHint: string;
@@ -61,7 +60,7 @@ export async function applyRecipe(spec: ApplySpec, itemIds?: number[]): Promise<
   useTemplates.setState({ busy: true });
   useMedia.setState({ busy: true });
   try {
-    const r = await runRecipe(bridge, useEditor.getState().commands, `템플릿: ${spec.label}`, spec.run, { name, items });
+    const r = await runRecipe(bridge, `템플릿: ${spec.label}`, spec.run, { name, items });
     await refreshAll(`템플릿으로 편집본 "${name}" 을 만들었습니다`);
     if (r.focusTab) useInspectorRegistry.getState().setActive(r.focusTab);
     useTimeline.getState().requestFit();
@@ -69,7 +68,7 @@ export async function applyRecipe(spec: ApplySpec, itemIds?: number[]): Promise<
     useProject.getState().notify('success', text);
     return r;
   } catch (e) {
-    useProject.getState().notify('danger', `템플릿을 적용하지 못했습니다. ${message(e)}`);
+    useProject.getState().notify('danger', `템플릿을 적용하지 못했습니다. ${errorMessage(e)}`);
     await refreshAll();
     return null;
   } finally {

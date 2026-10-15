@@ -3,6 +3,7 @@ import { TICKS_PER_SECOND } from '../../engine/time';
 import { useEngineEvents } from '../events/store';
 import { RevisionGate, neededRevision } from '../events/revision-gate';
 import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
+import { errorMessage } from '../../errors';
 
 /** 재생 중 백그라운드 작업(pumpJobs) 호출 간격과 1회 예산 */
 const PUMP_INTERVAL_MS = 100;
@@ -458,7 +459,7 @@ export class MonitorController {
 
   private fail(e: unknown): void {
     if (this.disposed) return;
-    useMonitor.setState({ error: e instanceof Error ? e.message : String(e) });
+    useMonitor.setState({ error: errorMessage(e) });
   }
 }
 

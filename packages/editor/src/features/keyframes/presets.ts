@@ -7,7 +7,7 @@ import type { KeyframeValue } from './model';
 
 export type MotionPresetId = 'fadeIn' | 'slideInLeft' | 'zoomIn' | 'fadeOut' | 'slideOutRight' | 'zoomOut';
 
-export interface MotionPreset {
+interface MotionPreset {
   id: MotionPresetId;
   label: string;
   kind: 'in' | 'out';

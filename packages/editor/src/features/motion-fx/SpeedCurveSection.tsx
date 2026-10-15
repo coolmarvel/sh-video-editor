@@ -1,8 +1,7 @@
 /**
  * 속도 탭의 "속도 곡선" 절. 프리셋 세 개(몽타주, 히어로, 총알) + 곡선 편집기 + 곡선 지우기. 점 목록은 features/keyframes 의
- * 화면 목록(time_remap/speed)이고, 목록이 stale 이면 엔진 `effects.keyframes` 로 다시 읽는다. 편집은 useMotionFx 가 엔진 커맨드로.
+ * 목록(time_remap/speed, 엔진에서 읽은 것)이다. 편집은 useMotionFx 가 엔진 커맨드로.
  */
-import { useEffect } from 'react';
 import { hasVideoEffects } from '../effects/store';
 import type { InspectorContext } from '../inspector/registry';
 import { paramKey, sequenceTimeAt } from '../keyframes/model';
@@ -15,19 +14,11 @@ import './motion-fx.css';
 
 export function SpeedCurveSection(ctx: InspectorContext) {
   const clip = ctx.clips.find((c) => hasVideoEffects(c)) ?? null;
-  const clipId = clip?.clip ?? -1;
   const key = clip ? paramKey(clip.clip, 'time_remap', 'speed') : '';
   const track = useKeyframes((s) => (key ? s.tracks[key] : undefined));
-  const isStale = useKeyframes((s) => (key ? s.stale[key] === true : false));
   const kfBusy = useKeyframes((s) => s.busy);
   const busy = useMotionFx((s) => s.busy);
   const count = clip ? keyframeCount(clip, 'time_remap', 'speed') : 0;
-  const needLoad = !!clip && (isStale || (count > 0 && (track?.length ?? 0) !== count));
-
-  useEffect(() => {
-    if (needLoad) void useKeyframes.getState().load(clipId, 'time_remap', 'speed');
-  }, [needLoad, clipId, count]);
-
   if (!clip) return null;
   const ft = frameTicks(ctx.sequence.settings.frame_rate);
   const last = lastKeyframeTime(clip, ft);
@@ -73,7 +64,7 @@ export function SpeedCurveSection(ctx: InspectorContext) {
           />
           <p className="mfx-hint sh-tnum" data-testid="speed-curve-summary">
             점 {points.length}개, {rampSummary(points)}. 점을 끌어 옮기고, 빈 곳을 더블클릭하면 점을 더합니다(최대 {RAMP_MAX_POINTS}개). 점을 고르고 Delete 로
-            지웁니다.{isStale ? ' 목록을 다시 읽는 중입니다.' : ''}
+            지웁니다.
           </p>
         </>
       ) : (

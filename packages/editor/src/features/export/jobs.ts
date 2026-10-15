@@ -3,6 +3,7 @@
  * 호스트가 `pumpJobs` 를 주기적으로 불러야 진행되고 정산된다(엔진 Session::pump_jobs, export_tools::pump_queue).
  */
 import type { EngineBridge } from '../../engine/bridge';
+import { errorMessage } from '../../errors';
 
 export interface QueueItem {
   id: number;
@@ -25,7 +26,7 @@ export interface QueueList {
   items: QueueItem[];
 }
 
-export interface JobReport {
+interface JobReport {
   id: number;
   finished: boolean;
   result: { bytes?: number; frames?: number; seconds?: number; path?: string; error?: string } | null;
@@ -52,7 +53,7 @@ export function runQueueLoop(bridge: EngineBridge, onTick: (q: QueueList) => voi
     } catch (e) {
       failures += 1;
       if (failures >= 10) {
-        onError(e instanceof Error ? e.message : String(e));
+        onError(errorMessage(e));
         return;
       }
     }

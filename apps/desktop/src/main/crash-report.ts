@@ -13,9 +13,9 @@ import { join } from 'node:path';
 import { RECENT_COMMANDS, type ExecutedRecord } from '../engine-protocol';
 
 export const CRASH_REPORT_DIR = 'crash-reports';
-export const CRASH_REPORT_SCHEMA = 1;
+const CRASH_REPORT_SCHEMA = 1;
 
-export interface CrashReport {
+interface CrashReport {
   schema: number;
   /** 작성 시각(ISO 8601) */
   at: string;
@@ -63,7 +63,7 @@ export class RingBuffer<T> {
 }
 
 /** 종료 코드를 시그널 이름으로. Chromium 은 POSIX 에서 시그널로 죽은 자식의 종료 코드를 시그널 번호로 보고한다 */
-export function signalName(code: number, platform: NodeJS.Platform = process.platform): string | null {
+function signalName(code: number, platform: NodeJS.Platform = process.platform): string | null {
   if (platform === 'win32' || !Number.isInteger(code) || code <= 0 || code >= 64) return null;
   const n = code > 128 ? code - 128 : code;
   for (const [name, value] of Object.entries(osConstants.signals)) if (value === n) return name;
@@ -71,12 +71,12 @@ export function signalName(code: number, platform: NodeJS.Platform = process.pla
 }
 
 /** 파일 이름: 2026-10-14-231504.json (로컬 시각) */
-export function reportFileName(date: Date): string {
+function reportFileName(date: Date): string {
   const p = (n: number, w = 2) => String(n).padStart(w, '0');
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}-${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}.json`;
 }
 
-export interface CrashContext {
+interface CrashContext {
   code: number;
   engineVersion: string | null;
   crashes: number;
@@ -85,7 +85,7 @@ export interface CrashContext {
   recentEdits: ExecutedRecord[];
 }
 
-export function buildCrashReport(ctx: CrashContext, now: Date = new Date()): CrashReport {
+function buildCrashReport(ctx: CrashContext, now: Date = new Date()): CrashReport {
   const mem = process.memoryUsage();
   return {
     schema: CRASH_REPORT_SCHEMA,

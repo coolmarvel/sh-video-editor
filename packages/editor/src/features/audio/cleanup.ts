@@ -8,6 +8,7 @@ import type { EngineBridge } from '../../engine/bridge';
 import { withTransaction } from '../../engine/transaction';
 import { TICKS_PER_SECOND } from '../../engine/time';
 import type { SequenceInfo } from '../timeline/types';
+import { errorMessage } from '../../errors';
 
 export type CleanStrength = 'light' | 'normal' | 'strong';
 
@@ -20,7 +21,7 @@ export const CLEAN_STRENGTHS: Array<{ id: CleanStrength; label: string }> = [
 ];
 
 /** 켜는 효과의 설정 키(엔진 `EssentialSound::set` 의 점 표기). 순서는 효과 체인과 같다 */
-export const CLEAN_KEYS = ['repair.noise', 'repair.reverb', 'clarity.enhance'] as const;
+const CLEAN_KEYS = ['repair.noise', 'repair.reverb', 'clarity.enhance'] as const;
 
 /** `essentialSound.set` 의 values: 세 효과를 켜고 강도를 같은 값으로 */
 export function cleanValues(strength: CleanStrength): Record<string, unknown> {
@@ -47,7 +48,7 @@ export interface EssentialClipInfo {
   effects?: Array<{ index: number; effect: string; enabled: boolean }>;
 }
 
-export interface CleanState {
+interface CleanState {
   /** 세 효과 중 하나라도 켜져 있는가 */
   active: boolean;
   /** 켜진 효과의 평균 강도에 가장 가까운 단계. 꺼져 있으면 null */
@@ -83,7 +84,7 @@ export function readCleanState(info: EssentialClipInfo | undefined): CleanState 
   return { active: true, strength: best };
 }
 
-export interface CleanResult {
+interface CleanResult {
   clips: number;
   /** 엔진 커맨드에 걸린 시간(ms) */
   ms: number;
@@ -116,7 +117,7 @@ export async function revertVoiceCleanup(bridge: EngineBridge, clips: number[]):
 
 // ------------------------------------------------------------------------------------ 소리 크기
 
-export interface LoudnessTarget {
+interface LoudnessTarget {
   lufs: number;
   label: string;
   hint: string;
@@ -130,7 +131,7 @@ export const LOUDNESS_TARGETS: LoudnessTarget[] = [
 ];
 
 /** 정점 상한(dBFS). 라우드니스를 맞춘 뒤 믹스 정점이 이보다 높으면 마스터를 그만큼 낮춘다 */
-export const PEAK_CEILING_DB = -1;
+const PEAK_CEILING_DB = -1;
 
 export interface LoudnessResult {
   target: number;
@@ -180,7 +181,7 @@ export async function normalizeLoudness(bridge: EngineBridge, seq: SequenceInfo,
       return (await bridge.execute('essentialSound.autoMatch', { clips, target })) as MatchReport;
     });
   } catch (e) {
-    if (/unknown command/i.test(e instanceof Error ? e.message : String(e))) return approximateLoudness(bridge, seq, clips, target);
+    if (/unknown command/i.test(errorMessage(e))) return approximateLoudness(bridge, seq, clips, target);
     throw e;
   }
   const matched = (report.clips ?? []).filter((c) => typeof c.measuredLufs === 'number');

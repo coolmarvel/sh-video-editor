@@ -165,11 +165,11 @@ domain: development
 
 ### 마일스톤 3 - 효과·템플릿·이식
 
-- [~] **M3-1 키프레임·모션** (2026-10-14 화면 구현, feat/keyframes-templates)
+- [x] **M3-1 키프레임·모션** (2026-10-14 화면 구현, feat/keyframes-templates; 2026-10-15 목록을 엔진에서 읽기, feat/refactor-cleanup)
   - (a) `effects.addKeyframe`, `effects.setKeyframe`, `effects.moveKeyframe`, `effects.setInterpolation`. effectcraft `keyframe` 이식은 easing 곡선이 부족하다고 판단될 때
   - (b) [x] features/keyframes: 인스펙터 "모션" 탭(위치 X/Y·크기·회전·불투명도 + 마름모 토글·보간 5종·이전/다음·등장/퇴장 프리셋 6종), 타임라인 클립 마커, 모니터 변형 상자 끌기
   - (c) [x] `packages/engine/tests/keyframes.test.ts`: 중간 프레임 위치가 선형 보간값과 4px(0.25 배율 1px) 이내, 홀드·이즈아웃, 불투명도 밝기 증가
-  - (e) [ ] 엔진 갭: `sequence.inspect` 가 키프레임 **개수**만 주고 시각·값 목록을 주는 커맨드가 없다. 화면이 보낸 커맨드로 목록을 쌓고 개수로 대조하며(실행 취소·다시 실행은 스냅샷), 프로젝트를 다시 열면 마커가 비는다. `effects.keyframes {clip, effect, param}` 조회 커맨드가 필요하다
+  - (e) [x] (2026-10-15 feat/refactor-cleanup) 키프레임 목록을 엔진 `effects.keyframes {clip, effect}` 에서 읽는다: inspect 를 다시 읽을 때마다 키프레임이 있는 효과만 다시 읽고(늦게 끝난 옛 읽기는 버림), 화면이 보낸 커맨드로 목록을 추정하던 코드(스냅샷·개수 대조·stale 표시·noteParamSet)를 지웠다. 실행 취소·다시 실행·다른 경로의 값 변경·프로젝트 다시 열기 뒤에도 마커·이전/다음이 엔진과 같다(웹 e2e `keyframes.spec.ts` "다시 연 뒤")
   - (d) M
 - [x] **M3-2 속도 램프** (2026-10-14 feat/motion-fx: 상류가 time_remap speed 키프레임을 렌더에서 무시해 vendor 에 적분 추가, 곡선 프리셋 3종 + 편집기): `time_remap` 효과의 speed 파라미터에 키프레임(M3-1 재사용), 곡선 프리셋(몽타주·히어로·총알). (d) S
 - [x] **M3-3 크로마키·PIP·오버레이** (2026-10-14 feat/motion-fx: ultra_key + 스포이트, PIP 모서리 프리셋, V2 끌어다 놓기 확인)
@@ -189,7 +189,7 @@ domain: development
   - (d) L
 - [x] **M3-6 템플릿** (2026-10-14 레시피 4종, feat/keyframes-templates; 2026-10-15 사용자 템플릿 저장·적용·가져오기, feat/user-templates)
   - (a) [x] 사용자 템플릿(2026-10-15, feat/user-templates): 엔진 `file.saveAsTemplate`·`file.newProjectFromTemplate` 대신 화면이 `sequence.inspect`·`effects.keyframes` 로 편집본 구조를 미디어와 떼어 템플릿 JSON(`format.ts`, `docs/guides/timeline.md` "템플릿 JSON")으로 적고(미디어 클립은 슬롯), 적용은 같은 레시피 경로(`apply.ts`, `applyRecipe`)로 새 편집본을 만든다. 저장소는 호스트(`EngineBridge.templates`: 데스크톱 `userData/templates/<id>.json + .png`, 웹 IndexedDB, 없으면 메모리). 카드 메뉴로 이름·설명 바꾸기, JSON 내보내기·가져오기(검증, 같은 id 는 새 id, 파일 이름이 될 수 없는 id 는 새 id), 삭제. 썸네일은 저장 때 플레이헤드 renderFrame. `clip.automateToSequence` 는 쓰지 않았다(활성 편집본 끝에 끼우며 기존 클립을 건드려 레시피에 맞지 않음), `graphics.template.apply` 내장 8종은 쓰지 않음(영문 Lower Third 류). 한계: 색 매트 색은 읽을 수 없어 기본색, 비활성 클립·sourceIn 은 저장하지 않음
-  - (b) [x] features/templates: 미디어 패널 "템플릿" 탭, 자체 레시피 4종(인트로 제목 5초, 세로 Shorts 틀 9:16, 사진 슬라이드쇼 3초+디졸브, 엔딩 카드). 레시피 = 엔진 커맨드 순서(`recipe.ts`: newSequence, newColorMatte, timeline.place, clip.fillFrame, graphics.newText/set/alignFrame.*, opacity 키프레임, applyVideoTransition). 묶음 실행 취소는 `edit.beginTransaction/endTransaction` 이 카탈로그에 생기면 `runRecipe` 가 자동으로 감싼다(지금은 단계별 항목). 플레이스홀더 교체 플로우는 없음(제목 클립을 선택하고 텍스트 탭을 연다)
+  - (b) [x] features/templates: 미디어 패널 "템플릿" 탭, 자체 레시피 4종(인트로 제목 5초, 세로 Shorts 틀 9:16, 사진 슬라이드쇼 3초+디졸브, 엔딩 카드). 레시피 = 엔진 커맨드 순서(`recipe.ts`: newSequence, newColorMatte, timeline.place, clip.fillFrame, graphics.newText/set/alignFrame.*, opacity 키프레임, applyVideoTransition). 묶음 실행 취소: `runRecipe` 가 `withTransaction` 으로 감싸 템플릿 하나가 실행 취소 한 단계(2026-10-15, 실패하면 묶음 취소). 플레이스홀더 교체 플로우는 없음(제목 클립을 선택하고 텍스트 탭을 연다)
   - (c) [x] 사진 5장 드롭 -> 템플릿 적용 -> 내보내기까지 클릭 5회 이내(가져오기 1, 선택, 템플릿 탭 1, 만들기 1, 내보내기 1. 내 템플릿도 같은 경로: 슬롯 수만큼 고르고 만들기 1). 검증은 웹 e2e `user-templates.spec.ts`(1440·390), 데스크톱 e2e `templates.spec.ts`, 단위 `test/unit/templates/user-templates.test.ts`
   - (d) M
 - [x] **M3-7 텍스트 기반 편집·정리 도구** (2026-10-14 feat/audio-cleanup: 전사 탭, 문장 지우기, 무음·군말 제거, 장면마다 자르기): `transcript.select`·`transcript.lift`·`transcript.removePauses`·`transcript.removeFillers`, `clip.sceneEditDetection`. 전사 패널에서 문장 선택 후 "지우기", "무음 자동 제거" 버튼. (d) M

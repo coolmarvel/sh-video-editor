@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 export const TEMPLATES_DIR = 'templates';
 
-export interface StoredTemplateRow {
+interface StoredTemplateRow {
   template: unknown;
   thumb: Uint8Array | null;
 }
@@ -21,7 +21,7 @@ function checkId(id: unknown): string {
   return id;
 }
 
-export class TemplatesDir {
+class TemplatesDir {
   constructor(readonly dir: string) {}
 
   private jsonPath(id: string): string {

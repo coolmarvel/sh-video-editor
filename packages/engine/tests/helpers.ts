@@ -11,9 +11,9 @@ import { join, resolve } from 'node:path';
 import { expect } from 'vitest';
 
 export const T = 254_016_000_000;
-export const ROOT = resolve(__dirname, '..');
-export const NAPI_DIR = join(ROOT, 'bindings', 'napi');
-export const WASM_PKG = join(ROOT, 'bindings', 'wasm', 'pkg');
+const ROOT = resolve(__dirname, '..');
+const NAPI_DIR = join(ROOT, 'bindings', 'napi');
+const WASM_PKG = join(ROOT, 'bindings', 'wasm', 'pkg');
 
 const require = createRequire(import.meta.url);
 
@@ -117,7 +117,7 @@ export function exec<R = unknown>(engine: { execute(id: string, p?: string | nul
   return JSON.parse(engine.execute(id, params ? JSON.stringify(params) : undefined)) as R;
 }
 
-export interface ClipInfo {
+interface ClipInfo {
   clip: number;
   item: number;
   name: string;
@@ -243,7 +243,7 @@ export function hasFfprobe(): boolean {
   }
 }
 
-export interface ProbeResult {
+interface ProbeResult {
   streams: Array<{
     codec_type: string;
     codec_name: string;

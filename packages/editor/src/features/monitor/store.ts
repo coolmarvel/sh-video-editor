@@ -28,7 +28,7 @@ export interface SequenceInfo {
   duration: number;
 }
 
-export interface MonitorStats {
+interface MonitorStats {
   /** 최근 renderFrame 왕복 평균(ms). 데스크톱은 IPC 복사, 웹은 Worker 전송을 포함 */
   renderMs: number;
   /** 재생 중 실제로 그린 초당 프레임 수 */
@@ -42,7 +42,7 @@ export interface MonitorStats {
 export const PLAYBACK_RATES = [0.25, 0.5, 1, 1.5, 2, 4] as const;
 export const SHUTTLE_RATES = [1, 2, 4] as const;
 
-export interface MonitorState {
+interface MonitorState {
   sequence: SequenceInfo | null;
   /** 엔진 플레이헤드의 화면용 복사본(tick). SSOT 는 엔진 */
   tick: number;

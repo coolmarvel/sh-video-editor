@@ -39,10 +39,3 @@ for (const [i, preset] of TITLE_PRESETS.entries()) {
 }
 
 registerMonitorOverlay(MonitorTextOverlay);
-
-export { useText } from './store';
-export { useCaptions } from './captions-store';
-export { isTextClip, readTextStyle, parseParamValue } from './params';
-export { parseSrt, formatSrt, parseSrtTime, formatSrtTime } from './srt';
-export { TITLE_PRESETS, titlePreset } from './presets';
-export type { TitlePresetId } from './presets';

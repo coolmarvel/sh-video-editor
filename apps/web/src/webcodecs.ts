@@ -11,7 +11,7 @@
 // HybridDecoder 가 소프트웨어로 이어 간다. 프레임 묶음의 모양은 bindings/wasm/src/webcodecs.rs 머리 주석.
 
 /** 엔진 바인딩(`setWebCodecsHooks`)이 부르는 동기 훅. 실패는 예외로 알린다 */
-export interface WebCodecsHooks {
+interface WebCodecsHooks {
   open(config: string, description: Uint8Array): number;
   decode(handle: number, sample: Uint8Array, pts: number, key: boolean): Uint8Array;
   flush(handle: number): Uint8Array;
@@ -35,7 +35,7 @@ export const STATE = 0;
 export const LEN = 1;
 /** ctrl[CODE]: open 의 핸들 */
 export const CODE = 2;
-export const PENDING = 1;
+const PENDING = 1;
 export const DONE = 2;
 export const ERROR = 3;
 /** 프레임 묶음이 공유 버퍼보다 크다: 더 큰 버퍼를 보내고 drain 으로 다시 받는다 */
@@ -46,7 +46,7 @@ const OPEN_TIMEOUT_MS = 8000;
 const DECODE_TIMEOUT_MS = 4000;
 const FLUSH_TIMEOUT_MS = 8000;
 
-export function webCodecsAvailable(): boolean {
+function webCodecsAvailable(): boolean {
   return (
     typeof VideoDecoder !== 'undefined' &&
     typeof SharedArrayBuffer !== 'undefined' &&

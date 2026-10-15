@@ -15,12 +15,6 @@ registerEffectsSection({ id: 'pip', order: 20, component: PipSection });
 registerEffectsSection({ id: 'stabilize', order: 30, component: StabilizeSection });
 registerMonitorOverlay(ChromaKeyPickOverlay);
 
-export { useMotionFx, sourceSize, PICK_SCALE } from './store';
 export * from './ramp';
 export * from './pip';
 export * from './chroma';
-export { CurveEditor } from './CurveEditor';
-export type { CurvePointView, CurveEditorProps } from './CurveEditor';
-export { SpeedCurveSection } from './SpeedCurveSection';
-export { ChromaKeySection, PipSection, StabilizeSection, pickTargetClip } from './EffectsExtras';
-export { ChromaKeyPickOverlay } from './ChromaKeyPickOverlay';

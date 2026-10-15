@@ -103,7 +103,7 @@ export interface TemplateFile {
 }
 
 /** 저장소가 받는 id 모양(데스크톱은 파일 이름이 되므로 글자·숫자·`-`·`_` 만, 80자 이하) */
-export const TEMPLATE_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
+const TEMPLATE_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 
 /** 겹치지 않는 템플릿 id(시각 + 난수) */
 export function newTemplateId(now = Date.now()): string {

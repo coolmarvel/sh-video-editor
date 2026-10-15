@@ -4,7 +4,7 @@
  */
 import { TICKS_PER_SECOND } from '../../engine/time';
 
-export interface SrtCue {
+interface SrtCue {
   index: number;
   /** tick */
   start: number;
@@ -13,7 +13,7 @@ export interface SrtCue {
   text: string;
 }
 
-export interface SrtParseResult {
+interface SrtParseResult {
   cues: SrtCue[];
   /** 건너뛴 블록에 대한 설명(줄 번호 포함) */
   warnings: string[];

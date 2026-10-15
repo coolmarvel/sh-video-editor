@@ -6,7 +6,7 @@ import type { ComponentType } from 'react';
 import { create } from 'zustand';
 import type { InspectorContext } from '../inspector/registry';
 
-export interface EffectsSection {
+interface EffectsSection {
   id: string;
   /** 작을수록 앞. 기본 100 */
   order?: number;

@@ -5,6 +5,7 @@ import { useContextMenu } from '../context-menu/store';
 import { RevisionGate } from '../events/revision-gate';
 import { useProject, type Notice } from '../project/store';
 import { findBin, findItem, isClipLike, walkItems, type DemoScene, type MediaBin, type MediaItem, type MediaNode } from './types';
+import { errorMessage } from '../../errors';
 
 /* 엔진 결과 모양 (project.inspect, project.items). 바인딩이 아니라 커맨드 결과를 그대로 읽는다. */
 interface InspectItem {
@@ -104,10 +105,6 @@ function toNode(entry: InspectItem | InspectBin, rows: Map<number, ItemsRow>, pa
   return item;
 }
 
-function message(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
-
 export const useMedia = create<MediaState>((set, get) => {
   const gate = new RevisionGate(() => get().revision);
 
@@ -133,7 +130,7 @@ export const useMedia = create<MediaState>((set, get) => {
       useEditor.setState({ status: done, error: null });
       return r;
     } catch (e) {
-      toast('danger', `${fail} ${message(e)}`);
+      toast('danger', `${fail} ${errorMessage(e)}`);
       return undefined;
     } finally {
       set({ busy: false });
@@ -165,7 +162,7 @@ export const useMedia = create<MediaState>((set, get) => {
       const selectedId = findItem(root, get().selectedId) ? get().selectedId : (selectedIds[selectedIds.length - 1] ?? null);
       set({ root, activeSequence: inspect.activeSequence, revision: inspect.revision, selectedId, selectedIds });
     } catch (e) {
-      toast('danger', `미디어 목록을 읽지 못했습니다. ${message(e)}`);
+      toast('danger', `미디어 목록을 읽지 못했습니다. ${errorMessage(e)}`);
     }
   }
 
@@ -213,7 +210,7 @@ export const useMedia = create<MediaState>((set, get) => {
         if (failed > 0) toast('danger', `${n}개를 가져왔고 ${failed}개는 열 수 없습니다. 지원하는 형식인지 확인하세요.`);
         else toast('success', `${n}개를 가져왔습니다. 타임라인으로 끌어다 놓거나 더블클릭하면 편집이 시작됩니다.`);
       } catch (e) {
-        toast('danger', `파일을 가져오지 못했습니다. ${message(e)}`);
+        toast('danger', `파일을 가져오지 못했습니다. ${errorMessage(e)}`);
       } finally {
         set({ busy: false });
       }
@@ -226,7 +223,7 @@ export const useMedia = create<MediaState>((set, get) => {
         const paths = await bridge.pickFiles();
         await get().importPaths(paths);
       } catch (e) {
-        toast('danger', `파일 대화상자를 열지 못했습니다. ${message(e)}`);
+        toast('danger', `파일 대화상자를 열지 못했습니다. ${errorMessage(e)}`);
       }
     },
 
@@ -241,7 +238,7 @@ export const useMedia = create<MediaState>((set, get) => {
         if (typeof id === 'number') await get().select(id);
         toast('success', '데모 영상을 넣었습니다. 타임라인으로 끌어다 놓거나 더블클릭하면 편집이 시작됩니다.');
       } catch (e) {
-        toast('danger', `데모 영상을 넣지 못했습니다. ${message(e)}`);
+        toast('danger', `데모 영상을 넣지 못했습니다. ${errorMessage(e)}`);
       } finally {
         set({ busy: false });
       }

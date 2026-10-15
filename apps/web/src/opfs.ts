@@ -3,7 +3,7 @@
 // 경로는 OPFS 루트 기준 상대 경로('recovery/snapshot.fcproj'). 엔진이 'opfs:/' 접두 경로로 쓴 바이트는
 // queueWrite 로 들어와 경로별로 합쳐져(마지막 바이트가 이김) 하나씩 기록된다.
 
-export type OpfsEntry = { name: string; kind: 'file' | 'directory' };
+type OpfsEntry = { name: string; kind: 'file' | 'directory' };
 
 // TypeScript DOM 라이브러리에 아직 없는 비동기 반복자(entries)와 Worker 전용 동기 핸들
 interface DirHandle extends FileSystemDirectoryHandle {

@@ -9,7 +9,8 @@ const OPTIONS = {
   deadCodeInjection: false,
   selfDefending: false,
   debugProtection: false,
-  identifierNamesGenerator: 'hexadecimal',
+  // mangled(a, b, ...): hexadecimal(_0x1a2b3c) 과 보호 수준은 같고 렌더러가 1.36MB 에서 925KB, docs/guides/packaging.md
+  identifierNamesGenerator: 'mangled',
   stringArray: true,
   stringArrayThreshold: 0.6,
   stringArrayRotate: true,

@@ -15,8 +15,8 @@ export const SLIDER_STEPS = 1000;
 export const SPEED_PRESETS = [50, 100, 200, 400];
 
 /** 음정 유지(WSOLA)가 깨끗하게 들리는 배속 범위(퍼센트). 밖이면 품질 경고 */
-export const MAINTAIN_PITCH_MIN = 50;
-export const MAINTAIN_PITCH_MAX = 200;
+const MAINTAIN_PITCH_MIN = 50;
+const MAINTAIN_PITCH_MAX = 200;
 
 export type Interpolation = 'frameSampling' | 'frameBlending' | 'opticalFlow';
 export const INTERPOLATIONS: Array<{ id: Interpolation; label: string }> = [
@@ -68,7 +68,7 @@ export function predictDuration(clip: ClipInfo, percent: number, frameTicks: num
 }
 
 /** 클립에 속도 곡선(time_remap speed 키프레임, features/motion-fx)이 있는가 */
-export function hasSpeedRamp(clip: Pick<ClipInfo, 'effects'>): boolean {
+function hasSpeedRamp(clip: Pick<ClipInfo, 'effects'>): boolean {
   return (clip.effects?.find((e) => e.effect === 'time_remap')?.params['speed']?.keyframes ?? 0) > 0;
 }
 

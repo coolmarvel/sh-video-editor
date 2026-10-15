@@ -5,7 +5,7 @@
 export type RatioId = '16:9' | '9:16' | '1:1' | '4:5';
 export type FitMode = 'fill' | 'fit';
 
-export interface RatioDef {
+interface RatioDef {
   id: RatioId;
   label: string;
   width: number;

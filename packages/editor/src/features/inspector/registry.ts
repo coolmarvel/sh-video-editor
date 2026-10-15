@@ -18,7 +18,7 @@ export interface InspectorContext {
   playhead: number;
 }
 
-export interface InspectorTab {
+interface InspectorTab {
   id: string;
   label: string;
   /** 작을수록 앞. 기본 100 */
@@ -28,7 +28,7 @@ export interface InspectorTab {
 }
 
 /** 인스펙터 위 도구 줄의 버튼(텍스트 추가 같은 "만들기" 동작). 선택과 무관하게 시퀀스가 있으면 보인다 */
-export interface InspectorTool {
+interface InspectorTool {
   id: string;
   label: string;
   title?: string;

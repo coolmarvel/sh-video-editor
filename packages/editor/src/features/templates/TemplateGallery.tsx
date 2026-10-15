@@ -14,6 +14,7 @@ import { aspectLabel, TEMPLATE_EXTENSION, type TemplateFile } from './format';
 import { pickItems, useTemplates } from './store';
 import { slotHint, useUserTemplates, type UserTemplateEntry } from './user-store';
 import './templates.css';
+import { Dialog } from '../../shell/Dialog';
 
 /** 템플릿 도식(16:9 또는 9:16 틀 안의 제목·자막 자리). 장식 그림이 아니라 배치 표시다 */
 function Schematic({ t }: { t: TemplateDef }) {
@@ -112,55 +113,47 @@ function SaveTemplateDialog() {
     if (valid && !busy) void saveCurrent(name.trim(), description);
   };
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog ve-dialog--narrow"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tpl-save-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            closeSave();
-          } else if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      >
-        <div className="sh-dialog__title">
-          <span id="tpl-save-title">편집본을 템플릿으로 저장</span>
-        </div>
-        <div className="sh-dialog__body">
-          <p className="ve-dialog-text">
-            트랙과 클립 길이·위치, 텍스트 내용과 모양, 효과·키프레임, 전환, 편집본 설정을 저장합니다. 영상·사진·음악 클립은 미디어 "슬롯" 이 되어 적용할 때 고른
-            미디어로 채워집니다.
-          </p>
-          <div className="sh-form tpl-save-form">
-            <label htmlFor="tpl-save-name">이름</label>
-            <input
-              ref={nameRef}
-              id="tpl-save-name"
-              className="sh-input"
-              type="text"
-              value={name}
-              aria-invalid={!valid}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <label htmlFor="tpl-save-desc">설명</label>
-            <textarea id="tpl-save-desc" className="sh-input tpl-save-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-        </div>
-        <div className="sh-dialog__buttons">
-          <button type="button" className="sh-btn sh-btn--dialog" onClick={closeSave}>
-            취소
-          </button>
-          <button type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={!valid || busy} onClick={submit}>
-            저장
-          </button>
+    <Dialog
+      titleId="tpl-save-title"
+      title="편집본을 템플릿으로 저장"
+      onClose={() => closeSave()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
+          e.preventDefault();
+          submit();
+        }
+      }}
+      className="ve-dialog--narrow"
+    >
+      <div className="sh-dialog__body">
+        <p className="ve-dialog-text">
+          트랙과 클립 길이·위치, 텍스트 내용과 모양, 효과·키프레임, 전환, 편집본 설정을 저장합니다. 영상·사진·음악 클립은 미디어 "슬롯" 이 되어 적용할 때 고른
+          미디어로 채워집니다.
+        </p>
+        <div className="sh-form tpl-save-form">
+          <label htmlFor="tpl-save-name">이름</label>
+          <input
+            ref={nameRef}
+            id="tpl-save-name"
+            className="sh-input"
+            type="text"
+            value={name}
+            aria-invalid={!valid}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <label htmlFor="tpl-save-desc">설명</label>
+          <textarea id="tpl-save-desc" className="sh-input tpl-save-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <button type="button" className="sh-btn sh-btn--dialog" onClick={closeSave}>
+          취소
+        </button>
+        <button type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={!valid || busy} onClick={submit}>
+          저장
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

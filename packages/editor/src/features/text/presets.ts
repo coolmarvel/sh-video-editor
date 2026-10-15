@@ -6,7 +6,7 @@ import type { Anchor9 } from './geometry';
 
 export type TitlePresetId = 'plain' | 'title' | 'lower' | 'label';
 
-export interface TitlePreset {
+interface TitlePreset {
   id: TitlePresetId;
   label: string;
   text: string;

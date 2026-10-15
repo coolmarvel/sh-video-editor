@@ -24,7 +24,7 @@ interface PeaksKey {
   path: string;
   perSecond: number;
 }
-export interface RecentRow {
+interface RecentRow {
   path: string;
   name: string;
   openedAt: number;
@@ -38,7 +38,7 @@ function mtimeOf(path: string): number {
   }
 }
 
-export class CacheDb {
+class CacheDb {
   private readonly db: DatabaseSync;
   private writes = 0;
 

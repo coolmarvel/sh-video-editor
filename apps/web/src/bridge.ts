@@ -7,7 +7,7 @@ type Res = { id: number; ok: boolean; result?: unknown; error?: string };
 type Event = { event: 'fileWritten'; path: string; bytes: Uint8Array };
 
 /** 진단(QA 스크립트용): 등록된 파일과 범위 읽기 통계. 화면은 쓰지 않는다. */
-export interface WebBridgeDiag {
+interface WebBridgeDiag {
   listFiles(): Promise<{ path: string; size: number; kind: 'blob' | 'memory' }[]>;
   ioStats(): Promise<{
     rangeReads: number;

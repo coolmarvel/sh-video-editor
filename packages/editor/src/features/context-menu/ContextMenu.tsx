@@ -6,6 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useContextMenu, type ContextMenuEntry } from './store';
 import './context-menu.css';
+import { Dialog } from '../../shell/Dialog';
 
 export function ContextMenuHost() {
   return (
@@ -171,49 +172,41 @@ function PromptDialog() {
     if (valid) answer(value.trim());
   };
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog ve-dialog--narrow"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ve-prompt-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            answer(null);
-          } else if (e.key === 'Enter') {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      >
-        <div className="sh-dialog__title">
-          <span id="ve-prompt-title">{prompt.title}</span>
-        </div>
-        <div className="sh-dialog__body">
-          <div className="sh-form">
-            <label htmlFor="ve-prompt-input">{prompt.label}</label>
-            <input
-              ref={inputRef}
-              id="ve-prompt-input"
-              className="sh-input"
-              type="text"
-              value={value}
-              aria-invalid={!valid}
-              onChange={(e) => setValue(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="sh-dialog__buttons">
-          <button type="button" className="sh-btn sh-btn--dialog" onClick={() => answer(null)}>
-            취소
-          </button>
-          <button type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={!valid} onClick={submit}>
-            {prompt.submitLabel}
-          </button>
+    <Dialog
+      titleId="ve-prompt-title"
+      title={prompt.title}
+      onClose={() => answer(null)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submit();
+        }
+      }}
+      className="ve-dialog--narrow"
+    >
+      <div className="sh-dialog__body">
+        <div className="sh-form">
+          <label htmlFor="ve-prompt-input">{prompt.label}</label>
+          <input
+            ref={inputRef}
+            id="ve-prompt-input"
+            className="sh-input"
+            type="text"
+            value={value}
+            aria-invalid={!valid}
+            onChange={(e) => setValue(e.target.value)}
+          />
         </div>
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <button type="button" className="sh-btn sh-btn--dialog" onClick={() => answer(null)}>
+          취소
+        </button>
+        <button type="button" className="sh-btn sh-btn--dialog sh-btn--primary" disabled={!valid} onClick={submit}>
+          {prompt.submitLabel}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
@@ -229,39 +222,23 @@ function ConfirmDialog() {
 
   if (!confirm) return null;
   return (
-    <div className="sh-scrim ve-layer" role="presentation">
-      <div
-        className="sh-dialog sh-dialog--inline ve-dialog ve-dialog--narrow"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="ve-ctx-confirm-title"
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            answer(false);
-          }
-        }}
-      >
-        <div className="sh-dialog__title">
-          <span id="ve-ctx-confirm-title">{confirm.title}</span>
-        </div>
-        <div className="sh-dialog__body">
-          <p className="ve-dialog-text">{confirm.message}</p>
-        </div>
-        <div className="sh-dialog__buttons">
-          <button type="button" className="sh-btn sh-btn--dialog" onClick={() => answer(false)}>
-            취소
-          </button>
-          <button
-            ref={primaryRef}
-            type="button"
-            className={`sh-btn sh-btn--dialog ${confirm.danger ? 'sh-btn--danger-fill' : 'sh-btn--primary'}`}
-            onClick={() => answer(true)}
-          >
-            {confirm.confirmLabel}
-          </button>
-        </div>
+    <Dialog titleId="ve-ctx-confirm-title" title={confirm.title} onClose={() => answer(false)} role="alertdialog" className="ve-dialog--narrow">
+      <div className="sh-dialog__body">
+        <p className="ve-dialog-text">{confirm.message}</p>
       </div>
-    </div>
+      <div className="sh-dialog__buttons">
+        <button type="button" className="sh-btn sh-btn--dialog" onClick={() => answer(false)}>
+          취소
+        </button>
+        <button
+          ref={primaryRef}
+          type="button"
+          className={`sh-btn sh-btn--dialog ${confirm.danger ? 'sh-btn--danger-fill' : 'sh-btn--primary'}`}
+          onClick={() => answer(true)}
+        >
+          {confirm.confirmLabel}
+        </button>
+      </div>
+    </Dialog>
   );
 }

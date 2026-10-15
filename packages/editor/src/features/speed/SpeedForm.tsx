@@ -22,7 +22,7 @@ import {
 import { useSpeed } from './store';
 import './speed.css';
 
-export interface SpeedFormProps {
+interface SpeedFormProps {
   /** 길이 예측의 기준 클립(첫 선택 클립). 없으면 예측 줄을 숨긴다 */
   clip: ClipInfo | null;
   sequence: SequenceInfo | null;

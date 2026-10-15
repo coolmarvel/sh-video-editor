@@ -6,7 +6,7 @@ import type { ComponentType } from 'react';
 import { create } from 'zustand';
 import type { InspectorContext } from '../inspector/registry';
 
-export interface SpeedSection {
+interface SpeedSection {
   id: string;
   order?: number;
   component: ComponentType<InspectorContext>;

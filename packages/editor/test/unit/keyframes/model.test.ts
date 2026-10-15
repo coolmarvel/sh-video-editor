@@ -9,15 +9,11 @@ import {
   keyframeAt,
   makeKeyframe,
   mediaTimeAt,
-  moveKeyframe,
   neighbourTime,
   paramKey,
   parseParamKey,
-  putKeyframe,
-  removeKeyframe,
   rowRange,
   sequenceTimeAt,
-  setInterpolation,
   valueAt,
 } from '@editor/features/keyframes/model';
 import { MOTION_PRESETS, PRESET_SECONDS, motionPreset, presetKeyframes } from '@editor/features/keyframes/presets';
@@ -50,23 +46,9 @@ describe('미디어 시간 환산', () => {
   });
 });
 
-describe('목록 갱신', () => {
-  it('putKeyframe 은 시각순으로 넣고 앞 키프레임의 보간을 물려받으며 같은 시각이면 값만 바꾼다', () => {
-    let track = putKeyframe([], 4 * T, 10);
-    track = setInterpolation(track, 4 * T, 'hold');
-    track = putKeyframe(track, 2 * T, 0);
-    track = putKeyframe(track, 6 * T, 20);
-    expect(track.map((k) => [k.time / T, k.value, k.interp])).toEqual([
-      [2, 0, 'linear'],
-      [4, 10, 'hold'],
-      [6, 20, 'hold'],
-    ]);
-    expect(putKeyframe(track, 4 * T, 99).map((k) => k.value)).toEqual([0, 99, 20]);
-    expect(removeKeyframe(track, 4 * T)).toHaveLength(2);
-    expect(moveKeyframe(track, 6 * T, 2 * T).map((k) => [k.time / T, k.value])).toEqual([
-      [2, 20],
-      [4, 10],
-    ]);
+describe('목록 찾기', () => {
+  it('keyframeAt 은 같은 미디어 시간의 키프레임', () => {
+    const track = [makeKeyframe(2 * T, 0), makeKeyframe(4 * T, 10, 'hold')];
     expect(keyframeAt(track, 4 * T)?.value).toBe(10);
     expect(keyframeAt(track, 5 * T)).toBeUndefined();
   });

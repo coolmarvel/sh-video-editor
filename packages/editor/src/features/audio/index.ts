@@ -9,10 +9,3 @@ import { MusicLibrary } from './MusicLibrary';
 
 registerInspectorTab({ id: 'audio', label: '오디오', order: 40, when: hasAudioClip, component: AudioInspector });
 registerMediaPanelTab({ id: 'music', label: '음악', order: 20, component: MusicLibrary });
-
-export { AudioToolbar } from './AudioToolbar';
-export { ClipWaveform } from './ClipWaveform';
-export { AudioPlayer } from './playback';
-export { useAudio } from './store';
-export type { AudioStats } from './store';
-export { applyDucking, applyFade, planDucking } from './ducking';

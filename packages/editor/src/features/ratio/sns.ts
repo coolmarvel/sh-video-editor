@@ -8,19 +8,19 @@ import { useEditor } from '../../store';
 import { useExport } from '../export/store';
 import type { EnginePreset, UiPreset } from '../export/presets';
 
-export interface SnsCard extends UiPreset {
+interface SnsCard extends UiPreset {
   /** 어디에 올리는 용도인지 */
   hint: string;
 }
 
-export interface SnsInfo {
+interface SnsInfo {
   width: number;
   height: number;
   fps: string;
   targetKbps: number;
 }
 
-export const SNS_PREFIX = 'sns-';
+const SNS_PREFIX = 'sns-';
 
 export function buildSnsCards(presets: EnginePreset[]): SnsCard[] {
   const h264 = presets.filter((p) => p.format === 'h264');

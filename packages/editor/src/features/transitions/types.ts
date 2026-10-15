@@ -57,7 +57,7 @@ export function applyTarget(point: EditPoint): { clip: number; edge: 'in' | 'out
   return null;
 }
 
-export interface FoundTransition {
+interface FoundTransition {
   transition: TransitionInfo;
   track: TrackInfo;
   kind: TrackKind;

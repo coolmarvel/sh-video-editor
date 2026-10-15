@@ -1,6 +1,6 @@
 /** 썸네일 data URL(PNG base64) 과 바이트 사이 변환. 호스트 캐시에는 바이트(PNG)만 둔다. */
 
-export const PNG_DATA_PREFIX = 'data:image/png;base64,';
+const PNG_DATA_PREFIX = 'data:image/png;base64,';
 
 /** PNG data URL 이 아니면 null(캐시하지 않는다) */
 export function pngBytesFromDataUrl(url: string): Uint8Array | null {

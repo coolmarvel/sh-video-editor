@@ -17,7 +17,6 @@ import {
   captionParams,
   defaultCaptionOptions,
   describeDownloadError,
-  overallFraction,
   parseFillers,
   pickModel,
   transcriptWordCount,
@@ -26,16 +25,17 @@ import {
   type SpeechModelCatalog,
   type SttLanguage,
 } from './rules';
+import { errorMessage } from '../../errors';
 
-export type SttPhase = 'idle' | 'consent' | 'downloading' | 'transcribing' | 'cleaning' | 'creating';
-export type SttScope = 'selection' | 'all';
+type SttPhase = 'idle' | 'consent' | 'downloading' | 'transcribing' | 'cleaning' | 'creating';
+type SttScope = 'selection' | 'all';
 
-export interface SttNotice {
+interface SttNotice {
   tone: 'info' | 'danger' | 'success';
   text: string;
 }
 
-export interface SttState {
+interface SttState {
   /** 호스트가 자동 자막을 지원하는가(bridge.stt). 웹은 false */
   supported: boolean;
   catalog: SpeechModelCatalog | null;
@@ -85,8 +85,7 @@ export interface SttState {
 }
 
 const MODEL_KEY = 'sh.stt.model';
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const isCancel = (e: unknown) => /stopped|abort/i.test(message(e));
+const isCancel = (e: unknown) => /stopped|abort/i.test(errorMessage(e));
 /** 진행률 폴링 간격(ms) */
 export const PROGRESS_POLL_MS = 250;
 
@@ -212,7 +211,7 @@ export const useStt = create<SttState>((set, get) => {
         set({ catalog });
         return catalog;
       } catch (e) {
-        set({ catalog: null, notice: { tone: 'danger', text: `음성 모델 목록을 읽지 못했습니다: ${message(e)}` } });
+        set({ catalog: null, notice: { tone: 'danger', text: `음성 모델 목록을 읽지 못했습니다: ${errorMessage(e)}` } });
         return null;
       }
     },
@@ -294,7 +293,7 @@ export const useStt = create<SttState>((set, get) => {
           } catch (e) {
             if (isCancel(e) || get().cancelled) throw e;
             // 소리가 없는 클립(사진·제목)은 건너뛴다
-            if (/no audio|cannot be opened/i.test(message(e))) {
+            if (/no audio|cannot be opened/i.test(errorMessage(e))) {
               skipped += 1;
               continue;
             }
@@ -339,9 +338,9 @@ export const useStt = create<SttState>((set, get) => {
         if (isCancel(e) || get().cancelled) {
           finish({ tone: 'info', text: phase === 'downloading' ? '내려받기를 취소했습니다.' : '자동 자막을 취소했습니다.' });
         } else if (phase === 'downloading') {
-          finish({ tone: 'danger', text: describeDownloadError(message(e)) });
+          finish({ tone: 'danger', text: describeDownloadError(errorMessage(e)) });
         } else {
-          finish({ tone: 'danger', text: `자동 자막을 만들지 못했습니다: ${message(e)}` });
+          finish({ tone: 'danger', text: `자동 자막을 만들지 못했습니다: ${errorMessage(e)}` });
         }
         await refreshAll();
       } finally {
@@ -387,7 +386,7 @@ export const useStt = create<SttState>((set, get) => {
         await refreshAll(status);
         set({ notice: { tone: 'success', text: status } });
       } catch (e) {
-        set({ notice: { tone: 'danger', text: `군말을 지우지 못했습니다: ${message(e)}` } });
+        set({ notice: { tone: 'danger', text: `군말을 지우지 못했습니다: ${errorMessage(e)}` } });
       }
     },
 
@@ -398,7 +397,7 @@ export const useStt = create<SttState>((set, get) => {
         await refreshAll(status);
         set({ notice: { tone: 'success', text: status } });
       } catch (e) {
-        set({ notice: { tone: 'danger', text: `무음을 자르지 못했습니다: ${message(e)}` } });
+        set({ notice: { tone: 'danger', text: `무음을 자르지 못했습니다: ${errorMessage(e)}` } });
       }
     },
   };

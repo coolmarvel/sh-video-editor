@@ -18,6 +18,7 @@ import { MemoryTemplateStore } from './memory-store';
 import { serializeSequence } from './serialize';
 import { applyRecipe } from './store';
 import { renderTemplateThumb } from './thumbnail';
+import { errorMessage } from '../../errors';
 
 export interface UserTemplateEntry {
   template: TemplateFile;
@@ -50,7 +51,6 @@ interface UserTemplatesState {
   importFile(source: File | string): Promise<string | null>;
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const notify = (kind: 'info' | 'success' | 'warning' | 'danger', text: string) => useProject.getState().notify(kind, text);
 
 let memory: MemoryTemplateStore | null = null;
@@ -70,8 +70,6 @@ export function resetUserTemplateMemory(): void {
 
 /** 테스트에서 바꿔 끼우는 다운로드 */
 export const templateDownload = { fn: downloadBytes };
-
-export const MEDIA_HINT = '미디어 패널에서 슬롯에 넣을 영상·사진(소리 슬롯은 음악)을 먼저 고르세요.';
 
 export function slotHint(t: TemplateFile): string {
   if (t.slots.length === 0) return '미디어 없이 만듭니다.';
@@ -115,7 +113,7 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
         set({ items, loaded: true });
       } catch (e) {
         set({ loaded: true });
-        notify('warning', `템플릿 목록을 읽지 못했습니다: ${message(e)}`);
+        notify('warning', `템플릿 목록을 읽지 못했습니다: ${errorMessage(e)}`);
       }
     },
 
@@ -150,7 +148,7 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
         notify('success', `템플릿 "${template.name}" 을 저장했습니다${slots > 0 ? ` (미디어 슬롯 ${slots}개)` : ''}.`);
         return template.id;
       } catch (e) {
-        notify('danger', `템플릿을 저장하지 못했습니다: ${message(e)}`);
+        notify('danger', `템플릿을 저장하지 못했습니다: ${errorMessage(e)}`);
         return null;
       } finally {
         set({ busy: false });
@@ -186,7 +184,7 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
       try {
         await write({ ...e, template: { ...e.template, name: next } });
       } catch (err) {
-        notify('danger', `이름을 바꾸지 못했습니다: ${message(err)}`);
+        notify('danger', `이름을 바꾸지 못했습니다: ${errorMessage(err)}`);
       }
     },
 
@@ -196,7 +194,7 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
       try {
         await write({ ...e, template: { ...e.template, description: description.trim() } });
       } catch (err) {
-        notify('danger', `설명을 바꾸지 못했습니다: ${message(err)}`);
+        notify('danger', `설명을 바꾸지 못했습니다: ${errorMessage(err)}`);
       }
     },
 
@@ -216,7 +214,7 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
         notify('success', `템플릿 "${e.template.name}" 을 지웠습니다.`);
         return true;
       } catch (err) {
-        notify('danger', `템플릿을 지우지 못했습니다: ${message(err)}`);
+        notify('danger', `템플릿을 지우지 못했습니다: ${errorMessage(err)}`);
         return false;
       }
     },
@@ -239,7 +237,7 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
         notify('success', `템플릿 "${template.name}" 을 가져왔습니다.`);
         return template.id;
       } catch (e) {
-        notify('danger', `템플릿을 가져오지 못했습니다: ${message(e)}`);
+        notify('danger', `템플릿을 가져오지 못했습니다: ${errorMessage(e)}`);
         return null;
       }
     },

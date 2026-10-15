@@ -30,5 +30,7 @@ export default defineConfig({
     // 도움말 > 정보 대화상자가 보여 줄 제품 버전
     define: { __APP_VERSION__: JSON.stringify(version) },
     plugins: [react()],
+    // electron-vite 는 렌더러를 기본으로 압축하지 않는다(웹 빌드는 압축). 압축한 뒤 scripts/obfuscate.cjs 가 난독화한다
+    build: { minify: true, target: 'es2022' },
   },
 });

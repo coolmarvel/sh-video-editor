@@ -119,8 +119,10 @@ describe('직렬화', () => {
     expect(t.audio[0]!.clips).toEqual([]);
     expect(t.audio[1]!.clips[0]).toMatchObject({ kind: 'slot', slot: 2, start: 0, duration: 20 * T });
     expect(t.transitions).toEqual([{ track: 0, effect: 'cross_dissolve', frames: 30, from: 0, to: 1, reverse: false }]);
-    // 키프레임 목록은 파라미터마다 effects.keyframes 한 번
-    expect(engine.callsOf('effects.keyframes')).toEqual([{ clip: text ? expect.any(Number) : 0, effect: 'opacity', param: 'opacity' }]);
+    // 키프레임 목록은 파라미터마다 effects.keyframes 한 번(param 을 준 것. param 없는 것은 features/keyframes 의 목록 읽기)
+    expect(engine.callsOf('effects.keyframes').filter((c) => c !== undefined && 'param' in c)).toEqual([
+      { clip: text ? expect.any(Number) : 0, effect: 'opacity', param: 'opacity' },
+    ]);
   });
 
   it('JSON 왕복: stringify -> parse 가 같은 객체', async () => {
@@ -334,7 +336,8 @@ describe('저장소와 적용', () => {
     expect(seq.selection).toEqual([title.clip]);
     expect(useInspectorRegistry.getState().active).toBe('text');
     expect(useProject.getState().notices.at(-1)).toMatchObject({ kind: 'success', text: expect.not.stringContaining('빈 자리') });
-    expect(engine.calls.slice(from).map((c) => c.id)).not.toContain('edit.beginTransaction');
+    // 적용 전체가 실행 취소 한 단계
+    expect(engine.calls.slice(from).map((c) => c.id)).toContain('edit.beginTransaction');
   });
 
   it('미디어가 모자라면 그 슬롯 클립은 비워 두고 알리고, 없으면 안내만', async () => {

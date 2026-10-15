@@ -13,13 +13,14 @@ import { useTimeline } from '../timeline/store';
 import { findClip } from '../timeline/types';
 import { anchorAlign, clampPosition, presetPosition, quadBounds, type Anchor9 } from './geometry';
 import { DEFAULT_FONT, DEFAULT_SECONDS, titlePreset, type TitlePresetId } from './presets';
+import { errorMessage } from '../../errors';
 
-export interface FontFamily {
+interface FontFamily {
   family: string;
   styles: string[];
 }
 
-export interface GraphicLayer {
+interface GraphicLayer {
   layer: number;
   kind: string;
   name: string;
@@ -29,7 +30,7 @@ export interface GraphicLayer {
   enabled: boolean;
 }
 
-export interface GraphicInfo {
+interface GraphicInfo {
   clip: number;
   canvas: [number, number];
   start: number;
@@ -37,7 +38,7 @@ export interface GraphicInfo {
   layers: GraphicLayer[];
 }
 
-export interface TextState {
+interface TextState {
   fonts: FontFamily[];
   fontsLoaded: boolean;
   /** 클립별 graphics.list 결과와 그것을 읽은 engineRevision */
@@ -57,8 +58,6 @@ export interface TextState {
   setStart(clip: number, seconds: number): Promise<void>;
   setDuration(clip: number, seconds: number): Promise<void>;
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function bridge() {
   return useEditor.getState().bridge;
@@ -106,7 +105,7 @@ export const useText = create<TextState>((set, get) => {
       if (status !== undefined) await refreshAll(status);
       return r;
     } catch (e) {
-      useEditor.setState({ error: `텍스트를 편집할 수 없습니다: ${message(e)}` });
+      useEditor.setState({ error: `텍스트를 편집할 수 없습니다: ${errorMessage(e)}` });
       await refreshAll();
       return undefined;
     } finally {
@@ -127,7 +126,7 @@ export const useText = create<TextState>((set, get) => {
         const list = (await b.execute('fonts.list', { system: true })) as FontFamily[];
         set({ fonts: sortFonts(Array.isArray(list) ? list : []), fontsLoaded: true });
       } catch (e) {
-        useEditor.setState({ error: `글꼴 목록을 읽지 못했습니다: ${message(e)}` });
+        useEditor.setState({ error: `글꼴 목록을 읽지 못했습니다: ${errorMessage(e)}` });
         set({ fonts: [{ family: DEFAULT_FONT, styles: ['Regular', 'Bold'] }], fontsLoaded: true });
       }
     },

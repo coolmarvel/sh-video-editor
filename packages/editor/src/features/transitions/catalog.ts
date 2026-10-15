@@ -3,7 +3,7 @@
  * (docs/plans/0002 M2-3). 엔진에는 112종이 있지만 갤러리는 이 목록만 보이고, 다른 전환이 들어 있는
  * 프로젝트를 열면 인스펙터가 그 id 를 그대로 보인다.
  */
-export interface TransitionDef {
+interface TransitionDef {
   /** 엔진 전환 id (`sequence.applyVideoTransition` 의 `effect`) */
   id: string;
   /** 한국어 이름 */

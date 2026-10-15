@@ -12,15 +12,16 @@ import { walkItems } from '../media/types';
 import { editionName } from '../onboarding/naming';
 import { DEFAULT_PX_PER_SEC, clampZoom, snapToFrame } from './geometry';
 import { findClip, type SequenceInfo, type TrackKind } from './types';
+import { errorMessage } from '../../errors';
 
-export interface ClipMove {
+interface ClipMove {
   clip: number;
   track: number;
   time: number;
 }
 
 /** Alt 드래그: 연결된 상대 클립(영상-소리)을 두고 이 클립만 움직인다 */
-export interface EditOptions {
+interface EditOptions {
   linked?: boolean;
 }
 
@@ -74,8 +75,7 @@ function bridgeOrNull(): EngineBridge | null {
 }
 
 function describeError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  return `편집할 수 없습니다: ${msg}`;
+  return `편집할 수 없습니다: ${errorMessage(e)}`;
 }
 
 export const useTimeline = create<TimelineState>((set, get) => {

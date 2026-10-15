@@ -96,7 +96,7 @@ describe('키프레임 store', () => {
     expect(engine.callsOf('effects.toggleAnimation')).toHaveLength(1);
   });
 
-  it('실행 취소·다시 실행 뒤 목록이 스냅샷으로 되살아나고 stale 이 아니다', async () => {
+  it('실행 취소·다시 실행 뒤 목록을 엔진에서 다시 읽는다', async () => {
     await kf().toggleAt(a.clip, 'motion', 'position');
     await useTimeline.getState().setPlayhead(3 * T);
     await kf().setValue(a.clip, 'motion', 'position', [100, 100]);
@@ -104,17 +104,15 @@ describe('키프레임 store', () => {
     await useTimeline.getState().undo();
     expect(keyframeCount(clipNow(), 'motion', 'position')).toBe(1);
     expect(kf().tracks[key()]).toHaveLength(1);
-    expect(kf().stale).toEqual({});
     await useTimeline.getState().undo();
     expect(kf().tracks[key()]).toBeUndefined();
     await useTimeline.getState().redo();
     expect(kf().tracks[key()]).toHaveLength(1);
     await useTimeline.getState().redo();
     expect(kf().tracks[key()]!.map((k) => k.time / T)).toEqual([0, 3]);
-    expect(kf().stale).toEqual({});
   });
 
-  it('화면이 모르는 변경(개수 불일치)은 stale 로 표시하고, 토글은 그래도 동작한다', async () => {
+  it('화면 밖 경로로 생긴 키프레임도 다음 inspect 뒤 목록에 보이고, 토글이 동작한다', async () => {
     await kf().toggleAt(a.clip, 'motion', 'rotation');
     // 다른 경로로 엔진에 키프레임이 생겼다
     engine.setPlayhead(2 * T);
@@ -122,7 +120,8 @@ describe('키프레임 store', () => {
     engine.setPlayhead(0);
     await useTimeline.getState().refresh();
     const k = paramKey(a.clip, 'motion', 'rotation');
-    expect(kf().stale[k]).toBe(true);
+    await kf().synced();
+    expect(kf().tracks[k]!.map((x) => x.time / T)).toEqual([0, 2]);
     expect(keyframeCount(clipNow(), 'motion', 'rotation')).toBe(2);
     await kf().toggleAt(a.clip, 'motion', 'rotation');
     expect(keyframeCount(clipNow(), 'motion', 'rotation')).toBe(1);
@@ -132,13 +131,13 @@ describe('키프레임 store', () => {
     await kf().toggleAt(a.clip, 'opacity', 'opacity');
     await useTimeline.getState().setPlayhead(2 * T);
     await useEffects.getState().setParam(a.clip, 'opacity', 'opacity', 30);
+    await kf().synced();
     const track = kf().tracks[paramKey(a.clip, 'opacity', 'opacity')]!;
     expect(track.map((x) => [x.time / T, x.value])).toEqual([
       [0, 100],
       [2, 30],
     ]);
     expect(keyframeCount(clipNow(), 'opacity', 'opacity')).toBe(2);
-    expect(kf().stale).toEqual({});
   });
 
   it('프리셋은 addKeyframe 한 번과 setParam {time} 두 번으로 키프레임 두 개를 만든다', async () => {
@@ -177,11 +176,11 @@ describe('키프레임 store', () => {
     expect(useTimeline.getState().playhead).toBe(T);
   });
 
-  it('엔진이 거부하면 목록을 되돌리고 오류를 상태 줄에 올린다', async () => {
+  it('엔진이 거부하면 목록은 엔진 그대로이고 오류를 상태 줄에 올린다', async () => {
     engine.failNext('effects.addKeyframe', 'nope');
     await kf().toggleAt(a.clip, 'motion', 'position');
     expect(kf().tracks[key()]).toBeUndefined();
     expect(useEditor.getState().error).toContain('키프레임을 바꿀 수 없습니다');
-    expect(kf().undo).toHaveLength(0);
+    expect(kf().busy).toBe(false);
   });
 });

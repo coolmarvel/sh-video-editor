@@ -12,6 +12,41 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-15 - P2 세 갈래: 인코더 병렬화, 엔진 미디어, 앱 다듬기 (v0.1.10)
+
+- **요청**: CI 수정 뒤 다음 todo 를 바로 진행. 기준은 그대로(기능은 깨지지 않고 더 빨라져야 한다).
+- **방법**: 워크트리 셋(engine-media·encoders 는 Rust, app-p2 는 TS 만). 병합 순서 app-p2, encoders, engine-media. engine-media 의 첫 결과는
+  웹 메모리를 667MB 에서 276MB 로 줄였지만 긴 GOP 영상의 뒤로 문지르기가 약 1초 멈춰 병합하지 않고 되돌려 보냈고, 버퍼 재사용만 남긴 V2 로 병합.
+- **수정**:
+  - app-p2(TS 만, 커밋 51a4046·a8b7108·653a3dd·ccd1202·860f57c·e7abc3a·a8037a8·8d10aaf·380b514·66e5f48): (1) todo "데스크톱 projectChanged 에
+    revision 없음" 은 낡은 항목이었다: napi drainEvents 는 처음부터 revision 을 싣고 데모 넣기 + 타임라인에 넣기가 sequence.inspect 4~6,
+    project.inspect 3~4, media.status 2(웹과 같은 수준). 데스크톱 렌더러도 window.shBridge 를 두고 app.spec 이 같은 상한을 지킨다. (2) 문제 보고
+    schema 2: 엔진 프로세스가 편집마다 history.list 스냅샷(약 3us, 끝 50개), app.productName·packaged. 스모크가 실제 userData 에 문제 보고 파일을
+    쌓던 것은 임시 --user-data-dir 로. (3) SNS 카드가 H.264 비트레이트로 WebM·HEVC·AV1 을 내보내던 것: 형식별 비율(1, 0.6, 0.5, 0.4), YouTube
+    1080p WebM 20 에서 8 Mbps. (4) 전환 반복 프레임 알림에 "핸들 자동으로 다듬기"(앞 클립 끝·뒤 클립 처음 리플 트림, 실행 취소 한 단계). (5) 웹 글꼴
+    Cache Storage 는 측정 결과 준비됨 시간이 같고(436~449 대 435~444ms) 5.6MB 를 한 벌 더 저장해 넣지 않음. (6) DESIGN.md 절 번호 중복 정리
+    (4.26~4.28), 미리보기 스크러버·재생 조작 줄 4.29. (7) 웹 새 프로젝트 Alt+N. (8) 390 상태 줄에 잡 칸이 켜지면 이름·수정됨이 한 글자로 잘리던 것:
+    900 이하에서 진단·호스트 칸 숨김. 워크트리 검증: 단위 782, 엔진 210, 데스크톱 스모크·e2e 8, 웹 e2e 전체 162(skip 5) + 부하 중 1건(390 최근 프로젝트
+    메뉴) 재실행 통과.
+  - encoders(`engine(vendor):` + `perf:`, 커밋 65ab12d·a7c7e47, todo P2 두 건): VP9 는 폭이 허락하는 최대 타일 열(1080p 4개)을 병렬 코딩, 위상 평면·
+    루프 필터도 병렬. HEVC 는 WPP(CTU 행 서브스트림, 진입점 오프셋, hvcC parallelismType 3). AV1 은 비트스트림 그대로 슈퍼블록 결정만 행 단위 병렬
+    (예전 바이너리와 바이트 동일). 스트림은 작업자 수와 무관(wasm 은 한 스레드로 같은 스트림). AV1 "단순 영상 목표 미달" 은 버그가 아니라 화질 상한
+    (q 1 에서 OceanSunset 3.7 Mbps 62.3 dB)이고, 진짜 버그는 키프레임 몫을 갚지 않아 약 10% 넘치던 것(10 Mbps 목표 10960 에서 9997 kbps). 내보내기
+    대화상자에 느린 형식 1080p 안내. 실측 1080p 18초(부하 중): WebM 128.6 에서 70.9초, HEVC 236.7 에서 106.4초, AV1 314.1 에서 145.8초, 크기·PSNR
+    같음. 워크트리 검증: cargo test 115, 단위 772, 엔진 기능 206(export-parallel 신규), 워크플로 회귀, 웹 e2e 42, 데스크톱 스모크·e2e 7, vendor xtask ci 1980.
+  - engine-media(`engine(vendor):` 5 + `perf:` + `docs:`, 커밋 fdeae36·2f46738·26fef92·56384eb·0cf55ab·254c6f4·9b20abd, todo P2): WebCodecs 프레임이
+    평면을 선반에서 꺼내 쓰게(버린 평면이 재사용 0 으로 201MB 쌓이던 것) 해 588MB 1080p 탐색 뒤 브라우저 wasm 메모리 667MB 에서 474MB(-29%), 뒤로·
+    앞으로·재생 뒤 문지르기는 main 과 같은 범위(각 10회). 처음 시도한 캐시 예산 축소(276MB)는 키프레임 간격이 긴 영상의 뒤로 문지르기가 약 1초
+    멈추고 2초 GOP 도 재생 뒤 뒤로가 2~3배 느려져 "느려지면 안 된다" 기준으로 되돌림(9b20abd). 데모 OceanSunset·Forest 는 행마다 노이즈 해시 표(비트
+    일치)로 wasm 50~58ms·39~46ms(여섯 장면 모두 60ms 안). 흔들림 분석 캐시 키에 미디어 참조(relink·교체 뒤 옛 분석 재사용 수정). Lottie 를 보이는
+    크기(최대 4배)로 그려 300% 가장자리 5px 에서 1px(0.5 미리보기 시간 같음, 1배 렌더의 확대 스티커만 30 에서 66~70ms, 화질 대가). 교환 형식을 웹
+    빌드에서 끔(명령 687개 그대로), wasm 14.74MB 에서 13.99MB. 상류 단축키 충돌은 의미 판단이 필요해 건너뜀. 워크트리 검증: vendor xtask ci 1977,
+    단위 770, 엔진 기능 211, 워크플로 회귀, 웹 e2e, 데스크톱 스모크·e2e 7.
+- **병합 뒤 검증(v0.1.10, main)**: prettier, clippy, 엔진 빌드(napi·wasm·speech-wasm), typecheck, cargo test(바인딩), 단위 784, 엔진 기능 214, 워크플로 회귀 9.0초, 앱 빌드,
+  웹 e2e 163 통과(skip 5, 실패 0, 8.9분, 1440·390), 데스크톱 스모크(687 커맨드)·e2e 8, vendor `cargo xtask ci` 1981. Windows 엔진 0.1.10 크로스 빌드,
+  인스톨러 0.1.10(122.7MB)을 바탕화면 `seonghyun` 폴더에(0.1.9 제거). 푸시 뒤 GitHub Actions 결과까지 확인.
+- **다음**: P2 의 HEVC wasm·napi 바이트 차이, 웹 decode 캐시 474MB, wasm 12MB(기능 결정 필요), 상류 단축키 충돌(결정 필요).
+
 ## 2026-10-15 - P1 Windows 실기 확인 두 건 (WSL 에서 Windows 프로그램 실행)
 
 - **요청**: CI 수정을 마치고 다음 todo 를 바로 진행. P1 두 건은 Windows PC 가 필요해 미뤄 왔지만 WSL 이 Windows 프로그램을 실행할 수 있어 직접 확인.

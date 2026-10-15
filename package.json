@@ -1,6 +1,6 @@
 {
   "name": "sh-video-editor",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "SH Video Editor: CapCut 식 영상·오디오 편집기. Electron+React 데스크톱과 WASM 웹이 같은 화면(packages/editor)과 같은 Rust 엔진(packages/engine)을 쓴다",
   "author": "이성현",

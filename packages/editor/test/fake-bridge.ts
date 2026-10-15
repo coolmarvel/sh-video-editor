@@ -2478,13 +2478,6 @@ export class FakeEngine {
         this.touch();
         return null;
       }
-      case 'clip.rename': {
-        const c = this.findClip(this.sequence, p['clip'] as number).clip;
-        this.snapshot('Rename');
-        c.name = p['name'] as string;
-        this.touch();
-        return null;
-      }
       case 'graphics.set': {
         const { g } = this.graphicOf(p['clip'] as number | undefined);
         const props = (p['props'] ?? {}) as Record<string, unknown>;

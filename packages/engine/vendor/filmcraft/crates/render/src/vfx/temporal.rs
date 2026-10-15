@@ -258,8 +258,8 @@ pub fn clear_stabilizer_cache() {
 }
 
 /// Cache key of a clip's analysis for one tracking method (what [`stabilizer_path`] looks up).
-pub fn stabilizer_key(item: &filmcraft_project::TrackItem, method: TrackMethod, detailed: bool) -> u64 {
-    super::clip_analysis_key(item) ^ (method as u64).wrapping_mul(0x9E37) ^ (detailed as u64).wrapping_mul(0x51_7CC1)
+pub fn stabilizer_key(project: &filmcraft_project::Project, item: &filmcraft_project::TrackItem, method: TrackMethod, detailed: bool) -> u64 {
+    super::clip_analysis_key(project, item) ^ (method as u64).wrapping_mul(0x9E37) ^ (detailed as u64).wrapping_mul(0x51_7CC1)
 }
 
 /// Whether an analysis for `key` is in the cache (a render will stabilise without analysing).

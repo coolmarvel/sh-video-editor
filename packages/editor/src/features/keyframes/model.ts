@@ -4,8 +4,8 @@
  * - `effects.addKeyframe {time}` 은 플레이헤드(또는 time)의 키프레임을 토글하고, `effects.setParam {time}` 은 애니메이션 중인
  *   파라미터면 그 시각에 키프레임을 추가·갱신하고 아니면 정적 값을 바꾼다. `effects.deleteKeyframe/moveKeyframe/setInterpolation`
  *   은 `mediaTime` 으로 키프레임을 찾는다. `effects.toggleAnimation` 은 모든 키프레임을 지운다.
- * - `sequence.inspect` 는 파라미터마다 키프레임 **개수**와 정적 값만 준다(시각·값 목록을 주는 커맨드가 없다). 그래서 화면은
- *   자기가 보낸 커맨드로 키프레임 목록(index)을 쌓고 개수로 대조한다(store.ts). 보간 계산도 엔진 `value_at`/`ease` 를 옮겨 적은 것이다.
+ * - `sequence.inspect` 는 파라미터마다 키프레임 **개수**와 정적 값만 준다. 시각·값·보간 목록은 `effects.keyframes {clip, effect}`
+ *   로 읽는다(store.ts 의 sync). 보간 계산(플레이헤드 값 미리 보기)은 엔진 `value_at`/`ease` 를 옮겨 적은 것이다.
  */
 import type { ClipInfo } from '../timeline/types';
 
@@ -91,29 +91,6 @@ export function sortTrack(track: ParamTrack): ParamTrack {
 
 export function keyframeAt(track: ParamTrack, time: number): Keyframe | undefined {
   return track.find((k) => k.time === time);
-}
-
-/** 엔진 `Param::set_at` 이 애니메이션 중일 때 하는 일: 같은 시각이면 값 교체, 아니면 앞 키프레임의 보간을 물려받아 삽입 */
-export function putKeyframe(track: ParamTrack, time: number, value: KeyframeValue): ParamTrack {
-  const existing = keyframeAt(track, time);
-  if (existing) return track.map((k) => (k.time === time ? { ...k, value } : k));
-  const before = [...track].filter((k) => k.time < time).pop();
-  return sortTrack([...track, makeKeyframe(time, value, before?.interp ?? 'linear')]);
-}
-
-export function removeKeyframe(track: ParamTrack, time: number): ParamTrack {
-  return track.filter((k) => k.time !== time);
-}
-
-/** 엔진 `moveKeyframe`: from 의 키프레임을 to 로 옮기고 to 에 있던 것은 버린다 */
-export function moveKeyframe(track: ParamTrack, from: number, to: number): ParamTrack {
-  const k = keyframeAt(track, from);
-  if (!k) return track;
-  return sortTrack([...track.filter((x) => x.time !== from && x.time !== to), { ...k, time: to }]);
-}
-
-export function setInterpolation(track: ParamTrack, time: number, interp: Interpolation): ParamTrack {
-  return track.map((k) => (k.time === time ? { ...k, interp } : k));
 }
 
 /** 엔진 keyframe.rs `cubic_bezier_y_for_x`: CSS cubic-bezier(x1,y1,x2,y2) 의 x 에서 y */

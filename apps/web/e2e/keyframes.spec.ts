@@ -5,7 +5,7 @@
  * 템플릿 탭에서 세로 Shorts 틀을 만들면 1080x1920 편집본에 제목·자막 띠가 들어간다. 1440 과 390 두 뷰포트(playwright.config.ts).
  */
 import type { Page } from '@playwright/test';
-import { engineSequence, expect, makeDemoSequence, test, ui } from './fixtures';
+import { engineSequence, expect, makeDemoSequence, test, toasts, ui } from './fixtures';
 
 interface ShBridge {
   execute(id: string, params?: Record<string, unknown>): Promise<unknown>;
@@ -147,6 +147,39 @@ test.describe('키프레임', () => {
     await expect(ui.current(app)).toHaveText('00:00:01:00');
     await expect(tab.getByRole('slider', { name: '위치 X' })).toHaveValue('960');
     await expect.poll(async () => (await box.boundingBox())!.x).toBeGreaterThan(left0 + 50);
+  });
+
+  test('키프레임 마커와 다음 키프레임 이동은 프로젝트를 저장하고 다시 연 뒤에도 그대로다(목록을 엔진에서 읽는다)', async ({ app }) => {
+    await makeDemoSequence(app);
+    await ui.videoClips(app).first().click();
+    await inspector(app).getByRole('tab', { name: '모션' }).click();
+    await app.getByTestId('motion-tab').getByRole('button', { name: '왼쪽에서' }).click();
+    await expect(ui.videoClips(app).first().locator('[data-keyframe-markers]')).toHaveAttribute('data-keyframe-markers', '2');
+    await app.keyboard.press('Control+s');
+    const save = app.getByRole('dialog', { name: '브라우저에 저장' });
+    await save.getByLabel('이름').fill('키프레임 다시 열기');
+    await save.getByRole('button', { name: '브라우저에 저장' }).click();
+    await expect(toasts(app).filter({ hasText: '브라우저 안에 저장했습니다: 키프레임 다시 열기' })).toBeVisible();
+
+    await app.reload();
+    await expect(app.locator('.ve-status')).toContainText(/준비됨: 커맨드 \d+개/, { timeout: 60_000 });
+    await ui
+      .timeline(app)
+      .getByLabel('최근 프로젝트')
+      .getByRole('button', { name: /키프레임 다시 열기/ })
+      .click();
+    await expect(toasts(app).filter({ hasText: '열었습니다: 키프레임 다시 열기' })).toBeVisible();
+    // 화면은 이 키프레임을 만든 커맨드를 본 적이 없지만 엔진에서 읽어 마커를 그린다
+    await expect(ui.videoClips(app).first().locator('[data-keyframe-markers]')).toHaveAttribute('data-keyframe-markers', '2');
+    await ui.videoClips(app).first().click();
+    await inspector(app).getByRole('tab', { name: '모션' }).click();
+    await bridge(app).setPlayhead(0);
+    await expect(ui.current(app)).toHaveText('00:00:00:00');
+    const tab = app.getByTestId('motion-tab');
+    await tab.getByRole('button', { name: '다음 키프레임' }).click();
+    // 두 번째 키프레임(약 1초, 엔진이 소스 프레임 경계에 둔 시각)으로 가고 그 자리 값은 쉬는 위치(X = 960)
+    await expect(ui.current(app)).not.toHaveText('00:00:00:00');
+    await expect(tab.getByRole('slider', { name: '위치 X' })).toHaveValue('960');
   });
 });
 

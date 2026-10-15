@@ -208,9 +208,7 @@ export const useMotionFx = create<MotionFxState>((set, get) => ({
     try {
       await withTransaction(bridge, label, async () => {
         await bridge.execute('effects.setParam', { clip: clipId, effect: 'motion', param: 'scale', value: place.scale });
-        useKeyframes.getState().noteParamSet(clipId, 'motion', 'scale', place.scale);
         await bridge.execute('effects.setParam', { clip: clipId, effect: 'motion', param: 'position', value: place.position });
-        useKeyframes.getState().noteParamSet(clipId, 'motion', 'position', place.position);
       });
       useEditor.setState({ status: label, error: null });
       return true;

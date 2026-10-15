@@ -165,11 +165,11 @@ domain: development
 
 ### 마일스톤 3 - 효과·템플릿·이식
 
-- [~] **M3-1 키프레임·모션** (2026-10-14 화면 구현, feat/keyframes-templates)
+- [x] **M3-1 키프레임·모션** (2026-10-14 화면 구현, feat/keyframes-templates; 2026-10-15 목록을 엔진에서 읽기, feat/refactor-cleanup)
   - (a) `effects.addKeyframe`, `effects.setKeyframe`, `effects.moveKeyframe`, `effects.setInterpolation`. effectcraft `keyframe` 이식은 easing 곡선이 부족하다고 판단될 때
   - (b) [x] features/keyframes: 인스펙터 "모션" 탭(위치 X/Y·크기·회전·불투명도 + 마름모 토글·보간 5종·이전/다음·등장/퇴장 프리셋 6종), 타임라인 클립 마커, 모니터 변형 상자 끌기
   - (c) [x] `packages/engine/tests/keyframes.test.ts`: 중간 프레임 위치가 선형 보간값과 4px(0.25 배율 1px) 이내, 홀드·이즈아웃, 불투명도 밝기 증가
-  - (e) [ ] 엔진 갭: `sequence.inspect` 가 키프레임 **개수**만 주고 시각·값 목록을 주는 커맨드가 없다. 화면이 보낸 커맨드로 목록을 쌓고 개수로 대조하며(실행 취소·다시 실행은 스냅샷), 프로젝트를 다시 열면 마커가 비는다. `effects.keyframes {clip, effect, param}` 조회 커맨드가 필요하다
+  - (e) [x] (2026-10-15 feat/refactor-cleanup) 키프레임 목록을 엔진 `effects.keyframes {clip, effect}` 에서 읽는다: inspect 를 다시 읽을 때마다 키프레임이 있는 효과만 다시 읽고(늦게 끝난 옛 읽기는 버림), 화면이 보낸 커맨드로 목록을 추정하던 코드(스냅샷·개수 대조·stale 표시·noteParamSet)를 지웠다. 실행 취소·다시 실행·다른 경로의 값 변경·프로젝트 다시 열기 뒤에도 마커·이전/다음이 엔진과 같다(웹 e2e `keyframes.spec.ts` "다시 연 뒤")
   - (d) M
 - [x] **M3-2 속도 램프** (2026-10-14 feat/motion-fx: 상류가 time_remap speed 키프레임을 렌더에서 무시해 vendor 에 적분 추가, 곡선 프리셋 3종 + 편집기): `time_remap` 효과의 speed 파라미터에 키프레임(M3-1 재사용), 곡선 프리셋(몽타주·히어로·총알). (d) S
 - [x] **M3-3 크로마키·PIP·오버레이** (2026-10-14 feat/motion-fx: ultra_key + 스포이트, PIP 모서리 프리셋, V2 끌어다 놓기 확인)

@@ -119,8 +119,10 @@ describe('직렬화', () => {
     expect(t.audio[0]!.clips).toEqual([]);
     expect(t.audio[1]!.clips[0]).toMatchObject({ kind: 'slot', slot: 2, start: 0, duration: 20 * T });
     expect(t.transitions).toEqual([{ track: 0, effect: 'cross_dissolve', frames: 30, from: 0, to: 1, reverse: false }]);
-    // 키프레임 목록은 파라미터마다 effects.keyframes 한 번
-    expect(engine.callsOf('effects.keyframes')).toEqual([{ clip: text ? expect.any(Number) : 0, effect: 'opacity', param: 'opacity' }]);
+    // 키프레임 목록은 파라미터마다 effects.keyframes 한 번(param 을 준 것. param 없는 것은 features/keyframes 의 목록 읽기)
+    expect(engine.callsOf('effects.keyframes').filter((c) => c !== undefined && 'param' in c)).toEqual([
+      { clip: text ? expect.any(Number) : 0, effect: 'opacity', param: 'opacity' },
+    ]);
   });
 
   it('JSON 왕복: stringify -> parse 가 같은 객체', async () => {

@@ -12,6 +12,7 @@ domain: development
 
 ## P1 - 다음 릴리스에서 다뤄야 함
 
+- [ ] Windows 실기에서 0.1.9 글꼴(맑은 고딕 실제 Bold)과 제목 줄(투명 titleBarOverlay 위 창 버튼, 끌기, 더블클릭 최대화, 스냅) 확인. Linux xvfb 로는 ClearType·창 버튼이 안 보임 (`apps/desktop/src/main/index.ts`, `shell/TitleBar.tsx`)
 - [ ] Windows HW 디코드 실기 확인: 앱 정보의 엔진 버전에 `hw: Media Foundation` 이 뜨고 재생 뒤 `perf.stats` 의 decode.hardware.frames > 0 인지 (`docs/guides/packaging.md` 실기 검증 표)
 
 ## P2 - 가까운 로드맵
@@ -23,7 +24,6 @@ domain: development
 - [ ] AV1 레이트 컨트롤이 단순 영상에서 양자화 하한에 머물러 목표 10 Mbps 에 2.6 Mbps 로 못 미침(프리셋 비트레이트가 파일 크기를 거의 못 바꿈). q 하한 완화 또는 품질 모드 (`crates/av1enc/src/decide.rs`, `docs/guides/webm-export.md` 3.5)
 - [ ] 움직이는 스티커가 512px 문서 크기로 래스터되어 그보다 훨씬 키우면 가장자리가 부드러워짐. 항목 크기를 모션 scale 에 맞춰 `at_size` 로 다시 열기 (`vendor/.../media_pool.rs`, `features/stickers/store.ts`)
 - [ ] 흔들림 분석 캐시가 프로세스 전역이고 새 프로젝트·열기 때만 비움. 클립 삭제·미디어 교체 때도 무효화 (`vendor/.../render/src/vfx/temporal.rs`, `crates/engine/src/stabilize.rs`)
-- [ ] 엔진 toast 이벤트 영문 문구("Scene Edit Detection found no cut points" 등)를 번역표로 (`features/events/poller.ts`)
 - [ ] SNS 프리셋 카드가 H.264 비트레이트로 WebM 을 고르면 VP9 가 16~45 Mbps 로 인코딩. WebM 용 비트레이트 표 (`features/ratio/SnsPresets.tsx`, `features/export/presets.ts`)
 - [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
 - [ ] wasm 14.2MB 에서 12MB 로: interchange(AAF/OMF/FCPXML/OTIO 0.7MB)·image(tiff/gif/webp 0.5MB)·symphonia(0.4MB)·코덱 feature(1MB) 분리 (`docs/guides/wasm-performance.md`)

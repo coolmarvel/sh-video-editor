@@ -12,8 +12,12 @@
   flex-direction: column;
   overflow: hidden;
 }
-/* 탭이 여섯 개(미디어, 전환, 필터, 음악, 스티커, 템플릿)라 좁은 패널에서는 두 줄로 접는다. 접힌 줄의 탭도 아래 선에 붙는다 */
+/* 탭이 여섯 개(미디어, 전환, 필터, 음악, 스티커, 템플릿)라 탭 좌우 여백을 4.4 기본 16 에서 8 로 줄여 약 306px 에 한 줄로 둔다(1440 창의
+   패널 약 360px). 그보다 좁을 때만 두 줄로 접고, 접힌 줄의 탭도 아래 선에 붙는다(DESIGN.md 4.4) */
 .ve-media-tabs {
   flex-wrap: wrap;
   row-gap: var(--sh-space-2);
+}
+.ve-media-tabs .sh-tab {
+  padding: 0 var(--sh-space-8);
 }

@@ -15,7 +15,8 @@ authors = ["이성현 (SeongHyun Lee)"]
 rust-version = "1.95"
 
 [workspace.dependencies]
-filmcraft-engine = { path = "vendor/filmcraft/crates/engine" }
+# default-features off here so the wasm binding can leave out `interchange`; napi turns it on
+filmcraft-engine = { path = "vendor/filmcraft/crates/engine", default-features = false }
 filmcraft-project = { path = "vendor/filmcraft/crates/project" }
 filmcraft-render = { path = "vendor/filmcraft/crates/render" }
 filmcraft-time = { path = "vendor/filmcraft/crates/time" }

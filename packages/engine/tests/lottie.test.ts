@@ -142,6 +142,43 @@ napi('Lottie 스티커 (napi)', () => {
     expect(() => exec(engine, 'graphics.newFromFile', { path, time: 0 })).toThrow(/not a Lottie animation/);
   });
 
+  it('Motion 300% 로 키운 스티커는 보이는 크기로 그려 가장자리가 1배와 같이 좁다(선명)', () => {
+    // 하트(빨강, 투명 배경). 가운데 줄 근처 행마다 왼쪽에서 처음 빨강이 오르는 가장자리의 중간값 픽셀 수(빨강 10%~90%)를 센다.
+    // 512 문서를 1배로 그려 3배로 늘리면 가장자리가 약 3px 로 번지고, 보이는 크기(1536)로 그리면 1배 때처럼 1px 안팎이다.
+    const path = join(dir, 'sticker-heart-beat.json');
+    writeFileSync(path, readFileSync(join(ASSETS, 'heart-beat.json')));
+    const g = exec<{ clip: number }>(engine, 'graphics.newFromFile', { path, time: 0, duration: 5 * T });
+    const edge = (scalePct: number) => {
+      exec(engine, 'effects.setParam', { clip: g.clip, effect: 'motion', param: 'scale', value: scalePct });
+      const t0 = performance.now();
+      const f = engine.renderFrame(T, 1.0);
+      const ms = performance.now() - t0;
+      if (!f) throw new Error('renderFrame');
+      let max = 0;
+      for (let i = 0; i < f.rgba.length; i += 4) max = Math.max(max, f.rgba[i] ?? 0);
+      const widths: number[] = [];
+      for (let y = 440; y <= 640; y += 8) {
+        let w = 0;
+        for (let x = 0; x < f.width; x++) {
+          const r = pixel(f, x, y)[0];
+          if (r >= max * 0.9) break;
+          if (r > max * 0.1) w += 1;
+        }
+        widths.push(w);
+      }
+      widths.sort((a, b) => a - b);
+      return { width: widths[Math.floor(widths.length / 2)] ?? 0, ms };
+    };
+    const one = edge(100);
+    const three = edge(300);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[lottie napi] edge width (median, px): 100% ${one.width}, 300% ${three.width}; renderFrame 1080p ${one.ms.toFixed(1)}ms / ${three.ms.toFixed(1)}ms`,
+    );
+    expect(three.width).toBeLessThanOrEqual(one.width + 1);
+    exec(engine, 'edit.clear', { clips: [g.clip] });
+  });
+
   it('1080p 한 장 렌더 시간(실측, 상한 2초)', () => {
     const path = join(dir, 'sticker-confetti.json');
     const g = exec<{ clip: number }>(engine, 'graphics.newFromFile', { path, time: 0, duration: 5 * T });

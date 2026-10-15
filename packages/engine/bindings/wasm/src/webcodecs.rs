@@ -202,20 +202,27 @@ impl WebDecoder {
             pos += len as usize;
             let (wu, hu) = (w as usize, h as usize);
             let (cw, ch) = (wu.div_ceil(2), hu.div_ceil(2));
-            let y = data.get(..wu * hu).ok_or_else(bad)?.to_vec();
+            // planes come from the frame pool: the planes of frames the cache evicts go back there
+            // (`pool::recycle`), and fresh allocations here left them piling up to its cap (200 MB
+            // of idle planes in the worker after a few 1080p seeks)
+            let plane = |src: &[u8]| {
+                let mut b = filmcraft_frame::pool::take_u8(src.len());
+                b.extend_from_slice(src);
+                b
+            };
+            let y = plane(data.get(..wu * hu).ok_or_else(bad)?);
             let (u, v) = match format {
                 0 => (
-                    data.get(wu * hu..wu * hu + cw * ch)
-                        .ok_or_else(bad)?
-                        .to_vec(),
-                    data.get(wu * hu + cw * ch..wu * hu + 2 * cw * ch)
-                        .ok_or_else(bad)?
-                        .to_vec(),
+                    plane(data.get(wu * hu..wu * hu + cw * ch).ok_or_else(bad)?),
+                    plane(
+                        data.get(wu * hu + cw * ch..wu * hu + 2 * cw * ch)
+                            .ok_or_else(bad)?,
+                    ),
                 ),
                 1 => {
                     let uv = data.get(wu * hu..wu * hu + 2 * cw * ch).ok_or_else(bad)?;
-                    let mut u = Vec::with_capacity(cw * ch);
-                    let mut v = Vec::with_capacity(cw * ch);
+                    let mut u = filmcraft_frame::pool::take_u8(cw * ch);
+                    let mut v = filmcraft_frame::pool::take_u8(cw * ch);
                     for &[cb, cr] in uv.as_chunks::<2>().0 {
                         u.push(cb);
                         v.push(cr);

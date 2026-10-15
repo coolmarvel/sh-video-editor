@@ -10,7 +10,11 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["interchange"]
+# sh-video-editor: interchange documents (EDL, FCP7 XML, FCPXML, OTIO, AAF, OMF, ALE). The web build
+# turns it off (about 0.7 MB of wasm the web UI never reaches: its import picker takes media only and
+# it has no interchange export); the commands stay in the catalog and answer "not in this build".
+interchange = ["dep:filmcraft-interchange"]
 # Speech-to-text with Whisper (candle, CPU). Off by default and in wasm builds.
 whisper = ["filmcraft-speech/whisper"]
 # Speech-model downloads over HTTPS.
@@ -32,7 +36,7 @@ filmcraft-audio-dsp = { workspace = true }
 filmcraft-export = { workspace = true }
 filmcraft-mxf = { workspace = true }
 filmcraft-format = { workspace = true }
-filmcraft-interchange = { workspace = true }
+filmcraft-interchange = { workspace = true, optional = true }
 filmcraft-captions = { workspace = true }
 filmcraft-speech = { workspace = true }
 filmcraft-lottie = { workspace = true }

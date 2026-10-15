@@ -143,6 +143,12 @@ pub trait MediaSource: Send + Sync {
     fn at_size(&self, _width: u32, _height: u32) -> Option<SharedSource> {
         None
     }
+    /// sh-video-editor: the largest [`FrameRequest::scale`] the source renders natively. Raster
+    /// media stop at 1 (a bigger request would only upsample); a vector source draws a
+    /// Motion-enlarged clip at the size it is shown, so it stays sharp.
+    fn max_scale(&self) -> f32 {
+        1.0
+    }
 }
 
 pub type SharedSource = Arc<dyn MediaSource>;

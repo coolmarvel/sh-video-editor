@@ -162,16 +162,24 @@ impl FxEnv for ItemEnv<'_> {
         crate::source_size(self.project, self.item.item).unwrap_or((self.seq.settings.width, self.seq.settings.height))
     }
     fn clip_key(&self) -> u64 {
-        clip_analysis_key(self.item)
+        clip_analysis_key(self.project, self.item)
     }
 }
 
 /// Identity of a clip and its source range: the cache key of per-clip analyses (stabilizer).
 /// Background jobs (`effects.analyzeStabilizer`) compute the same key from the track item.
-pub fn clip_analysis_key(item: &TrackItem) -> u64 {
+///
+/// sh-video-editor: the media the item points at is part of the key, so relinking or replacing
+/// the footage of the same project item (same id) does not reuse the old footage's analysis.
+pub fn clip_analysis_key(project: &Project, item: &TrackItem) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325u64;
     for v in [item.item.0, item.start.0 as u64, item.duration.0 as u64, item.source_in.0 as u64, item.speed.to_bits(), item.reverse as u64] {
         h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
+    }
+    if let Some(m) = project.item(item.item).and_then(|p| p.as_media()) {
+        for b in format!("{:?}", m.media).bytes() {
+            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
     }
     h
 }

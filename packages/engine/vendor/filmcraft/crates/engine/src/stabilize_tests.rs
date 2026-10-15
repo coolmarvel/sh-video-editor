@@ -124,3 +124,29 @@ fn wait_runs_on_this_thread_and_refuses_audio_clips() {
     assert!(s.execute("effects.analyzeStabilizer", json!({"clip": audio})).is_err());
     assert!(s.execute("effects.analyzeStabilizer", json!({})).is_err());
 }
+
+#[test]
+fn relinking_the_footage_analyses_again_instead_of_reusing_the_old_path() {
+    // sh-video-editor: the analysis cache key holds the media reference, so the same project item
+    // pointing at other footage (relink, replace) is not stabilised with the old footage's path
+    let dir = tmp_dir("stab-relink");
+    let a = dir.join("a.mov");
+    let b = dir.join("b.mov");
+    make_movie(&a, DemoScene::Plasma, 96, 54, 24);
+    make_movie(&b, DemoScene::Aurora, 96, 54, 24);
+    let (mut s, items, _) = session_with(&[&a]);
+    let clip = v1_clip(&s);
+    let r = s.execute("effects.analyzeStabilizer", json!({"clip": clip, "wait": true})).unwrap();
+    assert_eq!(r["cached"], false);
+    let r = s.execute("effects.analyzeStabilizer", json!({"clip": clip})).unwrap();
+    assert_eq!(r["cached"], true, "same footage: the analysis is reused");
+    s.execute("media.relink", json!({"item": items[0].0, "path": b.to_string_lossy(), "force": true})).unwrap();
+    let r = s.execute("effects.analyzeStabilizer", json!({"clip": clip})).unwrap();
+    assert_eq!(r["cached"], false, "other footage under the same item: analysed again");
+    let job = r["job"].as_u64().expect("a job id");
+    wait_for(&mut s, job);
+    // undo of the relink brings the first footage back, and its analysis is still cached
+    s.execute("edit.undo", json!({})).unwrap();
+    let r = s.execute("effects.analyzeStabilizer", json!({"clip": clip})).unwrap();
+    assert_eq!(r["cached"], true, "back to the first footage: its analysis is reused");
+}

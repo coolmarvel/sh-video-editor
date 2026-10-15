@@ -406,7 +406,9 @@ pub(crate) fn item_layer_ex(
     let motion = motion_matrix(seq, item, src_size, mt);
     // How many output pixels one source pixel covers → request a reduced frame when possible.
     let lin = ((motion.a * motion.a + motion.b * motion.b).sqrt()).max((motion.c * motion.c + motion.d * motion.d).sqrt());
-    let want = (lin * opts.scale as f64).clamp(1.0 / 64.0, 1.0) as f32;
+    // sh-video-editor: vector media (Lottie) may be drawn above their nominal size
+    let cap = sources.source(item.item).map_or(1.0, |s| s.max_scale().max(1.0)) as f64;
+    let want = (lin * opts.scale as f64).clamp(1.0 / 64.0, cap) as f32;
     let pi = project.item(item.item)?;
     if matches!(pi.kind, ItemKind::Graphic { .. }) && !(item.has_opacity_masks() || opts.effects && item.has_standard_effects()) {
         // vectors straight to the output: no resampling, crisp at any Motion scale

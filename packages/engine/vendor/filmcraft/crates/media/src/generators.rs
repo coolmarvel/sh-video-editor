@@ -281,6 +281,76 @@ fn fbm(x: f32, y: f32, oct: u32) -> f32 {
     s
 }
 
+/// [`fbm`] along one row of a frame: every pixel of the row shares the noise lattice rows (`y` is
+/// the same), and `x` grows with the column, so the lattice hashes the row needs are computed once
+/// per row into a table instead of four per pixel and octave. [`FbmRow::at`] does the same f32
+/// arithmetic in the same order as [`fbm`], so it is bit-identical (sh-video-editor: OceanSunset
+/// and Forest were still 64..74 ms per wasm renderFrame, almost all of it lattice hashing).
+struct FbmRow {
+    oct: Vec<OctRow>,
+}
+
+struct OctRow {
+    /// Lattice column of `ha[0]` / `hb[0]`.
+    x0: i64,
+    /// Hashes along lattice rows `yi` and `yi + 1`, columns `x0 ..= x1 + 1`.
+    ha: Vec<f32>,
+    hb: Vec<f32>,
+    /// The octave's `y` (for the out-of-table fallback) and its smoothed fraction.
+    fy: f32,
+    v: f32,
+}
+
+impl FbmRow {
+    /// For `x` from `x_first` to `x_last` (the row's first and last column, `x` non-decreasing
+    /// along the row) at `y`, `oct` octaves.
+    fn new(x_first: f32, x_last: f32, y: f32, oct: u32) -> Self {
+        let (mut lo, mut hi, mut fy) = (x_first, x_last, y);
+        let oct = (0..oct)
+            .map(|_| {
+                let yi = fy.floor();
+                let yf = fy - yi;
+                let (by, by1) = ((yi as i64).wrapping_mul(19_349_663), ((yi + 1.0) as i64).wrapping_mul(19_349_663));
+                let (x0, x1) = (lo.floor() as i64, hi.floor() as i64 + 1);
+                let row = OctRow {
+                    x0,
+                    ha: (x0..=x1).map(|i| hash(i.wrapping_mul(73_856_093) ^ by)).collect(),
+                    hb: (x0..=x1).map(|i| hash(i.wrapping_mul(73_856_093) ^ by1)).collect(),
+                    fy,
+                    v: yf * yf * (3.0 - 2.0 * yf),
+                };
+                lo = lo * 2.03 + 1.7;
+                hi = hi * 2.03 + 1.7;
+                fy = fy * 2.01 + 9.2;
+                row
+            })
+            .collect();
+        Self { oct }
+    }
+
+    /// `fbm(x, y, oct)` for an `x` within the row's range.
+    fn at(&self, x: f32) -> f32 {
+        let mut s = 0.0;
+        let mut a = 0.5;
+        let mut fx = x;
+        for o in &self.oct {
+            let xi = fx.floor();
+            let xf = fx - xi;
+            let u = xf * xf * (3.0 - 2.0 * xf);
+            let i = (xi as i64 - o.x0) as usize;
+            let n = match (o.ha.get(i..i + 2), o.hb.get(i..i + 2)) {
+                (Some(&[a0, b0]), Some(&[c0, d0])) => (a0 + (b0 - a0) * u) + ((c0 + (d0 - c0) * u) - (a0 + (b0 - a0) * u)) * o.v,
+                // outside the table (cannot happen for x in range): the plain lattice
+                _ => vnoise(fx, o.fy),
+            };
+            s += a * n;
+            fx = fx * 2.03 + 1.7;
+            a *= 0.5;
+        }
+        s
+    }
+}
+
 fn to8(c: [f32; 3]) -> [u8; 4] {
     [(c[0].clamp(0.0, 1.0) * 255.0) as u8, (c[1].clamp(0.0, 1.0) * 255.0) as u8, (c[2].clamp(0.0, 1.0) * 255.0) as u8, 255]
 }
@@ -422,6 +492,8 @@ fn demo_frame(scene: DemoScene, px: &mut [u8], w: usize, h: usize, t: f32) {
                     let dy = v - sun[1];
                     let (wa, wb) = (smoothstep(0.1, 0.45, v), 1.0 - smoothstep(0.45, 0.55, v));
                     let clouds = wa != 0.0 && wb != 0.0;
+                    let (first, last) = (us.first().copied().unwrap_or(0.0), us.last().copied().unwrap_or(0.0));
+                    let cloud_row = clouds.then(|| FbmRow::new(first * 4.0 + t * 0.02, last * 4.0 + t * 0.02, v * 14.0, 4));
                     for (x, (&u, &dx)) in us.iter().zip(&dxs).enumerate() {
                         let d = (dx * dx + dy * dy).sqrt();
                         let glow = (-d * 9.0).exp();
@@ -429,8 +501,8 @@ fn demo_frame(scene: DemoScene, px: &mut [u8], w: usize, h: usize, t: f32) {
                         if d < 0.055 {
                             c = [1.0, 0.95, 0.82];
                         }
-                        if clouds {
-                            let cl = fbm(u * 4.0 + t * 0.02, v * 14.0, 4);
+                        if let Some(row) = &cloud_row {
+                            let cl = row.at(u * 4.0 + t * 0.02);
                             let cm = smoothstep(0.15, 0.45, cl) * wa * wb;
                             c = lerp3(c, [0.55, 0.28, 0.35], cm * 0.55);
                         }
@@ -440,11 +512,13 @@ fn demo_frame(scene: DemoScene, px: &mut [u8], w: usize, h: usize, t: f32) {
                     let k = (v - horizon) / (1.0 - horizon);
                     let water = lerp3([0.35, 0.18, 0.28], [0.03, 0.05, 0.12], k.powf(0.7));
                     let wy = (v - horizon) * 90.0 / (0.3 + k) - t * 1.4;
+                    let (first, last) = (us.first().copied().unwrap_or(0.0), us.last().copied().unwrap_or(0.0));
+                    let wave_row = FbmRow::new(first * 18.0 * (1.0 - k * 0.6) + t * 0.3, last * 18.0 * (1.0 - k * 0.6) + t * 0.3, wy, 3);
                     for (x, (&u, &dx)) in us.iter().zip(&dxs).enumerate() {
                         let path = (-dx * dx * 160.0 / (0.2 + k * 2.0)).exp();
                         let mut c = water;
                         if path != 0.0 {
-                            let wave = fbm(u * 18.0 * (1.0 - k * 0.6) + t * 0.3, wy, 3);
+                            let wave = wave_row.at(u * 18.0 * (1.0 - k * 0.6) + t * 0.3);
                             let sparkle = smoothstep(0.05, 0.4, wave) * path;
                             c = lerp3(c, [1.0, 0.78, 0.5], sparkle * (1.0 - k * 0.5));
                             c = lerp3(c, [0.9, 0.5, 0.35], path * 0.25 * (1.0 - k));
@@ -608,16 +682,19 @@ fn demo_frame(scene: DemoScene, px: &mut [u8], w: usize, h: usize, t: f32) {
             each_row(px, w, h, |v, row| {
                 let base = lerp3([0.75, 0.82, 0.8], [0.35, 0.45, 0.4], v);
                 let mist_w = smoothstep(0.55, 1.0, v);
+                let (first, last) = (us.first().copied().unwrap_or(0.0), us.last().copied().unwrap_or(0.0));
+                let ray_row = FbmRow::new(first * 8.0 - v * 3.0 + t * 0.05, last * 8.0 - v * 3.0 + t * 0.05, 1.0, 2);
+                let mist_row = (mist_w != 0.0).then(|| FbmRow::new(first * 3.0 + t * 0.1, last * 3.0 + t * 0.1, v * 5.0, 3));
                 for (x, (&u, cover)) in us.iter().zip(&trunks).enumerate() {
-                    let ray = 0.5 + 0.5 * fbm(u * 8.0 - v * 3.0 + t * 0.05, 1.0, 2);
+                    let ray = 0.5 + 0.5 * ray_row.at(u * 8.0 - v * 3.0 + t * 0.05);
                     let mut c = lerp3(base, [1.0, 0.97, 0.85], ray * (1.0 - v) * 0.35);
                     for k in 0..5 {
                         if cover[k] {
                             c = lerp3(c, dark[k], 0.85);
                         }
                     }
-                    if mist_w != 0.0 {
-                        let mist = mist_w * (0.6 + 0.4 * fbm(u * 3.0 + t * 0.1, v * 5.0, 3));
+                    if let Some(row) = &mist_row {
+                        let mist = mist_w * (0.6 + 0.4 * row.at(u * 3.0 + t * 0.1));
                         c = lerp3(c, [0.85, 0.88, 0.86], mist * 0.6);
                     }
                     put(row, x, c);
@@ -798,7 +875,7 @@ mod tests {
     #[test]
     fn demo_frame_matches_the_per_pixel_reference() {
         for s in DemoScene::ALL {
-            for (w, h, t) in [(96, 54, 0.0), (160, 90, 1.5), (123, 77, 7.25), (64, 112, 33.3)] {
+            for (w, h, t) in [(96, 54, 0.0), (160, 90, 1.5), (123, 77, 7.25), (64, 112, 33.3), (960, 540, 12.5)] {
                 let fast = render(&Generator::Demo(s), w, h, t, 0, FrameRate::FPS_24);
                 let (wu, hu) = (w as usize, h as usize);
                 let mut slow = vec![0u8; wu * hu * 4];

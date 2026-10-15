@@ -10,6 +10,10 @@
 
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable))]
 
+#[cfg(feature = "interchange")]
+pub mod aaf_omf;
+#[cfg(not(feature = "interchange"))]
+#[path = "interchange_off.rs"]
 pub mod aaf_omf;
 pub mod autosave;
 pub mod captions;
@@ -21,6 +25,10 @@ pub mod essential_sound;
 pub mod export_tools;
 pub mod graphic_templates;
 pub mod graphics;
+#[cfg(feature = "interchange")]
+pub mod interchange;
+#[cfg(not(feature = "interchange"))]
+#[path = "interchange_off.rs"]
 pub mod interchange;
 pub mod keyboard;
 pub mod masks;
@@ -1200,7 +1208,7 @@ const MAX_SUBCLIP_CHAIN: usize = 16;
 /// Widest frame [`Session::render_item_thumbnail`] renders (thumbnails, not previews).
 pub const MAX_THUMBNAIL_WIDTH: u32 = 1024;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "interchange"))]
 mod aaf_omf_tests;
 #[cfg(test)]
 mod audio_effects_tests;
@@ -1220,7 +1228,7 @@ mod export_tests;
 mod file_tests;
 #[cfg(test)]
 mod image_sequence_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "interchange"))]
 mod interchange_auto_points_tests;
 #[cfg(test)]
 mod keyboard_tests;

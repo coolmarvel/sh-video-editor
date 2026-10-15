@@ -292,7 +292,8 @@ fn push_item(
         let Some(size) = crate::source_size(project, item.item) else { return };
         let motion = motion_matrix(seq, item, size, mt);
         let lin = ((motion.a * motion.a + motion.b * motion.b).sqrt()).max((motion.c * motion.c + motion.d * motion.d).sqrt());
-        let want = (lin * opts.scale as f64).clamp(1.0 / 64.0, 1.0) as f32;
+        // sh-video-editor: vector media (Lottie) may be drawn above their nominal size
+        let want = (lin * opts.scale as f64).clamp(1.0 / 64.0, src.max_scale().max(1.0) as f64) as f32;
         let Ok(frame) = src.video_frame(FrameRequest { time: crate::frame_time(item, t), scale: want }) else { return };
         let cs = crate::colorman::source_space(project, item.item, &frame);
         // log / HDR / wide-gamut media is converted on the CPU (below), and so are blended

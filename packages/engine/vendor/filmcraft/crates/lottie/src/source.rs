@@ -15,6 +15,10 @@ use crate::Animation;
 /// `duration`, `timeline.place` `duration`); the frames loop the document's own length.
 pub const LOOP_SECONDS: f64 = 60.0;
 
+/// Largest scale a frame is rasterised at (relative to the item size): a sticker enlarged by
+/// Motion is drawn at the size it is shown, up to 4x (a 512 px sticker at 2048 px).
+const MAX_SCALE: f32 = 4.0;
+
 /// A Lottie document bound to a pixel size: frames are rasterised on demand (and cached by
 /// frame number and scale bucket). The animation loops, so [`MediaInfo::duration`] reports
 /// [`LOOP_SECONDS`] (or one pass when longer); [`Animation::duration_seconds`] is one pass.
@@ -80,7 +84,7 @@ impl MediaSource for LottieSource {
         let v = self.info.video.as_ref().ok_or(MediaError::NoStream("video"))?;
         let rate = v.frame_rate;
         let frame = rate.frame_at(req.time.max(Tick::ZERO));
-        let scale = req.scale.clamp(1.0 / 64.0, 1.0);
+        let scale = req.scale.clamp(1.0 / 64.0, MAX_SCALE);
         let bucket = (scale * 64.0).round() as u16;
         let s = bucket as f32 / 64.0;
         let (w, h) = (((v.width as f32 * s).round() as u32).max(2), ((v.height as f32 * s).round() as u32).max(2));
@@ -97,6 +101,10 @@ impl MediaSource for LottieSource {
 
     fn warnings(&self) -> Vec<String> {
         self.anim.warnings.clone()
+    }
+
+    fn max_scale(&self) -> f32 {
+        MAX_SCALE
     }
 
     fn at_size(&self, width: u32, height: u32) -> Option<SharedSource> {

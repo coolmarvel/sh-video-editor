@@ -14,6 +14,7 @@ workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+# no `interchange` (EDL/XML/AAF documents): the web UI never reaches it, about 0.7 MB of wasm
 filmcraft-engine = { workspace = true }
 filmcraft-project = { workspace = true }
 filmcraft-time = { workspace = true }

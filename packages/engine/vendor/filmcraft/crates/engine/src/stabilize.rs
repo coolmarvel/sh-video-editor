@@ -81,7 +81,7 @@ fn analyze(s: &mut Session, p: &Value) -> Result<Value> {
     let detailed = e.param("detailed").and_then(|p| p.value.as_bool()).unwrap_or(false);
     let fps = q.settings.frame_rate.as_f64().max(1.0);
     let n = ((it.duration.seconds() * fps).round() as usize).clamp(1, 20_000);
-    let key = stabilizer_key(it, method, detailed);
+    let key = stabilizer_key(&s.project, it, method, detailed);
     if stabilizer_cached(key) {
         return Ok(json!({"job": Value::Null, "frames": n, "cached": true}));
     }

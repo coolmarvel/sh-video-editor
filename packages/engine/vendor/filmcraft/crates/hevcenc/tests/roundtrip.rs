@@ -134,6 +134,11 @@ fn annexb(run: &Run) -> Vec<u8> {
 
 /// Decode the Annex-B stream with ffmpeg and require bit-exact equality and an empty stderr.
 fn check_ffmpeg(run: &Run, w: usize, h: usize, bd: u32, tag: &str) {
+    check_ffmpeg_with(run, w, h, bd, tag, &[]);
+}
+
+/// sh-video-editor: `extra` are decoder options (slice threading reads the WPP entry points).
+fn check_ffmpeg_with(run: &Run, w: usize, h: usize, bd: u32, tag: &str, extra: &[&str]) {
     let Some(ffmpeg) = filmcraft_testkit::ffmpeg_or_skip(&format!("hevcenc roundtrip {tag}")) else {
         return;
     };
@@ -144,7 +149,9 @@ fn check_ffmpeg(run: &Run, w: usize, h: usize, bd: u32, tag: &str) {
     std::fs::write(&inp, annexb(run)).unwrap();
     let pix = if bd == 8 { "yuv420p" } else { "yuv420p10le" };
     let o = Command::new(ffmpeg)
-        .args(["-v", "error", "-xerror", "-y", "-f", "hevc", "-i"])
+        .args(["-v", "error", "-xerror", "-y"])
+        .args(extra)
+        .args(["-f", "hevc", "-i"])
         .arg(&inp)
         .args(["-f", "rawvideo", "-pix_fmt", pix])
         .arg(&out)
@@ -278,6 +285,60 @@ fn noise_low_qp() {
         assert!(run.psnr_y.iter().all(|&p| p > 45.0), "{:?}", run.psnr_y);
         check_filmcraft(&run, w, h);
         check_ffmpeg(&run, w, h, bd, &format!("noise{bd}"));
+    }
+}
+
+/// sh-video-editor: every picture is one slice of CTU-row substreams (entropy_coding_sync). With
+/// slice threading ffmpeg decodes the rows in parallel from the entry point offsets, so wrong
+/// offsets (or a wrong context sync) fail here; noise makes the substreams full of emulation
+/// prevention bytes. Several widths: one CTU column (no sync), two, and many.
+#[test]
+fn wpp_substreams_decode_with_slice_threads() {
+    let mut seed = 0x9e37_79b9u32;
+    let mut rnd = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed
+    };
+    for (w, h, qp) in [(64usize, 200usize, 20u8), (128, 192, 24), (448, 320, 30), (450, 266, 4)] {
+        let pics: Vec<Pic> = (0..4)
+            .map(|i| {
+                let mut p = synth(w, h, 8, 2 * i, i);
+                // noisy lower half: large substreams with emulation prevention bytes
+                for (k, v) in p.y.iter_mut().enumerate() {
+                    if k / w > h / 2 {
+                        *v = (rnd() % 256) as u16;
+                    }
+                }
+                p
+            })
+            .collect();
+        let run = encode(cfg(w as u32, h as u32, qp, 3, Profile::Main), &pics);
+        check_filmcraft(&run, w, h);
+        check_ffmpeg_with(&run, w, h, 8, &format!("wpp{w}x{h}"), &["-threads", "4", "-thread_type", "slice"]);
+    }
+}
+
+/// sh-video-editor: CTU rows are coded by parallel workers; the stream must not depend on how
+/// many (a one-thread pool is the wasm path).
+#[test]
+fn wpp_stream_is_the_same_for_any_worker_count() {
+    let encode_in = |threads: usize, c: EncoderConfig, pics: &[Pic]| -> Vec<Vec<u8>> {
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().expect("pool");
+        pool.install(|| {
+            let mut enc = Encoder::new(c).expect("config");
+            pics.iter().map(|p| enc.encode(&p.frame()).data).collect()
+        })
+    };
+    for (w, h) in [(450usize, 266usize), (128, 192)] {
+        let pics: Vec<Pic> = (0..4).map(|i| synth(w, h, 8, 3 * i, i)).collect();
+        let mut c = cfg(w as u32, h as u32, 27, 3, Profile::Main);
+        let one = encode_in(1, c.clone(), &pics);
+        let four = encode_in(4, c.clone(), &pics);
+        assert_eq!(one, four, "{w}x{h}: stream differs between one and four workers");
+        c.rate = RateControl::Bitrate { kbps: 900 };
+        assert_eq!(encode_in(1, c.clone(), &pics), encode_in(4, c, &pics), "{w}x{h} bitrate mode");
     }
 }
 

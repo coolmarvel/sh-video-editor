@@ -1,7 +1,7 @@
 /** 내보내기 대화상자(sh-dialog). 프리셋, 형식, 저장 위치, 진행률·남은 시간·취소, 완료·오류 알림. */
 import { useEffect, useRef } from 'react';
 import { useEditor } from '../../store';
-import { formatEta, formatLabel } from './presets';
+import { formatEta, formatLabel, slowFormatNote } from './presets';
 import { useExport } from './store';
 import { isWebExport } from './web-download';
 import { RatioBar, SnsPresets } from '../ratio';
@@ -43,6 +43,7 @@ export function ExportDialog() {
   };
 
   const pct = job ? Math.round(job.progress * 100) : 0;
+  const slowNote = resolved ? slowFormatNote(formatId, resolved.width, resolved.height, web) : null;
   const summary = resolved
     ? `${resolved.width} x ${resolved.height}, ${resolved.fps} fps, ${resolved.seconds.toFixed(1)}초 (${resolved.frames} 프레임), 약 ${(resolved.targetKbps / 1000).toFixed(0)} Mbps`
     : loading
@@ -112,6 +113,14 @@ export function ExportDialog() {
           )}
           <span>결과</span>
           <span className="sh-tnum">{summary}</span>
+          {slowNote && (
+            <>
+              <span />
+              <span className="ve-hint" data-testid="export-slow-note">
+                {slowNote}
+              </span>
+            </>
+          )}
         </div>
         {job && busy && (
           <div className="ve-progress" aria-live="polite">

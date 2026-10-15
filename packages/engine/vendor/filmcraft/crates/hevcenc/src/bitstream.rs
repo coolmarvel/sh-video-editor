@@ -81,6 +81,21 @@ impl BitWriter {
     }
 }
 
+/// Length of `bytes` after emulation prevention, counted from a position after a non-zero byte
+/// (sh-video-editor: substream entry point offsets).
+pub fn escaped_len(bytes: &[u8]) -> usize {
+    let (mut n, mut zeros) = (0, 0);
+    for &b in bytes {
+        if zeros >= 2 && b <= 3 {
+            n += 1;
+            zeros = 0;
+        }
+        n += 1;
+        zeros = if b == 0 { zeros + 1 } else { 0 };
+    }
+    n
+}
+
 /// Build a NAL unit (2-byte header, `nuh_layer_id` 0, `TemporalId` 0) from an RBSP, inserting
 /// emulation prevention bytes.
 pub fn nal_unit(nal_type: u8, rbsp: &[u8]) -> Vec<u8> {

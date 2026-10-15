@@ -116,42 +116,47 @@ impl PhasePlanes {
             }
         }
         // Horizontal phases over every raw row (inner columns).
+        // sh-video-editor: the phase planes and their rows are independent, so they are computed
+        // in parallel (same values)
+        use rayon::prelude::*;
         let hpass = |fx: usize| -> Vec<u8> {
             let f = &SUBPEL_REGULAR[fx];
             let mut out = vec![0u8; pw * rh];
-            for y in 0..rh {
+            out.par_chunks_mut(pw).enumerate().for_each(|(y, o)| {
                 let row = &raw[y * rs..y * rs + rs];
-                for x in 0..pw {
+                for (x, d) in o.iter_mut().enumerate() {
                     let s = &row[x + M - 3..x + M + 5];
                     let acc: i32 = 64 + (0..8).map(|t| f[t] * s[t] as i32).sum::<i32>();
-                    out[y * pw + x] = (acc >> 7).clamp(0, 255) as u8;
+                    *d = (acc >> 7).clamp(0, 255) as u8;
                 }
-            }
+            });
             out
         };
-        let unfiltered: Vec<u8> = (0..rh).flat_map(|y| raw[y * rs + M..y * rs + M + pw].iter().copied()).collect();
-        let h: Vec<Vec<u8>> = (0..4).map(|k| if k == 0 { unfiltered.clone() } else { hpass(k * 4) }).collect();
-        let mut planes = Vec::with_capacity(16);
-        for fy in 0..4 {
-            for hp in &h {
+        let h: Vec<Vec<u8>> = (0..4)
+            .into_par_iter()
+            .map(|k| if k == 0 { (0..rh).flat_map(|y| raw[y * rs + M..y * rs + M + pw].iter().copied()).collect() } else { hpass(k * 4) })
+            .collect();
+        let planes: Vec<Vec<u8>> = (0..16)
+            .into_par_iter()
+            .map(|i| {
+                let (fy, hp) = (i / 4, &h[i % 4]);
                 if fy == 0 {
-                    planes.push(hp[M * pw..(M + ph) * pw].to_vec());
-                    continue;
+                    return hp[M * pw..(M + ph) * pw].to_vec();
                 }
                 let f = &SUBPEL_REGULAR[fy * 4];
                 let mut out = vec![0u8; pw * ph];
-                for y in 0..ph {
-                    for x in 0..pw {
+                out.par_chunks_mut(pw).enumerate().for_each(|(y, o)| {
+                    for (x, d) in o.iter_mut().enumerate() {
                         let mut acc = 64;
                         for t in 0..8 {
                             acc += f[t] * hp[(y + M + t - 3) * pw + x] as i32;
                         }
-                        out[y * pw + x] = (acc >> 7).clamp(0, 255) as u8;
+                        *d = (acc >> 7).clamp(0, 255) as u8;
                     }
-                }
-                planes.push(out);
-            }
-        }
+                });
+                out
+            })
+            .collect();
         PhasePlanes { border, stride: pw, rows: ph, planes }
     }
 

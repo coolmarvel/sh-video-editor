@@ -121,8 +121,9 @@ pub(crate) struct Decider<'a> {
     pub rec: [Plane; 3],
     pub refr: Option<&'a RefFrame>,
     decoded: Box<[[[bool; 35]; 35]; 3]>,
-    /// Decision motion vectors per 4x4 (search candidates).
+    /// Decision motion vectors per 4x4 (search candidates), rows `mvs_y0..` of the frame.
     pub mvs: Vec<[i32; 2]>,
+    mvs_y0: usize,
     dc_q: f32,
     ac_q: f32,
     dc_qi: i64,
@@ -130,23 +131,220 @@ pub(crate) struct Decider<'a> {
     lambda: f64,
     lambda_sad: f64,
     /// Half-sample interpolations of the reference luma (visible area): (8, 0), (0, 8), (8, 8).
-    half: [Vec<u16>; 3],
+    half: &'a [Vec<u16>; 3],
+}
+
+/// The half-sample planes the motion search reads, computed once per frame and shared by every
+/// superblock's decider.
+pub(crate) fn half_planes(g: &FrameGeom, bd: u32, refr: Option<&RefFrame>) -> [Vec<u16>; 3] {
+    match refr {
+        Some(rf) => {
+            use rayon::prelude::*;
+            let mut v: Vec<Vec<u16>> =
+                [(8, 0), (0, 8), (8, 8)].par_iter().map(|&(fx, fy)| subpel_plane(&rf.planes[0], g.width, g.height, fx, fy, bd)).collect();
+            let c = v.pop().unwrap_or_default();
+            let b = v.pop().unwrap_or_default();
+            let a = v.pop().unwrap_or_default();
+            [a, b, c]
+        }
+        None => Default::default(),
+    }
+}
+
+/// What one superblock's decision reads and writes (sh-video-editor): rows of the reconstruction
+/// from the line above the superblock row to its bottom, and the motion vectors of the same rows.
+/// Only the samples a decision can read are filled in: the line above from the left neighbour
+/// to the above-right superblock, and the left neighbour's rows. Everything else is zero, as in
+/// the sequential encoder where those areas are not decided yet. So a superblock decides the
+/// same way whether its neighbours' decisions came from this thread or another, and superblocks
+/// on one anti-diagonal (`c + 2r` equal) can be decided in parallel: each reads only the left,
+/// above-left, above and above-right superblocks, all on earlier diagonals.
+pub(crate) struct Band {
+    pub rec: [Plane; 3],
+    pub mvs: Vec<[i32; 2]>,
+    pub mvs_y0: usize,
+}
+
+/// Decides every superblock of a frame into `rec` / `mvs` and returns the decision trees in
+/// raster order (sh-video-editor). With threads, superblock rows are claimed in order by workers
+/// and each superblock waits for the above-right one of the row above; without (wasm) they run
+/// in raster order. Either way each superblock reads exactly what the sequential order shows it.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn decide_frame(
+    g: &FrameGeom,
+    bd: u32,
+    qidx: u8,
+    intra_only: bool,
+    src: &[Plane; 3],
+    refr: Option<&RefFrame>,
+    half: &[Vec<u16>; 3],
+    rec: &mut [Plane; 3],
+    mvs: &mut [[i32; 2]],
+) -> Vec<Node> {
+    // workers: the size of the rayon pool the caller runs in (a one-thread pool, or wasm, takes
+    // the sequential path; the stream is the same either way)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let workers = rayon::current_num_threads().min(g.sb_rows);
+        if workers > 1 {
+            let one = |band: Band, sbr: usize, sbc: usize| -> (Node, Band) {
+                let mut dec = Decider::new(g, bd, qidx, intra_only, src, refr, half, band);
+                let node = dec.superblock(sbr * 16, sbc * 16);
+                let mvs_y0 = dec.mvs_y0;
+                (node, Band { rec: dec.rec, mvs: dec.mvs, mvs_y0 })
+            };
+            return decide_rows_threaded(g, workers, rec, mvs, &one);
+        }
+    }
+    {
+        // one thread (wasm): a single decider over the whole frame, superblocks in raster order
+        let whole = Band { rec: std::mem::replace(rec, std::array::from_fn(|_| Plane::new(0, 0))), mvs: mvs.to_vec(), mvs_y0: 0 };
+        let mut dec = Decider::new(g, bd, qidx, intra_only, src, refr, half, whole);
+        let mut nodes = Vec::with_capacity(g.sb_rows * g.sb_cols);
+        for sbr in 0..g.sb_rows {
+            for sbc in 0..g.sb_cols {
+                nodes.push(dec.superblock(sbr * 16, sbc * 16));
+            }
+        }
+        *rec = dec.rec;
+        mvs.copy_from_slice(&dec.mvs);
+        nodes
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn decide_rows_threaded<F>(g: &FrameGeom, workers: usize, rec: &mut [Plane; 3], mvs: &mut [[i32; 2]], one: &F) -> Vec<Node>
+where
+    F: Fn(Band, usize, usize) -> (Node, Band) + Sync,
+{
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Condvar, Mutex};
+    struct Shared<'s> {
+        rec: &'s mut [Plane; 3],
+        mvs: &'s mut [[i32; 2]],
+        /// Superblocks finished per row.
+        done: Vec<usize>,
+    }
+    let shared = Mutex::new(Shared { rec, mvs, done: vec![0; g.sb_rows] });
+    let progress = Condvar::new();
+    let next_row = AtomicUsize::new(0);
+    let nodes: Mutex<Vec<Option<Node>>> = Mutex::new((0..g.sb_rows * g.sb_cols).map(|_| None).collect());
+    let lock = || shared.lock().unwrap_or_else(|e| e.into_inner());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let sbr = next_row.fetch_add(1, Ordering::Relaxed);
+                    if sbr >= g.sb_rows {
+                        break;
+                    }
+                    for sbc in 0..g.sb_cols {
+                        let need = (sbc + 2).min(g.sb_cols);
+                        let mut st = lock();
+                        while sbr > 0 && st.done[sbr - 1] < need {
+                            st = progress.wait(st).unwrap_or_else(|e| e.into_inner());
+                        }
+                        let band = Band::new(g, st.rec, st.mvs, sbr, sbc);
+                        drop(st);
+                        let (node, out) = one(band, sbr, sbc);
+                        let mut st = lock();
+                        let Shared { rec, mvs, done } = &mut *st;
+                        out.write_back(g, rec, mvs, sbr, sbc);
+                        done[sbr] = sbc + 1;
+                        drop(st);
+                        progress.notify_all();
+                        nodes.lock().unwrap_or_else(|e| e.into_inner())[sbr * g.sb_cols + sbc] = Some(node);
+                    }
+                }
+            });
+        }
+    });
+    nodes.into_inner().unwrap_or_else(|e| e.into_inner()).into_iter().map(|n| n.unwrap_or(Node::Out)).collect()
+}
+
+impl Band {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn new(g: &FrameGeom, rec: &[Plane; 3], mvs: &[[i32; 2]], sbr: usize, sbc: usize) -> Band {
+        let planes = std::array::from_fn(|p| {
+            let s = (p > 0) as usize;
+            let n = 64 >> s;
+            let src = &rec[p];
+            let (top, left) = (sbr * n, sbc * n);
+            let y0 = top.saturating_sub(1);
+            let mut band = Plane::band(src.stride, y0, top + n - y0);
+            let x_lo = left.saturating_sub(n);
+            if top > 0 {
+                let x_hi = (left + 2 * n).min(src.stride);
+                let (a, b) = (band.idx(x_lo, y0), src.idx(x_lo, y0));
+                band.data[a..a + x_hi - x_lo].copy_from_slice(&src.data[b..b + x_hi - x_lo]);
+            }
+            if left > 0 {
+                for y in top..top + n {
+                    let (a, b) = (band.idx(x_lo, y), src.idx(x_lo, y));
+                    band.data[a..a + n].copy_from_slice(&src.data[b..b + n]);
+                }
+            }
+            band
+        });
+        let (top, left) = (sbr * 16, sbc * 16);
+        let mvs_y0 = top.saturating_sub(1);
+        let rows = (top + 16).min(g.mi_rows) - mvs_y0;
+        let mut band_mvs = vec![[0, 0]; rows * g.mi_cols];
+        let x_lo = left.saturating_sub(16);
+        if top > 0 {
+            let x_hi = (left + 32).min(g.mi_cols);
+            let o = mvs_y0 * g.mi_cols;
+            band_mvs[x_lo..x_hi].copy_from_slice(&mvs[o + x_lo..o + x_hi]);
+        }
+        if left > 0 {
+            for r in top..(top + 16).min(g.mi_rows) {
+                let (a, b) = ((r - mvs_y0) * g.mi_cols, r * g.mi_cols);
+                band_mvs[a + x_lo..a + left].copy_from_slice(&mvs[b + x_lo..b + left]);
+            }
+        }
+        Band { rec: planes, mvs: band_mvs, mvs_y0 }
+    }
+
+    /// Copies the superblock's decided reconstruction and motion vectors into the frame.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn write_back(&self, g: &FrameGeom, rec: &mut [Plane; 3], mvs: &mut [[i32; 2]], sbr: usize, sbc: usize) {
+        for (p, (dst, src)) in rec.iter_mut().zip(&self.rec).enumerate() {
+            let n = 64 >> (p > 0) as usize;
+            let (top, left) = (sbr * n, sbc * n);
+            for y in top..top + n {
+                let (a, b) = (dst.idx(left, y), src.idx(left, y));
+                dst.data[a..a + n].copy_from_slice(&src.data[b..b + n]);
+            }
+        }
+        let (top, left) = (sbr * 16, sbc * 16);
+        let right = (left + 16).min(g.mi_cols);
+        for r in top..(top + 16).min(g.mi_rows) {
+            let (a, b) = (r * g.mi_cols, (r - self.mvs_y0) * g.mi_cols);
+            mvs[a + left..a + right].copy_from_slice(&self.mvs[b + left..b + right]);
+        }
+    }
 }
 
 const MODE_BITS_INTRA: f64 = 3.0;
 
 impl<'a> Decider<'a> {
-    pub fn new(g: &'a FrameGeom, bd: u32, qidx: u8, intra_only: bool, src: &'a [Plane; 3], refr: Option<&'a RefFrame>) -> Self {
+    pub fn new(
+        g: &'a FrameGeom,
+        bd: u32,
+        qidx: u8,
+        intra_only: bool,
+        src: &'a [Plane; 3],
+        refr: Option<&'a RefFrame>,
+        half: &'a [Vec<u16>; 3],
+        band: Band,
+    ) -> Self {
         let bdi = ((bd - 8) >> 1) as usize;
         let dc_qi = DC_QLOOKUP[bdi][qidx as usize] as i64;
         let ac_qi = AC_QLOOKUP[bdi][qidx as usize] as i64;
         // Lagrangian multiplier in squared-sample units of the coded bit depth.
         let step = ac_qi as f64 / 8.0;
         let lambda = 0.25 * step * step;
-        let rec = std::array::from_fn(|p| {
-            let (w, h) = g.padded(p);
-            Plane::new(w, h)
-        });
+        let Band { rec, mvs, mvs_y0 } = band;
         Decider {
             g,
             bd,
@@ -155,17 +353,15 @@ impl<'a> Decider<'a> {
             rec,
             refr,
             decoded: Box::new([[[false; 35]; 35]; 3]),
-            mvs: vec![[0, 0]; g.mi_cols * g.mi_rows],
+            mvs,
+            mvs_y0,
             dc_q: dc_qi as f32,
             ac_q: ac_qi as f32,
             dc_qi,
             ac_qi,
             lambda,
             lambda_sad: lambda.sqrt(),
-            half: match refr {
-                Some(rf) => [(8, 0), (0, 8), (8, 8)].map(|(fx, fy)| subpel_plane(&rf.planes[0], g.width, g.height, fx, fy, bd)),
-                None => Default::default(),
-            },
+            half,
         }
     }
 
@@ -218,7 +414,8 @@ impl<'a> Decider<'a> {
             let pl = &self.rec[p];
             let mut v = Vec::with_capacity(n * n);
             for y in y0..y0 + n {
-                v.extend_from_slice(&pl.data[y * pl.stride + x0..y * pl.stride + x0 + n]);
+                let o = pl.idx(x0, y);
+                v.extend_from_slice(&pl.data[o..o + n]);
             }
             v
         });
@@ -231,7 +428,8 @@ impl<'a> Decider<'a> {
             let (x0, y0, n) = ((c * 4) >> s, (r * 4) >> s, (n4 * 4) >> s);
             let pl = &mut self.rec[p];
             for (i, y) in (y0..y0 + n).enumerate() {
-                pl.data[y * pl.stride + x0..y * pl.stride + x0 + n].copy_from_slice(&snap.planes[p][i * n..i * n + n]);
+                let o = pl.idx(x0, y);
+                pl.data[o..o + n].copy_from_slice(&snap.planes[p][i * n..i * n + n]);
             }
         }
         self.decoded.clone_from(&snap.decoded);
@@ -240,7 +438,7 @@ impl<'a> Decider<'a> {
     fn set_mvs(&mut self, r: usize, c: usize, n4: usize, mv: [i32; 2]) {
         for y in r..(r + n4).min(self.g.mi_rows) {
             for x in c..(c + n4).min(self.g.mi_cols) {
-                self.mvs[y * self.g.mi_cols + x] = mv;
+                self.mvs[(y - self.mvs_y0) * self.g.mi_cols + x] = mv;
             }
         }
     }
@@ -488,7 +686,7 @@ impl<'a> Decider<'a> {
     fn motion_search(&self, r: usize, c: usize, n: usize, parent_mv: Option<[i32; 2]>) -> ([i32; 2], f64) {
         let g = self.g;
         let Some(refr) = self.refr else { return ([0, 0], 0.0) };
-        let mi = |rr: usize, cc: usize| self.mvs[rr * g.mi_cols + cc];
+        let mi = |rr: usize, cc: usize| self.mvs[(rr - self.mvs_y0) * g.mi_cols + cc];
         let mut pred_mv = [0, 0];
         let mut cands: Vec<[i32; 2]> = vec![[0, 0]];
         if c > 0 {
@@ -764,7 +962,7 @@ impl<'a> Decider<'a> {
     fn put(&mut self, p: usize, x: usize, y: usize, n: usize, blk: &[u16]) {
         let pl = &mut self.rec[p];
         for i in 0..n {
-            let o = (y + i) * pl.stride + x;
+            let o = pl.idx(x, y + i);
             pl.data[o..o + n].copy_from_slice(&blk[i * n..i * n + n]);
         }
     }

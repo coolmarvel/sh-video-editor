@@ -7,6 +7,8 @@ import {
   formatExtension,
   formatFilterName,
   formatLabel,
+  SLOW_FORMAT_FACTOR,
+  slowFormatNote,
   usableFormats,
   withExtension,
   type EngineFormat,
@@ -197,5 +199,23 @@ describe('formatEta', () => {
     expect(formatEta(60)).toBe('남은 시간 약 1분 0초');
     expect(formatEta(125)).toBe('남은 시간 약 2분 5초');
     expect(formatEta(3600)).toBe('남은 시간 약 60분 0초');
+  });
+});
+
+describe('slowFormatNote', () => {
+  it('느린 형식을 1080p 이상(세로 1080 x 1920 포함)으로 고르면 배수와 720p 안내, 웹은 더 걸린다는 말을 붙인다', () => {
+    for (const id of ['hevc', 'av1', 'webm']) {
+      const k = Math.round(SLOW_FORMAT_FACTOR[id]!);
+      expect(slowFormatNote(id, 1920, 1080, false)).toBe(`이 형식은 1080p 에서 H.264 보다 약 ${k}배 오래 걸립니다. 긴 편집본은 720p 프리셋이 빠릅니다.`);
+      expect(slowFormatNote(id, 1080, 1920, true)).toBe(
+        `이 형식은 1080p 에서 H.264 보다 약 ${k}배 오래 걸립니다. 브라우저에서는 이보다 더 걸립니다. 긴 편집본은 720p 프리셋이 빠릅니다.`,
+      );
+    }
+  });
+  it('H.264, 모르는 형식, 720p 처럼 작은 화면에는 안내가 없다', () => {
+    expect(slowFormatNote('h264', 1920, 1080, false)).toBeNull();
+    expect(slowFormatNote('mov', 1920, 1080, false)).toBeNull();
+    expect(slowFormatNote('hevc', 1280, 720, false)).toBeNull();
+    expect(slowFormatNote('av1', 1080, 1080, true)).toBeNull();
   });
 });

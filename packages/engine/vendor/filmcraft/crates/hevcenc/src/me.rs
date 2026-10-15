@@ -4,6 +4,7 @@
 //! prediction always uses the normative interpolation in `inter`.
 
 use crate::tables::LUMA_FILTER;
+use rayon::prelude::*;
 
 const MARGIN: i32 = 80;
 
@@ -31,26 +32,26 @@ impl MeRef {
         }
         let max = (1i32 << bd) - 1;
         let f = &LUMA_FILTER[2];
+        // sh-video-editor: output rows are independent, so both filters run row-parallel
         let filt_h = |p: &[u16]| -> Vec<u16> {
             let mut o = vec![0u16; stride * rows];
-            for r in 0..rows {
+            o.par_chunks_mut(stride).enumerate().for_each(|(r, out)| {
                 let row = &p[r * stride..r * stride + stride];
-                for x in 0..stride {
+                for (x, d) in out.iter_mut().enumerate() {
                     let mut s = 0i32;
                     for k in 0..8 {
                         let xx = (x as i32 - 3 + k as i32).clamp(0, stride as i32 - 1) as usize;
                         s += f[k] as i32 * row[xx] as i32;
                     }
-                    o[r * stride + x] = ((s + 32) >> 6).clamp(0, max) as u16;
+                    *d = ((s + 32) >> 6).clamp(0, max) as u16;
                 }
-            }
+            });
             o
         };
         let filt_v = |p: &[u16]| -> Vec<u16> {
             let mut o = vec![0u16; stride * rows];
-            let mut acc = vec![0i32; stride];
-            for r in 0..rows {
-                acc.fill(0);
+            o.par_chunks_mut(stride).enumerate().for_each(|(r, out)| {
+                let mut acc = vec![0i32; stride];
                 for k in 0..8 {
                     let rr = (r as i32 - 3 + k as i32).clamp(0, rows as i32 - 1) as usize;
                     let src = &p[rr * stride..rr * stride + stride];
@@ -59,14 +60,13 @@ impl MeRef {
                         *a += coef * s as i32;
                     }
                 }
-                for (d, &a) in o[r * stride..r * stride + stride].iter_mut().zip(&acc) {
+                for (d, &a) in out.iter_mut().zip(&acc) {
                     *d = ((a + 32) >> 6).clamp(0, max) as u16;
                 }
-            }
+            });
             o
         };
-        let hp = filt_h(&pad);
-        let vp = filt_v(&pad);
+        let (hp, vp) = rayon::join(|| filt_h(&pad), || filt_v(&pad));
         let dp = filt_v(&hp);
         MeRef { planes: [pad, hp, vp, dp], stride, rows, w: w as i32, h: h as i32 }
     }

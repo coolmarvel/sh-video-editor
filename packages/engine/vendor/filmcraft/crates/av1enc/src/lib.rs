@@ -21,9 +21,10 @@ mod transform;
 mod writer;
 
 use bitw::{BitWriter, obu};
-use decide::{Decider, FrameGeom, RefFrame};
+use decide::{FrameGeom, RefFrame};
 use loopfilter::{LfInfo, loop_filter};
 use pred::Plane;
+use rayon::prelude::*;
 use writer::TileWriter;
 
 /// Rate control.
@@ -365,17 +366,27 @@ impl Encoder {
     fn encode_frame(&self, src: &[Plane; 3], key: bool, qidx: u8) -> (Vec<u8>, RefFrame) {
         let g = &self.geom;
         let refr = if key { None } else { self.refr.as_ref() };
-        let mut dec = Decider::new(g, self.cfg.bit_depth as u32, qidx, key, src, refr);
+        let bd = self.cfg.bit_depth as u32;
+        let half = decide::half_planes(g, bd, refr);
+        let mut rec: [Plane; 3] = std::array::from_fn(|p| {
+            let (w, h) = g.padded(p);
+            Plane::new(w, h)
+        });
+        let mut mvs = vec![[0, 0]; g.mi_cols * g.mi_rows];
+        // sh-video-editor: superblock rows are decided in parallel, each superblock as soon as the
+        // row above has finished the one above-right of it (decide::Band explains why that gives
+        // the decisions of the sequential raster order); the syntax is then written in raster
+        // order as before. The stream is the same bit for bit.
+        let nodes = decide::decide_frame(g, bd, qidx, key, src, refr, &half, &mut rec, &mut mvs);
         let mut tw = TileWriter::new(g, key, qidx, refr.map(|r| &*r.cdfs));
         for sbr in 0..g.sb_rows {
             tw.start_sb_row();
             for sbc in 0..g.sb_cols {
-                let node = dec.superblock(sbr * 16, sbc * 16);
-                tw.superblock(sbr * 16, sbc * 16, &node);
+                tw.superblock(sbr * 16, sbc * 16, &nodes[sbr * g.sb_cols + sbc]);
             }
         }
-        let lf_level = self.pick_filter_level(&dec.rec, &tw.lf_info(), src, qidx);
-        loop_filter(&mut dec.rec, &tw.lf_info(), [lf_level; 4], self.cfg.bit_depth as u32, false, 1);
+        let lf_level = self.pick_filter_level(&rec, &tw.lf_info(), src, qidx);
+        loop_filter(&mut rec, &tw.lf_info(), [lf_level; 4], bd, false, 1);
         let (tile, cdfs) = tw.finish();
         let mut w = BitWriter::new();
         self.frame_header(&mut w, key, qidx, lf_level);
@@ -385,7 +396,7 @@ impl Encoder {
         payload.extend_from_slice(&tile);
         let mut out = Vec::with_capacity(payload.len() + 8);
         obu(OBU_FRAME, &payload, &mut out);
-        let rf = RefFrame { planes: dec.rec, mvs: dec.mvs, lf_level, cdfs };
+        let rf = RefFrame { planes: rec, mvs, lf_level, cdfs };
         (out, rf)
     }
 
@@ -409,27 +420,36 @@ impl Encoder {
         };
         let bd = self.cfg.bit_depth as u32;
         let mut cache: Vec<(u32, u64)> = vec![(0, sse(&rec[0]))];
-        let mut eval = |lvl: u32| -> u64 {
+        let filtered_sse = |lvl: u32| -> u64 {
+            let mut planes = [rec[0].clone(), Plane::new(0, 0), Plane::new(0, 0)];
+            loop_filter(&mut planes, info, [lvl; 4], bd, true, sb_row_step);
+            sse(&planes[0])
+        };
+        let eval = |cache: &mut Vec<(u32, u64)>, lvl: u32| -> u64 {
             if let Some(&(_, e)) = cache.iter().find(|(l, _)| *l == lvl) {
                 return e;
             }
-            let mut planes = [rec[0].clone(), Plane::new(0, 0), Plane::new(0, 0)];
-            loop_filter(&mut planes, info, [lvl; 4], bd, true, sb_row_step);
-            let e = sse(&planes[0]);
+            let e = filtered_sse(lvl);
             cache.push((lvl, e));
             e
         };
         let guess = ((qidx as u32 * 3) / 16).clamp(2, 50);
-        let mut best = (0u32, eval(0));
+        let mut best = (0u32, eval(&mut cache, 0));
         let mut step = (guess / 2).max(1);
         let mut center = guess;
-        let e = eval(center);
+        let e = eval(&mut cache, center);
         if e < best.1 {
             best = (center, e);
         }
         while step >= 2 {
-            for lvl in [center.saturating_sub(step), (center + step).min(63)] {
-                let e = eval(lvl);
+            // sh-video-editor: the two candidates of a step are filtered in parallel (the cache
+            // and the comparison order are as before, so the chosen level is the same)
+            let lvls = [center.saturating_sub(step), (center + step).min(63)];
+            let fresh: Vec<u32> = lvls.iter().copied().filter(|l| !cache.iter().any(|(c, _)| c == l)).collect();
+            let filtered: Vec<(u32, u64)> = fresh.par_iter().map(|&l| (l, filtered_sse(l))).collect();
+            cache.extend(filtered);
+            for lvl in lvls {
+                let e = eval(&mut cache, lvl);
                 if e < best.1 {
                     best = (lvl, e);
                 }
@@ -470,9 +490,14 @@ impl Encoder {
     fn encode_rate_controlled(&mut self, src: &[Plane; 3], key: bool, rc: &mut RateState) -> (Vec<u8>, RefFrame) {
         let first = self.frame_num == 0;
         let (frame_bits, debt, q_inter) = (rc.frame_bits, rc.debt, rc.q);
-        // key frames get a lower quantizer and a larger share of the budget
+        // key frames get a lower quantizer and a larger share of the budget; inter frames share the
+        // rest of the key frame interval's budget (sh-video-editor: they used to get a whole frame's
+        // budget each, so every interval overshot by the key frame's extra share, about 10 % at
+        // the 2-second default)
         let key_boost = 1.0 + (self.cfg.keyint.clamp(1, 60) as f64 - 1.0).sqrt() * 0.75;
-        let budget = if key { frame_bits * key_boost } else { frame_bits };
+        let interval = self.cfg.keyint.max(1) as f64;
+        let inter_share = if interval > key_boost { (interval - key_boost) / (interval - 1.0) } else { 1.0 };
+        let budget = frame_bits * if key { key_boost } else { inter_share };
         // pay back a fraction of the accumulated deviation
         let target = (budget - debt * 0.25).max(budget * 0.25);
         let mut q = if key { q_inter - 24.0 } else { q_inter };

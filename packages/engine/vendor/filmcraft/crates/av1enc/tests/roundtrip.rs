@@ -90,3 +90,32 @@ fn headers() {
     assert_eq!(&c[4..], &enc.sequence_header_obu()[..]);
     assert_eq!(enc.sequence_header_obu()[0], 0x0A);
 }
+
+/// sh-video-editor: superblock rows are decided by parallel workers. The stream must not depend
+/// on how many: a one-thread pool (the wasm path, one decider over the whole frame) and a
+/// four-thread pool give the same bytes, and the threaded stream decodes exactly. Several
+/// superblock rows and columns, partial superblocks at the edges, key and inter frames,
+/// constant quantizer and bitrate mode, 8 and 10 bit.
+#[test]
+fn parallel_rows_equal_one_thread() {
+    let encode_in = |threads: usize, c: EncoderConfig, pics: &[Pic]| -> Vec<Vec<u8>> {
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().expect("pool");
+        pool.install(|| {
+            let mut enc = filmcraft_av1enc::Encoder::new(c).expect("config");
+            pics.iter().map(|p| enc.encode(&p.frame()).data).collect()
+        })
+    };
+    for (w, h, bd, bitrate) in [(330u32, 270u32, 8u8, false), (200, 150, 10, false), (390, 200, 8, true)] {
+        let pics: Vec<Pic> =
+            (0..5).map(|t| if t == 2 { noise(w as usize, h as usize, bd as u32, 7) } else { synth(w as usize, h as usize, bd as u32, t) }).collect();
+        let mut c = cfg(w, h, bd, 90, 4);
+        if bitrate {
+            c.rate = RateControl::Bitrate { kbps: 3000 };
+        }
+        let one = encode_in(1, c.clone(), &pics);
+        let four = encode_in(4, c.clone(), &pics);
+        assert_eq!(one, four, "{w}x{h} {bd}-bit: stream differs between one and four threads");
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().expect("pool");
+        pool.install(|| encode_and_check(c, &pics));
+    }
+}

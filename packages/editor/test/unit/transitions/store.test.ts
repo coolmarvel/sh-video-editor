@@ -271,7 +271,7 @@ describe('trimHandles (핸들 자동으로 다듬기)', () => {
     await vi.waitFor(() => expect(engine.undoStack.length).toBe(undoBefore + 1));
     expect(engine.undoStack.at(-1)!.label).toBe('핸들 다듬기');
     // 사이 전환(앞 클립 끝 + 뒤 클립 처음)과 끝 전환(앞 클립만 있다: 둘째 클립 끝)
-    expect(engine.callsOf('timeline.trim').map((c) => [c['edge'], c['deltaFrames']])).toEqual([
+    expect(engine.callsOf('timeline.trim').map((c) => [c?.['edge'], c?.['deltaFrames']])).toEqual([
       ['out', -6],
       ['in', 6],
       ['out', -6],

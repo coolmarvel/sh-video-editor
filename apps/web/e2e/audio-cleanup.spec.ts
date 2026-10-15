@@ -98,13 +98,14 @@ test.describe('소리 크기 맞추기', () => {
 });
 
 test.describe('전사 탭', () => {
-  test('웹에서는 전사가 없을 때 데스크톱 전용 안내만 보인다', async ({ app }) => {
+  test('웹에서도 전사가 없으면 자막 탭의 자동 자막으로 안내한다', async ({ app }) => {
+    // 웹 자동 자막(음성 Worker, crossOriginIsolated)이 생겨 데스크톱과 같은 안내다. 음성 인식이 없는 호스트의 문구는 단위 테스트가 본다
     await makeDemoSequence(app);
     await app.getByRole('tab', { name: '전사' }).click();
     const empty = app.getByTestId('transcript-empty');
     await expect(empty).toBeVisible();
-    await expect(empty).toContainText('데스크톱 앱에서만');
-    await expect(empty.getByRole('button', { name: '자막 탭으로' })).toHaveCount(0);
+    await expect(empty).not.toContainText('데스크톱 앱에서만');
+    await expect(empty.getByRole('button', { name: '자막 탭으로' })).toBeVisible();
     await expect(app.getByRole('list', { name: '전사 문장' })).toHaveCount(0);
   });
 

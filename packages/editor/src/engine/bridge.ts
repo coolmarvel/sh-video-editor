@@ -272,7 +272,7 @@ export interface EngineBridge {
   /** [웹 전용] OPFS 저장소. 브라우저가 OPFS 를 지원하지 않으면 undefined. */
   opfs?: OpfsStore;
 
-  /** [데스크톱 전용] 자동 자막(음성 인식). 없으면 화면이 "데스크톱 앱에서만" 안내를 보인다(features/stt). */
+  /** 자동 자막(음성 인식): 데스크톱은 napi, 웹은 음성 Worker. 없는 호스트(SharedArrayBuffer·OPFS 없는 브라우저)면 화면이 "데스크톱 앱에서만" 안내를 보인다(features/stt). */
   stt?: SttHost;
   /** 호스트 캐시(썸네일·파형·최근 프로젝트). 없으면 화면은 메모리 캐시만 쓴다(features/cache). */
   cache?: CacheStore;

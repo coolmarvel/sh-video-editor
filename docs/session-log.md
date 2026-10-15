@@ -12,6 +12,55 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-15 - 리팩토링·성능, P1 네 건(키프레임 조회, 전환 JSON, 웹 미디어 보관, whisper 창), 웹 자동 자막 (v0.1.8)
+
+- **요청**: 리팩토링으로 ms 를 줄이고 중복·안 쓰는 코드·주석을 정리한 뒤 다음 todo 구현. 기능은 하나도 깨지지 않고 더 빨라져야 한다.
+- **방법**: 워크트리 3개(refactor-cleanup TS 전용, engine-perf Rust, web-files) 뒤에 whisper-fix. Rust 빌드는 둘까지만 동시에. 모든 변경은 바꾸기
+  전후 같은 테스트와 수치로 확인하고, 빨라지지 않는 변경은 되돌린다. 병합 순서 cleanup, web-files, engine-perf, whisper. 병합 충돌은 로드맵
+  M4-4 한 줄(두 메모 합침). worktree 끼리 git stash 가 공유되어 cleanup 이 web-files 의 stash 를 잠깐 꺼낸 일이 있어 stash 금지.
+- **수정**:
+  - refactor-cleanup(TS 만, 커밋 7c03c6c·d604a26·8c638aa·3c42046·637ce6d·c253056·42ae4f1): knip(테스트·e2e 를 진입점에 넣은 임시 설정)으로
+    안 쓰는 barrel 4개 삭제, 기능 index.ts 재수출을 쓰는 것만 남김(탭 등록 부수효과 유지), 다른 곳이 안 쓰는 export 약 160개 해제, 죽은 선언 4개
+    삭제. jscpd 0.67% 중 실제 중복만: errors.ts errorMessage(19벌 + 인라인 12곳), shell/Dialog.tsx(대화상자 13개, DOM 그대로), framesToTimecode,
+    apps/web/src/idb.ts. runRecipe 가 카탈로그 확인 대신 withTransaction 으로(템플릿 만들기가 실행 취소 한 단계, 실패하면 묶음 취소). SttSection
+    셀렉터가 편집본이 없을 때 매번 새 [] 를 돌려 무한 갱신하던 것 수정(테스트가 고치기 전 실패). 데스크톱 렌더러가 1.41MB 였던 원인은 난독화가
+    아니라 electron-vite 가 압축을 안 해서: minify + 이름 mangled 로 1,420KB(gzip 383) 에서 925KB(gzip 289), xvfb 5회 중앙값 "준비됨"
+    193~194ms 에서 180~190ms. P1 키프레임: 목록을 inspect 마다 effects.keyframes {clip, effect} 로 엔진에서 읽고(키프레임 있는 효과만, wasm 0.27ms)
+    추정 코드(스냅샷·대조·stale·noteParamSet) 364줄 삭제, 다시 연 프로젝트에서도 마커 유지(웹 e2e 신규), 로드맵 M3-1 (e) 완료. 워크트리 검증:
+    단위 720(커버리지 93.45/83.85/93.49/96.82), 엔진 196, 웹 e2e 전체 153(skip 1), 키프레임 묶음 e2e 42 전후 같음, 데스크톱 스모크·e2e 7.
+  - web-files(todo P1, 엔진 변경 없음, 커밋 f657ebf): Blob 범위 읽기(registerBlob, 1 MiB 청크, FileReaderSync)는 10-14 부터 있어 todo 문구가
+    낡았었다. 남은 공백인 새로고침 뒤 미디어 재연결을 메움: Worker 가 가져온 File 을 1.5초 뒤 OPFS media/ 에 8 MiB 조각으로 복사하고 끝난 것만
+    media/index.json 에 적는다(features/project/web-media.ts, apps/web/src/opfs.ts). 다음 시작 때 같은 엔진 경로(/files/<이름>)로 다시 registerBlob
+    해서 프로젝트·복구본이 "미디어 다시 연결" 없이 열린다. 재등록은 시작을 막지 않고 파일 관련 호출 때 시작(처음엔 시작을 기다리게 해 e2e 가 15%
+    느려졌던 것을 고침). 공간이 모자라면 사본을 지우고 기존 재연결로, 참조 없고 하루 지난 보관본은 정리. 열기 대화상자에 보관 수·크기·사이트
+    사용량. 실측 588MB 1080p: 가져오기 154~166ms, wasm 메모리 +18MB, Blob 읽기 38MB, 탐색 첫 장 927~1028ms(보관 없음 827~951ms, 바로 복사하면
+    최대 1373ms 라 1.5초 지연). 테스트: web-media 단위 15, 엔진 web-blob 6(Blob 과 메모리 경로 프레임 같음), e2e "가져온 파일 보관". 워크트리 검증:
+    단위 735, 엔진 202, 워크플로 회귀, 웹 e2e 155(skip 3, 기준선 149 + 신규).
+  - 테스트 가짜 엔진의 도달하지 않는 중복 `clip.rename` 분기 삭제(esbuild 경고).
+  - engine-perf(`engine(vendor):` 2 + `feat:`, 커밋 f2e546c·cac6c5a·d3d0334, todo P1 전환 + P2 두 건): 데모 생성기를 열(u)·행(v) 단위 계산과
+    가중치 0 노이즈 건너뛰기로 바꿔 출력 비트 일치(예전 demo_pixel 을 테스트 기준으로 6장면 바이트 비교). renderFrame scale 0.5 wasm Aurora
+    236.6ms 에서 56.3ms, Dunes 175.1 에서 39.0, 6장면 모두 단축, napi 도 전 장면 같거나 빠름(번갈아 3회). WSOLA `render_keyed` 가 사슬 위치를
+    기억(소스 키 + 입력 표본 지문), 예전 구현과 비트 일치, 미리보기 4096 블록 출력 1초당 napi 13.6ms 에서 4.5ms, wasm 17.1 에서 6.7(다시
+    그리면 1.9·0.9). 전환: inspect params 평문 값(setTransition 왕복), 클립보다 긴 전환은 클립 안으로 줄이고(clamped) 소스 핸들 부족은
+    repeatFrames·warning 으로 알림(렌더가 끝 프레임을 반복해 검게 비지 않으므로 핸들로는 줄이지 않음, todo 문구와 다른 판단), 저장된 전환은
+    그대로. 화면 fitNote 상태 줄 문구, 안 쓰던 plainParams 삭제, usage 3.2 낡은 문장 정정. 측정만 하고 둔 것: sequence.inspect 50클립 napi 3.1ms·
+    wasm 4.4ms, 빈 renderFrame 3.8ms. 워크트리 검증: cargo test(engine 412, render 154, audio-dsp 125, media 20), 단위 720, 엔진 기능 198, 워크플로
+    회귀, 웹 e2e transitions·keyframes 22, 데스크톱 스모크, vendor xtask ci 1976. wasm 14.71 에서 14.74MB.
+  - whisper-fix(`engine(vendor):` + `feat:`, 커밋 eb2fbd0·f450569, todo P1 STT 두 건): "whisper-small 이 둘째 30초 창을 건너뛴다" 의 원인은
+    no-speech 판정이 아니었다. 첫 창이 `<0.00> 첫 문장 <13.40>` 뒤 바로 끝나면 상류 규칙(타임스탬프 하나로 끝나면 창 전체 30초를 넘김)이
+    13.4~30초의 둘째 문장을 디코드하지 않고 버렸고, 남은 1.5초 꼬리만 no-speech 로 건너뛰었다. `plan_advance`: 그 뒤 창에 3초 이상 남고 그중
+    1초 이상이 말소리면 그 타임스탬프부터(0.5초 기준은 끝 1초 꼬리를 다시 디코드해 낱말 반복·"감사합니다." 환각이 생겨 3초로). 실측 두 문장
+    12개 small WER 32.6% 에서 30.1%(p9 77% 에서 50%, +3.7초), 나머지 전사는 small·base·영어 모두 바이트 단위로 같음. 웹 자동 자막: 음성 전용
+    wasm(bindings/speech-wasm 1.3MB) + 음성 Worker, 모델 tiny·base 는 OPFS models/ 에 조각 SHA-256 검증으로, 소리는 엔진 Worker itemAudio16k
+    (napi 와 같은 transcript::host_item_audio, napi 의 사본 제거), 가중치는 8MB 씩 스트리밍. Chromium 30초 한국어 base 17.1~17.6초·RSS 최대
+    1,660MiB(첫 구현 18.1초·1,937MiB), tiny 6.4초, 네이티브와 같은 글. 워크트리 검증: 단위 738, 엔진 210(stt-web 6 신규), 웹 e2e stt·web-files·
+    editor·text 42, 데스크톱 스모크·e2e 7, vendor xtask ci 1976(hevc conformance draft_mode 1건 부하 중 실패 뒤 재실행 통과).
+- **병합 뒤 검증(v0.1.8, main)**: prettier, clippy, 엔진 빌드(napi·wasm·speech-wasm), typecheck, cargo test(바인딩), 단위 738, 엔진 기능 210, 워크플로 회귀 10.5초(어제 16.3초), 앱 빌드,
+  웹 e2e 155 통과(skip 5, 9.9분; 어제 11.3분) + 실패 2건은 웹 자동 자막이 생겨 전사 탭 안내가 바뀐 것을 옛 기대값이 잡은 것이라 기대값을 고쳐
+  audio-cleanup 10 통과, 데스크톱 스모크(687 커맨드)·e2e 7, vendor `cargo xtask ci` 1976(wasm 45 크레이트). Windows 엔진 0.1.8 크로스 빌드,
+  인스톨러 0.1.8(122.7MB)을 바탕화면 `seonghyun` 폴더에(0.1.7 제거).
+- **다음**: P1 은 Windows HW 디코드 실기 확인만 남음(사용자 PC 필요). P2 의 데모 장면 두 개 60ms 초과, wasm 프레임 캐시 예산, 전환 핸들 자동 다듬기.
+
 ## 2026-10-15 - 끊긴 세션 복구: AV1 내보내기, 움직이는 스티커(Lottie), 내 템플릿, 잡 진행률 (워크트리 4개 병합, v0.1.7)
 
 - **상황**: 어제 01:19 커밋 뒤 워크트리 4개(av1-export, jobs-progress, lottie-stickers, user-templates)에서 병렬 작업 중 01:46 에 세션이 끊겼다

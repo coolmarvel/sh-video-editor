@@ -13,10 +13,6 @@ domain: development
 ## P1 - 다음 릴리스에서 다뤄야 함
 
 - [ ] Windows HW 디코드 실기 확인: 앱 정보의 엔진 버전에 `hw: Media Foundation` 이 뜨고 재생 뒤 `perf.stats` 의 decode.hardware.frames > 0 인지 (`docs/guides/packaging.md` 실기 검증 표)
-- [ ] 전환 params 도 JSON 모양으로(지금은 serde 태그), 전환 길이를 소스 핸들로 제한 (`vendor/.../sh_commands.rs`)
-- [ ] 키프레임 store 를 effects.keyframes 조회로 바꾸고 stale 추정 로직 제거 (`features/keyframes/store.ts`)
-- [ ] whisper-small 이 짧은 파일의 둘째 30초 창을 건너뜀 (vendor `speech/whisper` nospeech 임계) / 웹 STT(putModel·OPFS)
-- [ ] 웹 Worker 에 파일 등록 경로(`Engine.putFile`, Blob range reader) 연결, OPFS 복구 (`apps/web/src/engine.worker.ts`)
 
 ## P2 - 가까운 로드맵
 
@@ -29,23 +25,27 @@ domain: development
 - [ ] 흔들림 분석 캐시가 프로세스 전역이고 새 프로젝트·열기 때만 비움. 클립 삭제·미디어 교체 때도 무효화 (`vendor/.../render/src/vfx/temporal.rs`, `crates/engine/src/stabilize.rs`)
 - [ ] 엔진 toast 이벤트 영문 문구("Scene Edit Detection found no cut points" 등)를 번역표로 (`features/events/poller.ts`)
 - [ ] SNS 프리셋 카드가 H.264 비트레이트로 WebM 을 고르면 VP9 가 16~45 Mbps 로 인코딩. WebM 용 비트레이트 표 (`features/ratio/SnsPresets.tsx`, `features/export/presets.ts`)
-- [ ] 미리보기의 4096 프레임 블록에서 WSOLA 가 1초 블록의 3.5배 비용. `SYNC_SEGMENTS` 조정 또는 renderAudio 요청 크기 (`crates/audio-dsp/src/timestretch.rs`)
 - [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
 - [ ] wasm 14.2MB 에서 12MB 로: interchange(AAF/OMF/FCPXML/OTIO 0.7MB)·image(tiff/gif/webp 0.5MB)·symphonia(0.4MB)·코덱 feature(1MB) 분리 (`docs/guides/wasm-performance.md`)
 - [ ] 웹 글꼴 5.2MB 가 매 시작마다 fetch(브라우저 캐시 의존). Service Worker 또는 OPFS 캐시 (`apps/web/src/fonts.ts`)
-- [ ] 데모 영상 생성기(`media/src/generators.rs` 픽셀별 fbm)가 wasm renderFrame 의 150ms 를 차지. 프레임 캐시 또는 저해상도 생성
 - [ ] 편집기 전용 부품(타임라인 클립, 스크러버, 트랙 헤더) 계약을 DESIGN.md 4절에 추가
+- [ ] 데모 장면 OceanSunset 74ms·Forest 64ms 가 wasm renderFrame 60ms 목표 초과(x·y 둘 다에 걸린 fbm 이 남은 비용) (`crates/media/src/generators.rs`)
+- [ ] wasm 프레임 캐시가 1080p 탐색 몇 번에 선형 메모리를 약 670MB 로 키우고 줄지 않음. 캐시 예산 (`crates/media/src/cache.rs` 호출부)
+- [ ] 자르지 않은 클립 사이 전환은 끝 프레임이 멈춰 보임(repeatFrames 로 알림만). "핸들 자동으로 다듬기" 제안 (`features/transitions/store.ts`)
 
 ## P3 - 품질
 
+- [ ] vendor hevc conformance `draft_mode_changes_only_flagged_non_reference_pictures` 가 부하 중 1회 실패(단독 5회·스위트 5회 통과). flaky 관찰 (`crates/hevc`)
+- [ ] 웹 자동 자막이 한 스레드. wasm-bindgen-rayon 은 빌드 플래그·헤더가 더 필요 (`packages/engine/bindings/speech-wasm`)
+- [ ] 웹 큰 파일 e2e 는 임시 컨텍스트 OPFS 한도(약 500MB) 때문에 복사 성공 실측 불가. 영속 컨텍스트로 (`apps/web/e2e/web-files.spec.ts`)
 - [ ] windows-installer dispatch job(wine 패키지명)은 아직 미실행 (`.github/workflows/ci.yml`)
 - [ ] DESIGN.md 절 번호 중복(4.24 가 둘, 4.17 재사용). 번호를 다시 매기고 usage.md·코드 주석의 참조도 함께 (`DESIGN.md`)
 - [ ] 390 폭에서 잡 진행 칸이 켜진 상태 줄은 e2e 로만 확인했고 눈으로 안 봄. 스크린샷 확인 (`features/jobs/jobs.css`, `shell/layout.css`)
 - [ ] 웹 e2e `keyframes.spec.ts` 모바일에서 부하(load 13) 때 상태 줄 기대가 1회 어긋남(재실행 통과). flaky 후보로 관찰
 - [ ] 웹에서 Ctrl+N 은 Chrome 예약 키라 가로채지 못함. 메뉴 표기만 두거나 다른 키로
 - [ ] 바인딩 단위 테스트(napi: Node 스크립트, wasm: wasm-bindgen-test)와 Playwright e2e 를 `npm run verify` 에 포함
-- [ ] 데스크톱 렌더러 번들 651KB 원인 확인(난독화 전후 비교)
 
 ## P4 - 아이디어
 
 - [ ] 템플릿 갤러리(인트로·세로 SNS·슬라이드쇼)
+- [ ] 웹 자동 자막·OPFS 보관을 Safari·Firefox 에서 확인 (Chromium 만 검증)

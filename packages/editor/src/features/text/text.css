@@ -23,13 +23,18 @@
 }
 .tx-field {
   display: grid;
-  grid-template-columns: var(--sh-space-48) minmax(0, 1fr);
+  /* 라벨 칸: "줄당 글자"·"무음 기준" 처럼 네 글자 라벨이 한 줄에 들어가는 폭 */
+  grid-template-columns: calc(var(--sh-space-48) + var(--sh-space-16)) minmax(0, 1fr);
   align-items: center;
   gap: var(--sh-space-6);
   min-height: var(--sh-size-control-md);
 }
 .tx-field > span:first-child {
   color: var(--sh-color-text-secondary);
+  /* 크롬 라벨은 줄바꿈하지 않는다(DESIGN.md 3절) */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tx-field__input {
   display: flex;

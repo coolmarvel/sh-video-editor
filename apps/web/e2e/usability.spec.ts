@@ -73,7 +73,7 @@ test.describe('미디어와 타임라인', () => {
     await expect(ui.total(app)).toHaveText('00:00:18:00');
     const { frameTicks } = await engineSequence(app);
     expect(frameTicks).toBe((T * 1001) / 24000);
-    await expect(toasts(app).filter({ hasText: '으로 편집을 시작합니다' })).toBeVisible();
+    await expect(toasts(app).filter({ hasText: '편집을 시작합니다' })).toBeVisible();
     // 더블클릭하면 끝에 덧붙는다
     await item.dblclick();
     await expect(ui.videoClips(app)).toHaveCount(2);
@@ -123,6 +123,13 @@ test.describe('미디어와 타임라인', () => {
     await app.keyboard.press('Delete');
     await expect(ui.status(app)).toHaveText('삭제: 클립 2개');
     await expect(ui.clips(app)).toHaveCount(0);
+  });
+
+  test('크롬 글꼴은 맑은 고딕 우선이고 굵기를 흉내 내지 않는다(번진 굵은 글씨 방지)', async ({ app }) => {
+    const root = app.locator('.ve-root');
+    await expect(root).toHaveCSS('font-synthesis-weight', 'none');
+    const family = await root.evaluate((e) => getComputedStyle(e).fontFamily);
+    expect(family.startsWith('"Malgun Gothic"')).toBe(true);
   });
 
   test('토스트는 6초 뒤 사라지고 닫기 버튼으로 바로 닫힌다', async ({ app }) => {

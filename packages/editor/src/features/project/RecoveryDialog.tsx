@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProject } from './store';
 import { Dialog } from '../../shell/Dialog';
+import { StampText } from '../../shell/StampText';
+import { displayProjectName } from '../i18n/engine-messages';
 
 export function RecoveryDialog() {
   const open = useProject((s) => s.recoveryOpen);
@@ -23,7 +25,9 @@ export function RecoveryDialog() {
     <Dialog titleId="ve-recovery-title" title="저장하지 않은 변경 복구" onClose={() => closeRecovery()}>
       <div className="sh-dialog__body">
         <p className="ve-dialog-text">
-          이전 세션이 {how} '{current.projectName}' 의 저장하지 않은 변경이 남아 있습니다 ({current.savedAt}). 되살릴까요?
+          <StampText
+            text={`이전 세션이 ${how} '${displayProjectName(current.projectName)}' 의 저장하지 않은 변경이 남아 있습니다 (${current.savedAt}). 되살릴까요?`}
+          />
         </p>
         {candidates.length > 1 && (
           <div className="sh-form">
@@ -31,7 +35,7 @@ export function RecoveryDialog() {
             <select id="ve-recovery-pick" className="sh-select" value={current.id} onChange={(e) => setSelected(e.target.value)}>
               {candidates.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.projectName} ({c.savedAt})
+                  {displayProjectName(c.projectName)} ({c.savedAt})
                 </option>
               ))}
             </select>

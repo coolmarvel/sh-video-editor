@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties } from 'react';
 import type { EngineBridge } from './engine/bridge';
 import { useEditor } from './store';
 import { MenuBar } from './shell/MenuBar';
+import { TitleBar } from './shell/TitleBar';
 import { MediaPanel } from './shell/MediaPanel';
 import { Monitor } from './shell/Monitor';
 import { Timeline } from './shell/Timeline';
@@ -37,10 +38,12 @@ export type HostKind = 'desktop' | 'web';
 export interface AppProps {
   bridge: EngineBridge;
   host: HostKind;
+  /** 창 제목 줄의 앱 아이콘 URL(데스크톱). 제목 줄은 OS 창 버튼이 화면 위에 겹칠 때만 보인다(shell/TitleBar) */
+  appIcon?: string;
 }
 
 /** 편집기 셸. 메뉴바, 미디어 패널, 모니터, 타임라인, 상태 줄. 부품 모양은 sh-classic.css 가 정한다. */
-export function App({ bridge, host }: AppProps) {
+export function App({ bridge, host, appIcon }: AppProps) {
   const init = useEditor((s) => s.init);
   const status = useEditor((s) => s.status);
   const error = useEditor((s) => s.error);
@@ -83,7 +86,10 @@ export function App({ bridge, host }: AppProps) {
 
   return (
     <div ref={rootRef} className="sh-root ve-root" data-host={host} data-resizing={resizing ?? undefined} style={layoutStyle}>
-      <MenuBar host={host} />
+      <header className="ve-chrome">
+        <TitleBar icon={appIcon} />
+        <MenuBar host={host} />
+      </header>
       <div className="ve-body">
         <MediaPanel />
         <Splitter

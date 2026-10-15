@@ -13,8 +13,11 @@
   font-size: var(--sh-font-size-caption);
   color: var(--sh-color-text-muted);
 }
-.tr-actions {
+.sh-toolbar.tr-actions {
   flex-wrap: wrap;
+  /* 두 줄로 접히면 도구 줄도 높아진다(고정 높이면 아래 글과 겹친다) */
+  height: auto;
+  min-height: var(--sh-size-toolbar);
 }
 .tr-notice {
   white-space: normal;

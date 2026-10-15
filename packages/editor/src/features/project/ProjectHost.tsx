@@ -3,6 +3,8 @@
  * 프로젝트 상태(이름·경로·수정됨)를 다시 읽는다(자동 저장 워커의 알림 반영은 features/events 의 폴링이 1초마다 한다).
  * 대화상자·알림도 여기서 그린다. 단축키는 features/shortcuts.
  */
+import { windowTitle } from '../../shell/TitleBar';
+import { StampText } from '../../shell/StampText';
 import { useEffect } from 'react';
 import { useEditor } from '../../store';
 import { useEngineEvents } from '../events/store';
@@ -14,8 +16,6 @@ import { useRecent } from './recent';
 import { useProject } from './store';
 import '../export/export.css';
 import './project.css';
-
-const APP_TITLE = 'SH Video Editor';
 
 export function ProjectHost() {
   const bridge = useEditor((s) => s.bridge);
@@ -36,7 +36,7 @@ export function ProjectHost() {
   }, [bridge, version]);
 
   useEffect(() => {
-    document.title = `${name}${dirty ? ' (수정됨)' : ''} - ${APP_TITLE}`;
+    document.title = windowTitle(name, dirty);
   }, [name, dirty]);
 
   return (
@@ -48,7 +48,9 @@ export function ProjectHost() {
         <div className="ve-toasts" aria-live="polite">
           {notices.map((n) => (
             <div key={n.id} className={`sh-alert ve-toast${n.kind === 'info' ? '' : ` sh-alert--${n.kind}`}`} role={n.kind === 'danger' ? 'alert' : 'status'}>
-              <span className="ve-toast__text">{n.text}</span>
+              <span className="ve-toast__text">
+                <StampText text={n.text} />
+              </span>
               {n.action && (
                 <button
                   type="button"
@@ -61,8 +63,10 @@ export function ProjectHost() {
                   {n.action.label}
                 </button>
               )}
-              <button type="button" className="sh-btn sh-btn--sm" aria-label="알림 닫기" onClick={() => dismiss(n.id)}>
-                닫기
+              <button type="button" className="ve-toast__close" aria-label="알림 닫기" title="닫기" onClick={() => dismiss(n.id)}>
+                <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false">
+                  <path d="M1 1 9 9M9 1 1 9" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
               </button>
             </div>
           ))}

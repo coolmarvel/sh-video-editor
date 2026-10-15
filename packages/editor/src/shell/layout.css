@@ -27,6 +27,47 @@ body {
   color: var(--sh-color-text);
   font-family: var(--sh-font-family-ui);
   font-size: var(--sh-font-size-body, 12px);
+  /*
+   * 편집기 크롬(메뉴·패널·대화상자·토스트) 전체: 굵은 글꼴이 없는 글꼴로 떨어져도 브라우저가 굵기를 흉내 내지 않게(번진 굵은 글씨
+   * 방지, DESIGN.md 3절). 굴림 콘텐츠 영역은 편집기에 없다(자막·텍스트 클립은 엔진이 그린다). 상류는 굴림 본문 때문에 전역으로 두지 않았다
+   */
+  font-synthesis: none;
+  /* 한국어는 낱말 사이에서만 줄을 바꾸고(sh-root 의 keep-all), 공백 없는 긴 경로·주소만 아무 데서나 끊는다 */
+  overflow-wrap: break-word;
+}
+/* 괄호 일시 "(yyyy-mm-dd hh:mm:ss)" 같은 한 덩어리(shell/StampText) */
+.ve-nowrap {
+  white-space: nowrap;
+}
+/* 창 제목 줄 + 메뉴바를 한 덩어리로(DESIGN.md 4.26): 둘 사이에 선을 두지 않아 하나로 이어진 크롬 띠가 된다 */
+.ve-chrome {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sh-titlebar.ve-titlebar {
+  position: relative;
+  justify-content: center;
+  /* OS 창 버튼 자리(Window Controls Overlay)는 비우고 양쪽을 같게 둬 제목이 창 가운데 오게, 띠 전체를 창 손잡이로 */
+  --ve-wco-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+  padding: 0 var(--ve-wco-right);
+  height: env(titlebar-area-height, var(--sh-size-titlebar));
+  border-bottom: 0;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.ve-titlebar__icon {
+  position: absolute;
+  left: var(--sh-space-8);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.ve-titlebar__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sh-color-text);
 }
 .ve-menubar {
   display: flex;

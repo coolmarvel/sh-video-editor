@@ -152,6 +152,10 @@ test.describe('웹 파일', () => {
     const recovery = app.getByRole('dialog', { name: '저장하지 않은 변경 복구' });
     await expect(recovery).toBeVisible({ timeout: 20_000 });
     await expect(recovery).toContainText("'제목 없음' 의 저장하지 않은 변경");
+    // 괄호 일시 "(yyyy-mm-dd hh:mm:ss)" 는 줄바꿈으로 갈라지지 않는 한 덩어리
+    const stamp = recovery.locator('.ve-dialog-text .ve-nowrap');
+    await expect(stamp).toHaveText(/^\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\)$/);
+    await expect(stamp).toHaveCSS('white-space', 'nowrap');
     await recovery.getByRole('button', { name: '복구' }).click();
     await expect(recovery).toHaveCount(0);
     await expect(toasts(app).filter({ hasText: '되살렸습니다' })).toBeVisible();

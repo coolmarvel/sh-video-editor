@@ -87,6 +87,15 @@ impl Stretcher {
     /// `len` input samples from clip-relative input position `src0` (planar, zeros where there is
     /// no sound), or `None` when the source cannot be read. Positions before 0 are silent.
     pub fn render(&self, speed: f64, out0: i64, n: usize, pull: &dyn Fn(i64, usize) -> Option<Vec<Vec<f32>>>) -> Option<Vec<Vec<f32>>> {
+        self.render_keyed(None, speed, out0, n, pull)
+    }
+
+    /// [`Stretcher::render`] that remembers the chosen segment positions of each chain under `key`
+    /// (sh-video-editor). `key` must identify the input sound: the same key always means the same
+    /// samples from `pull`. A small block then reads and searches only its own segments instead of
+    /// redoing its chain from the start (preview asks for 4096 frames at a time, which cost 3.6
+    /// times as much per second as one-second blocks). The output is the same as without a key.
+    pub fn render_keyed(&self, key: Option<u64>, speed: f64, out0: i64, n: usize, pull: &dyn Fn(i64, usize) -> Option<Vec<Vec<f32>>>) -> Option<Vec<Vec<f32>>> {
         let speed = sane_speed(speed);
         if n == 0 {
             return pull(0, 0);
@@ -107,79 +116,30 @@ impl Stretcher {
         // segments overlapping the window: k * hop + frame > out0 and k * hop < out_end
         let k_first = ((out0 - frame).div_euclid(hop) + 1).max(0);
         let k_last = ((out_end - 1).div_euclid(hop)).max(0);
-        let sync = self.sync.map(|s| s as i64);
-        let chain_start = match sync {
-            Some(s) => k_first / s * s,
-            None => 0,
+        let (positions, read) = self.positions(key, speed, k_first, k_last, pull)?;
+        // input the window's segments read: reuse the search read when it covers them (a decoded
+        // source may differ in the last bits with where a read starts, about 1e-4 for AAC; so does
+        // any read order, it is not a change of the stretch)
+        let lo = positions.iter().copied().min().unwrap_or(0);
+        let hi = positions.iter().copied().max().unwrap_or(0) + frame;
+        let (lo, src) = match read {
+            Some((rlo, src)) if rlo <= lo && src.first().is_some_and(|c| rlo + c.len() as i64 >= hi) => (rlo, src),
+            _ => {
+                let len = usize::try_from(hi - lo).ok()?.min(MAX_STRETCH_SAMPLES);
+                let mut src = pull(lo, len)?;
+                for c in &mut src {
+                    c.resize(len, 0.0);
+                }
+                (lo, src)
+            }
         };
-        // one read covers every candidate of every segment from the chain start
-        let lo = (self.nominal(chain_start, speed) - self.tol - 1).max(0);
-        let hi = self.nominal(k_last, speed) + self.tol + frame + hop + 2;
-        let len = usize::try_from(hi - lo).ok()?.min(MAX_STRETCH_SAMPLES);
-        let mut src = pull(lo, len)?;
-        for c in &mut src {
-            c.resize(len, 0.0);
-        }
         let nch = src.len();
         if nch == 0 {
             return Some(Vec::new());
         }
-        let guide: Vec<f32> = (0..len).map(|i| src.iter().map(|c| c.get(i).copied().unwrap_or(0.0)).sum::<f32>() / nch as f32).collect();
-        // input sample at absolute clip position `p`
-        let g = |p: i64| -> f32 {
-            let i = p - lo;
-            if i < 0 { 0.0 } else { guide.get(i as usize).copied().unwrap_or(0.0) }
-        };
         let mut out: Vec<Vec<f32>> = (0..nch).map(|_| vec![0.0f32; n]).collect();
         let mut wsum = vec![0.0f32; n];
-        let mut prev_in: i64 = 0;
-        for k in chain_start..=k_last {
-            let nominal = self.nominal(k, speed);
-            let fresh = k == 0 || sync.is_some_and(|s| k % s == 0);
-            let in_pos = if fresh {
-                nominal.max(0)
-            } else {
-                let natural = prev_in + hop;
-                // similarity of candidate start `p` with the natural continuation (stride 2)
-                let score = |p: i64| -> f32 {
-                    let (mut xy, mut yy) = (0.0f32, 1e-9f32);
-                    let mut i = 0i64;
-                    while i < hop {
-                        let a = g(natural + i);
-                        let b = g(p + i);
-                        xy += a * b;
-                        yy += b * b;
-                        i += 2;
-                    }
-                    xy / yy.sqrt()
-                };
-                let clo = (nominal - self.tol).max(0);
-                let chi = nominal + self.tol;
-                let mut best = nominal.max(0);
-                let mut best_s = f32::NEG_INFINITY;
-                let mut p = clo;
-                while p <= chi {
-                    let s = score(p);
-                    if s > best_s {
-                        best_s = s;
-                        best = p;
-                    }
-                    p += 4;
-                }
-                let (rlo, rhi) = ((best - 3).max(clo), (best + 3).min(chi));
-                for p in rlo..=rhi {
-                    let s = score(p);
-                    if s > best_s {
-                        best_s = s;
-                        best = p;
-                    }
-                }
-                best
-            };
-            prev_in = in_pos;
-            if k < k_first {
-                continue;
-            }
+        for (k, &in_pos) in (k_first..=k_last).zip(&positions) {
             let out_pos = k * hop;
             for (i, w) in self.window.iter().enumerate() {
                 let o = out_pos + i as i64 - out0;
@@ -211,6 +171,192 @@ impl Stretcher {
         }
         Some(out)
     }
+
+    /// Input positions of segments `k_first..=k_last`, from the chain cache under `key` or by
+    /// searching each chain from its start. Also returns the last search read (start, planar
+    /// samples) so the caller can reuse it.
+    #[allow(clippy::type_complexity)]
+    fn positions(
+        &self,
+        key: Option<u64>,
+        speed: f64,
+        k_first: i64,
+        k_last: i64,
+        pull: &dyn Fn(i64, usize) -> Option<Vec<Vec<f32>>>,
+    ) -> Option<(Vec<i64>, Option<(i64, Vec<Vec<f32>>)>)> {
+        let Some(sync) = self.sync.map(|s| s as i64) else {
+            let (pos, lo, src) = self.search(speed, 0, k_last, None, pull)?;
+            return Some((pos[k_first as usize..].to_vec(), Some((lo, src))));
+        };
+        let mut out = Vec::with_capacity((k_last - k_first + 1) as usize);
+        let mut read = None;
+        let mut k = k_first;
+        while k <= k_last {
+            let chain = k / sync;
+            let c0 = chain * sync;
+            let upto = k_last.min(c0 + sync - 1);
+            let ck = match key {
+                Some(key) => Some((self.fingerprint(key, speed, c0, sync, pull)?, speed.to_bits(), self.frame as u64, chain)),
+                None => None,
+            };
+            let cached = ck.and_then(|ck| chains().lock().unwrap_or_else(|e| e.into_inner()).get(&ck)).filter(|p| p.len() as i64 > upto - c0);
+            let chain_pos = match cached {
+                Some(p) => p,
+                None => {
+                    // with a key, search the whole chain once so later blocks find it
+                    let last = if ck.is_some() { c0 + sync - 1 } else { upto };
+                    let (pos, lo, src) = self.search(speed, c0, last, Some(sync), pull)?;
+                    let pos = std::sync::Arc::new(pos);
+                    if let Some(ck) = ck
+                        && !src.is_empty()
+                    {
+                        chains().lock().unwrap_or_else(|e| e.into_inner()).put(ck, pos.clone());
+                    }
+                    read = Some((lo, src));
+                    pos
+                }
+            };
+            out.extend_from_slice(&chain_pos[(k - c0) as usize..=(upto - c0) as usize]);
+            k = upto + 1;
+        }
+        Some((out, read))
+    }
+
+    /// `key` mixed with three short probes of the chain's input, so a cached chain is only reused
+    /// for the same sound even when the caller's ids are reused (a new project numbers its items
+    /// from 1 again).
+    fn fingerprint(&self, key: u64, speed: f64, c0: i64, sync: i64, pull: &dyn Fn(i64, usize) -> Option<Vec<Vec<f32>>>) -> Option<u64> {
+        let mut h = key ^ 0xcbf2_9ce4_8422_2325;
+        for k in [c0, c0 + sync / 2, c0 + sync - 1] {
+            for c in pull(self.nominal(k, speed).max(0), 32)? {
+                for v in c {
+                    h = (h ^ u64::from(v.to_bits())).wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+        }
+        Some(h)
+    }
+
+    /// Search segments `c0..=last` (one chain: `c0` is a chain start or 0) and return their input
+    /// positions with the input read for the search.
+    fn search(
+        &self,
+        speed: f64,
+        c0: i64,
+        last: i64,
+        sync: Option<i64>,
+        pull: &dyn Fn(i64, usize) -> Option<Vec<Vec<f32>>>,
+    ) -> Option<(Vec<i64>, i64, Vec<Vec<f32>>)> {
+        let (frame, hop) = (self.frame as i64, self.hop as i64);
+        // one read covers every candidate of every segment from the chain start
+        let lo = (self.nominal(c0, speed) - self.tol - 1).max(0);
+        let hi = self.nominal(last, speed) + self.tol + frame + hop + 2;
+        let len = usize::try_from(hi - lo).ok()?.min(MAX_STRETCH_SAMPLES);
+        let mut src = pull(lo, len)?;
+        for c in &mut src {
+            c.resize(len, 0.0);
+        }
+        let nch = src.len();
+        if nch == 0 {
+            return Some(((c0..=last).map(|k| self.nominal(k, speed).max(0)).collect(), lo, src));
+        }
+        let guide: Vec<f32> = (0..len).map(|i| src.iter().map(|c| c.get(i).copied().unwrap_or(0.0)).sum::<f32>() / nch as f32).collect();
+        // input sample at absolute clip position `p`
+        let g = |p: i64| -> f32 {
+            let i = p - lo;
+            if i < 0 { 0.0 } else { guide.get(i as usize).copied().unwrap_or(0.0) }
+        };
+        let mut positions = Vec::with_capacity((last - c0 + 1).max(0) as usize);
+        let mut prev_in: i64 = 0;
+        for k in c0..=last {
+            let nominal = self.nominal(k, speed);
+            let fresh = k == 0 || sync.is_some_and(|s| k % s == 0);
+            let in_pos = if fresh {
+                nominal.max(0)
+            } else {
+                let natural = prev_in + hop;
+                // similarity of candidate start `p` with the natural continuation (stride 2)
+                let score = |p: i64| -> f32 {
+                    let (mut xy, mut yy) = (0.0f32, 1e-9f32);
+                    let (a0, b0) = (natural - lo, p - lo);
+                    if a0 >= 0 && b0 >= 0 && ((a0.max(b0) + hop) as usize) <= guide.len() {
+                        // fast path: both spans inside the read (same sums as below)
+                        let (a, b) = (&guide[a0 as usize..(a0 + hop) as usize], &guide[b0 as usize..(b0 + hop) as usize]);
+                        for (x, y) in a.iter().step_by(2).zip(b.iter().step_by(2)) {
+                            xy += x * y;
+                            yy += y * y;
+                        }
+                    } else {
+                        let mut i = 0i64;
+                        while i < hop {
+                            let a = g(natural + i);
+                            let b = g(p + i);
+                            xy += a * b;
+                            yy += b * b;
+                            i += 2;
+                        }
+                    }
+                    xy / yy.sqrt()
+                };
+                let clo = (nominal - self.tol).max(0);
+                let chi = nominal + self.tol;
+                let mut best = nominal.max(0);
+                let mut best_s = f32::NEG_INFINITY;
+                let mut p = clo;
+                while p <= chi {
+                    let s = score(p);
+                    if s > best_s {
+                        best_s = s;
+                        best = p;
+                    }
+                    p += 4;
+                }
+                let (rlo, rhi) = ((best - 3).max(clo), (best + 3).min(chi));
+                for p in rlo..=rhi {
+                    let s = score(p);
+                    if s > best_s {
+                        best_s = s;
+                        best = p;
+                    }
+                }
+                best
+            };
+            prev_in = in_pos;
+            positions.push(in_pos);
+        }
+        Some((positions, lo, src))
+    }
+}
+
+/// Chosen segment positions per (key, speed bits, frame, chain), oldest dropped first.
+struct Chains {
+    map: std::collections::HashMap<(u64, u64, u64, i64), std::sync::Arc<Vec<i64>>>,
+    order: std::collections::VecDeque<(u64, u64, u64, i64)>,
+}
+
+/// Chains kept (32 segments each, about 256 bytes): a few minutes of stretched clips.
+const CHAIN_CACHE: usize = 4096;
+
+impl Chains {
+    fn get(&self, k: &(u64, u64, u64, i64)) -> Option<std::sync::Arc<Vec<i64>>> {
+        self.map.get(k).cloned()
+    }
+
+    fn put(&mut self, k: (u64, u64, u64, i64), v: std::sync::Arc<Vec<i64>>) {
+        if self.map.insert(k, v).is_none() {
+            self.order.push_back(k);
+            while self.order.len() > CHAIN_CACHE {
+                if let Some(old) = self.order.pop_front() {
+                    self.map.remove(&old);
+                }
+            }
+        }
+    }
+}
+
+fn chains() -> &'static std::sync::Mutex<Chains> {
+    static CHAINS: std::sync::OnceLock<std::sync::Mutex<Chains>> = std::sync::OnceLock::new();
+    CHAINS.get_or_init(|| std::sync::Mutex::new(Chains { map: Default::default(), order: Default::default() }))
 }
 
 /// Pitch-preserving time stretch of whole buffers (the upstream function). `ratio` = output
@@ -336,7 +482,22 @@ mod tests {
             assert_eq!(cut.len(), whole[0].len());
             let worst = cut.iter().zip(&whole[0]).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max);
             assert!(worst == 0.0, "speed {speed}: blocks differ by {worst}");
+            // remembered chains give the same samples, in any order of requests
+            let mut keyed: Vec<f32> = Vec::new();
+            let (mut pos, mut k) = (0usize, 0usize);
+            while pos < 2 * 48_000 {
+                let m = sizes[(k + 2) % sizes.len()].min(2 * 48_000 - pos);
+                keyed.extend_from_slice(&st.render_keyed(Some(7), speed, pos as i64, m, &pull).unwrap()[0]);
+                pos += m;
+                k += 1;
+            }
+            assert!(keyed == whole[0], "speed {speed}: keyed blocks differ");
+            assert!(st.render_keyed(Some(7), speed, 0, 2 * 48_000, &pull).unwrap()[0] == whole[0]);
         }
+        // the same key over a different sound does not reuse the first sound's chains
+        let other = tone_source(sine(300.0, 0.3, sr as f32, 4 * 48_000));
+        let fresh = st.render(1.37, 1000, 9000, &other).unwrap();
+        assert!(st.render_keyed(Some(7), 1.37, 1000, 9000, &other).unwrap() == fresh);
     }
 
     #[test]
@@ -366,5 +527,45 @@ mod tests {
         assert!(st.render(f64::NAN, 0, 10, &pull).is_some());
         // a source that cannot be read
         assert!(st.render(2.0, 0, 10, &|_, _| None).is_none());
+    }
+
+    /// `cargo test -p filmcraft-audio-dsp --release stretch_block_timing -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn stretch_block_timing() {
+        let sr = 48_000u32;
+        let mut x = sine(220.0, 0.4, sr as f32, 30 * 48_000);
+        for (i, v) in x.iter_mut().enumerate() {
+            *v += 0.2 * (TAU * 3.3 * i as f32 / sr as f32).sin() * (TAU * 1234.0 * i as f32 / sr as f32).sin();
+        }
+        let src = [x.clone(), x];
+        let pull = move |p: i64, n: usize| {
+            Some(
+                src.iter()
+                    .map(|c| (0..n).map(|i| if p + (i as i64) < 0 { 0.0 } else { c.get((p + i as i64) as usize).copied().unwrap_or(0.0) }).collect())
+                    .collect(),
+            )
+        };
+        let st = Stretcher::new(sr);
+        for speed in [1.5, 0.75] {
+            for block in [4096usize, 48_000] {
+                let total = 10 * 48_000;
+                let t0 = std::time::Instant::now();
+                let mut pos = 0;
+                while pos < total {
+                    std::hint::black_box(st.render(speed, pos as i64, block.min(total - pos), &pull));
+                    pos += block;
+                }
+                let ms = t0.elapsed().as_secs_f64() * 1000.0;
+                let t0 = std::time::Instant::now();
+                let mut pos = 0;
+                while pos < total {
+                    std::hint::black_box(st.render_keyed(Some(block as u64 ^ speed.to_bits()), speed, pos as i64, block.min(total - pos), &pull));
+                    pos += block;
+                }
+                let keyed = t0.elapsed().as_secs_f64() * 1000.0;
+                println!("speed {speed} block {block}: {:.2} ms per second of output, keyed {:.2}", ms / 10.0, keyed / 10.0);
+            }
+        }
     }
 }

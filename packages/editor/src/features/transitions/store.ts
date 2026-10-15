@@ -16,8 +16,10 @@ import {
   clipEditPoints,
   defaultFrames,
   findTransition,
+  fitNote,
   framesOf,
   transitionPoint,
+  type FitResult,
   type EditPoint,
   type TransitionAlign,
 } from './types';
@@ -72,10 +74,14 @@ export const useTransitions = create<TransitionsState>((set, get) => {
     }
   }
 
+  /** 마지막 적용 결과(길이를 줄였는지·반복 프레임). 상태 줄 문구에 붙인다 */
+  let lastFit: FitResult | undefined;
+
   async function apply(point: EditPoint, effect: string, frames: number, extra: Record<string, unknown> = {}): Promise<number | null> {
     const target = applyTarget(point);
     if (!target) return null;
-    const r = (await send('sequence.applyVideoTransition', { ...target, effect, frames, ...extra })) as { transition?: number } | undefined;
+    const r = (await send('sequence.applyVideoTransition', { ...target, effect, frames, ...extra })) as FitResult | undefined;
+    lastFit = r;
     return typeof r?.transition === 'number' ? r.transition : null;
   }
 
@@ -117,7 +123,7 @@ export const useTransitions = create<TransitionsState>((set, get) => {
         // 새 전환을 선택한다. 클립이 선택되어 있으면 먼저 푼다(전환 선택은 클립 선택과 함께 가지 않는다)
         if ((useTimeline.getState().sequence?.selection.length ?? 0) > 0) await send('edit.deselectAll', {});
         set({ selected: id });
-        await refreshAll(`전환 적용: ${transitionLabel(effect)}, ${n}프레임`);
+        await refreshAll(`전환 적용: ${transitionLabel(effect)}, ${lastFit?.frames ?? n}프레임${fitNote(lastFit)}`);
       }
       return id;
     },
@@ -151,10 +157,10 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       const seq = useTimeline.getState().sequence;
       if (!seq || !findTransition(seq, id)) return;
       const n = Math.max(1, Math.round(frames));
-      const r = await send('sequence.setTransitionLength', { transition: id, frames: n });
+      const r = (await send('sequence.setTransitionLength', { transition: id, frames: n })) as FitResult | undefined;
       if (r === undefined) return;
       set({ selected: id });
-      await refreshAll(`전환 길이: ${n}프레임`);
+      await refreshAll(`전환 길이: ${r.frames ?? n}프레임${fitNote(r)}`);
     },
 
     async setAlign(id, align) {
@@ -162,9 +168,9 @@ export const useTransitions = create<TransitionsState>((set, get) => {
       const found = seq ? findTransition(seq, id) : null;
       if (!found) return;
       const frames = framesOf(found.transition, frameRate());
-      const r = await send('sequence.setTransitionLength', { transition: id, frames, align });
+      const r = (await send('sequence.setTransitionLength', { transition: id, frames, align })) as FitResult | undefined;
       if (r === undefined) return;
-      await refreshAll(`전환 정렬: ${ALIGN_LABEL[align]}`);
+      await refreshAll(`전환 정렬: ${ALIGN_LABEL[align]}${fitNote(r)}`);
     },
 
     async replaceEffect(id, effect) {

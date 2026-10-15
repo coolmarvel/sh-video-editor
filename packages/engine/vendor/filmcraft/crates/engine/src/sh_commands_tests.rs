@@ -649,3 +649,71 @@ fn speed_duration_takes_maintain_pitch_and_keeps_it_when_absent() {
     assert_eq!(s.undo().as_deref(), Some("Speed/Duration"));
     assert!(maintain_pitch_of(&s, audio), "undo restores the flag");
 }
+
+#[test]
+fn a_transition_longer_than_its_clips_is_clamped_to_fit_and_reported() {
+    let (mut s, red, blue) = mattes();
+    // two 4 s clips: a centred transition can take at most 4 s on each side (8 s = 240 frames)
+    let r = s.execute("sequence.applyVideoTransition", json!({"clip": red, "edge": "out", "frames": 600})).unwrap();
+    assert_eq!(r["frames"], 240);
+    assert_eq!(r["clamped"], true);
+    // colour mattes are generated: they never run out of media
+    assert_eq!(r["repeatFrames"], json!({"from": 0, "to": 0}));
+    assert!(r["warning"].is_null());
+    let id = r["transition"].as_u64().unwrap();
+    let tr = &transitions(&s)[0];
+    assert_eq!((frames(&s, tr.start), frames(&s, tr.duration)), (0, 240));
+    // in-range lengths are kept as asked
+    let r = s.execute("sequence.setTransitionLength", json!({"transition": id, "frames": 30})).unwrap();
+    assert_eq!((r["frames"].as_i64(), r["clamped"].as_bool()), (Some(30), Some(false)));
+    // start alignment: the whole transition sits on the incoming 4 s clip
+    let r = s.execute("sequence.setTransitionLength", json!({"transition": id, "frames": 500, "align": "start"})).unwrap();
+    assert_eq!((r["frames"].as_i64(), r["clamped"].as_bool(), r["align"].as_str()), (Some(120), Some(true), Some("start")));
+    // a fade out at the end of the last clip is limited by that clip alone
+    let r = s.execute("sequence.applyVideoTransition", json!({"clip": blue, "edge": "out", "frames": 999})).unwrap();
+    assert_eq!((r["frames"].as_i64(), r["clamped"].as_bool()), (Some(120), Some(true)));
+}
+
+#[test]
+fn transition_params_inspect_as_plain_values_and_round_trip() {
+    let (mut s, red, _blue) = mattes();
+    let id = s
+        .execute(
+            "sequence.applyVideoTransition",
+            json!({"clip": red, "edge": "out", "effect": "push", "frames": 20, "params": {"direction": "From East", "motion_blur": 10}}),
+        )
+        .unwrap()["transition"]
+        .as_u64()
+        .unwrap();
+    let seq = s.execute("sequence.inspect", json!({})).unwrap();
+    let params = seq["video"][0]["transitions"][0]["params"].clone();
+    assert_eq!(params, json!({"direction": 1, "motion_blur": 10.0}));
+    // what inspect gives is what setTransition takes: sending it back changes nothing
+    let before = transitions(&s)[0].clone();
+    s.execute("sequence.setTransition", json!({"transition": id, "params": params})).unwrap();
+    assert_eq!(transitions(&s)[0].effect, before.effect);
+    // an unset point ([null, null], the default centre) is accepted and left unset
+    let iris = s.execute("sequence.applyVideoTransition", json!({"clip": red, "edge": "out", "effect": "iris_round", "frames": 20})).unwrap()["transition"]
+        .as_u64()
+        .unwrap();
+    let seq = s.execute("sequence.inspect", json!({})).unwrap();
+    let p = seq["video"][0]["transitions"][0]["params"].clone();
+    s.execute("sequence.setTransition", json!({"transition": iris, "params": p})).unwrap();
+}
+
+#[test]
+fn transitions_already_in_a_project_keep_their_length() {
+    // a project saved before the clamp may hold a transition longer than its clips: other edits leave it alone
+    let (mut s, red, blue) = mattes();
+    let id = s.execute("sequence.applyVideoTransition", json!({"clip": red, "edge": "out", "frames": 30})).unwrap()["transition"].as_u64().unwrap();
+    let long = s.sequence_rate().tick_of(400);
+    s.edit_sequence("old project", |q, _, _| {
+        let tr = q.video_tracks[0].transitions.iter_mut().find(|x| x.id.0 == id).unwrap();
+        tr.duration = long;
+        Ok(())
+    })
+    .unwrap();
+    s.execute("sequence.setTransition", json!({"transition": id, "reverse": true})).unwrap();
+    let tr = transitions(&s).into_iter().find(|x| x.id.0 == id).unwrap();
+    assert_eq!((tr.duration, tr.reverse, tr.from.map(|c| c.0), tr.to.map(|c| c.0)), (long, true, Some(red), Some(blue)));
+}

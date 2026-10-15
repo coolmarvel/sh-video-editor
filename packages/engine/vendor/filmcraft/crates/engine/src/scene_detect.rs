@@ -75,7 +75,8 @@ pub struct PendingScene {
     pub results: Arc<Mutex<Option<Vec<ClipScenes>>>>,
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+/// A poisoned lock still yields its data (a panicked analysis thread must not wedge the session).
+pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 

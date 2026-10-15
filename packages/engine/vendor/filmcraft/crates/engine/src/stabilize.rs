@@ -18,6 +18,7 @@ use filmcraft_time::Tick;
 use serde_json::{Value, json};
 
 use crate::commands::{CommandSpec, bad, bool_p, clip_p, f64_p, has_seq};
+use crate::scene_detect::lock;
 use crate::{EngineError, Result, Session};
 
 const CMD: &str = "effects.analyzeStabilizer";
@@ -34,10 +35,6 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
         run: analyze,
         journal: true,
     }]
-}
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn analyze(s: &mut Session, p: &Value) -> Result<Value> {

@@ -2,6 +2,7 @@
  * 웹 세션 하나의 자동 저장·복구 상태(모듈 싱글턴). 프로젝트 store 가 startAutosave 에서 시작하고, 복구·저장 때 부른다.
  * 순수 로직은 web-files.ts, 대화상자는 web-store.ts / WebFilesDialog.tsx.
  */
+import { formatDateTime } from '../../datetime';
 import type { EngineBridge, OpfsStore } from '../../engine/bridge';
 import type { RecoveryCandidate } from './store';
 import {
@@ -52,9 +53,7 @@ export async function recoverWeb(bridge: EngineBridge, id: string): Promise<{ na
   if (!meta) throw new Error('복구 스냅샷을 읽을 수 없습니다');
   await bridge.execute('file.open', { path: recoveryEnginePath(meta) });
   pending = { name: meta.projectName, recoveryId: id };
-  const d = new Date(meta.savedUnix);
-  const two = (n: number) => String(n).padStart(2, '0');
-  return { name: meta.projectName, savedAt: `${two(d.getHours())}:${two(d.getMinutes())}` };
+  return { name: meta.projectName, savedAt: formatDateTime(meta.savedUnix) };
 }
 
 export async function discardWeb(bridge: EngineBridge, id: string): Promise<void> {

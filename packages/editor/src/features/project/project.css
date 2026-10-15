@@ -13,7 +13,9 @@
 .ve-toasts .sh-alert {
   box-shadow: var(--sh-shadow-raised);
   white-space: normal;
-  word-break: break-all;
+  /* 한국어는 낱말 사이에서만 줄바꿈, 공백 없는 긴 경로는 아무 데서나(폭 320 을 넘지 않게) */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 /* 토스트: 글 + 닫기 버튼 한 줄. 글은 줄바꿈하고 버튼은 오른쪽에 고정 (DESIGN.md 4.17) */
 .ve-toast {
@@ -26,6 +28,32 @@
 }
 .ve-toast .sh-btn--sm {
   flex: none;
+}
+/* 닫기: 글자 크기만 한 X 아이콘(테두리 없음, hover 때만 면). 알림 띠 한 줄 높이 안에 들어간다 (DESIGN.md 4.21) */
+.ve-toast__close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sh-space-16);
+  height: var(--sh-space-16);
+  margin-top: var(--sh-space-2);
+  padding: 0;
+  border: var(--sh-border-width) solid transparent;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  cursor: default;
+}
+.ve-toast__close:hover {
+  opacity: 1;
+  border-color: var(--sh-color-hover-edge);
+  background: var(--sh-color-hover);
+}
+.ve-toast__close:focus-visible {
+  opacity: 1;
+  outline: var(--sh-border-width) dotted currentColor;
+  outline-offset: 1px;
 }
 .ve-dialog--narrow {
   width: 400px;

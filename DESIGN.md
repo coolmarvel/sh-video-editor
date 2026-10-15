@@ -160,7 +160,7 @@ tokens:
     pressed: 'linear-gradient(to bottom, #f2f2f2 0%, #d5d5d5 100%)'
     bevel: 'linear-gradient(to bottom, #ffffff 0%, #e6e6e6 100%)'
   typography:
-    family-ui: 돋움, Dotum, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif
+    family-ui: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif"
     family-ui-skia: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif"
     family-content: 굴림, Gulim, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif
     family-mono: "'Cascadia Mono', Consolas, D2Coding, ui-monospace, monospace"
@@ -639,7 +639,7 @@ themes:
 옛 Windows 업무 프로그램처럼 **사각사각하고 촘촘한** 화면이다. 2000년대 국산 업무용 소프트웨어(DEXT5 에디터,
 PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 
-- 반경 0, 모든 선 1px, 돋움 12px, 컨트롤 높이 24px.
+- 반경 0, 모든 선 1px, 맑은 고딕 12px, 컨트롤 높이 24px.
 - 크롬(메뉴바·툴바·상태 줄)은 얕은 세로 그라데이션 띠. 버튼은 흰색에서 회색으로 내려가는 베벨.
 - 색은 아낀다. 크롬은 회색·옅은 파랑, 채도 있는 색은 주 동작·선택·포커스와 hover 테두리에만.
 - 기능은 메뉴에서 찾는다. 툴바·버튼은 메뉴의 지름길이다.
@@ -670,18 +670,23 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 
 ## 3. Typography & font evidence
 
-| 역할          | 토큰                       | 값                                                                          |
-| ------------- | -------------------------- | --------------------------------------------------------------------------- |
-| UI 글꼴       | `--sh-font-family-ui`      | 돋움, 맑은 고딕, Apple SD Gothic Neo, Noto Sans KR 순                       |
-| Avalonia/Skia | `--sh-font-family-ui-skia` | 맑은 고딕 우선. 돋움 비트맵이 비정수 크기·합성 굵게에서 깨진다 (2026-10-01) |
-| 편집 콘텐츠   | `--sh-font-family-content` | 굴림 (문서·에디터 본문)                                                     |
-| 고정폭        | `--sh-font-family-mono`    | Cascadia Mono, Consolas, D2Coding 순                                        |
+| 역할          | 토큰                       | 값                                                                                                             |
+| ------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| UI 글꼴       | `--sh-font-family-ui`      | 맑은 고딕, Apple SD Gothic Neo, Noto Sans CJK KR, Noto Sans KR 순 (sh-design-system 0.1.2 부터, 상류 ADR-0004) |
+| Avalonia/Skia | `--sh-font-family-ui-skia` | UI 글꼴과 같은 값. 0.1.1 까지 쓰던 이름을 호환용으로 남긴다                                                    |
+| 편집 콘텐츠   | `--sh-font-family-content` | 굴림 (문서·에디터 본문)                                                                                        |
+| 고정폭        | `--sh-font-family-mono`    | Cascadia Mono, Consolas, D2Coding 순                                                                           |
 
 크기는 다섯 단계만 쓴다: caption 11 · **body 12 (기본)** · emphasis 13 · title 14 · heading 16.
 굵기는 400 · 600(버튼) · 700(제목·legend, 상한). 줄 높이는 1.2 / 1.3 / 1.45.
 
 - 크롬 글자는 14px 를 넘지 않는다. 16px 는 문서·안내 페이지 제목에만.
-- 글자 크기는 정수 px 만. 11.5px 같은 값은 돋움이 깨진다.
+- 글자 크기는 정수 px 만. 11.5px 같은 값은 힌팅이 흐트러져 글자가 흐려진다.
+- 크롬 글자의 굵게는 실제 굵은 글꼴(맑은 고딕 Bold)로만 그린다. 굵은 글꼴이 없는 돋움·굴림을 UI 글꼴로 쓰지 않는다(흉내 낸 굵게는
+  12px 에서 획이 번진다, 2026-10-15 사용자 피드백). 편집기는 크롬 뿌리(`.ve-root`, `shell/layout.css`)에만 `font-synthesis: none` 을
+  둔다. 편집기에는 굴림 콘텐츠 영역이 없다(자막·텍스트 클립은 엔진이 그린다). 상류는 굴림 본문의 사용자 굵게 때문에 전역으로 끄지 않는다.
+- 화면에 보이는 일시는 `yyyy-mm-dd hh:mm:ss` 하나(`packages/editor/src/datetime.ts`). 괄호 일시 `(yyyy-mm-dd hh:mm:ss)` 는 줄바꿈으로
+  가르지 않는다(`shell/StampText.tsx`, `.ve-nowrap`): 모자라면 덩어리째 다음 줄로.
 - `letter-spacing`·대문자 변환을 쓰지 않는다. 글꼴 스무딩(`-webkit-font-smoothing`)을 건드리지 않는다.
 - 숫자 열(크기·시간·좌표)은 `font-variant-numeric: tabular-nums`.
 - 한국어 본문은 `word-break: keep-all`. 크롬 라벨은 줄바꿈하지 않는다(`nowrap` + 말줄임).
@@ -927,8 +932,11 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
   선택하고, 선택 안에 있으면 선택 전체가 대상이다. 미디어 트리(항목·편집본·폴더·빈 자리)와 타임라인(클립·빈 레인)에 있다.
 - 작은 대화상자: 이름 바꾸기·폴더 만들기는 한 칸 입력 대화상자(4.9, 폭 400, Enter 확인, Esc 취소, 빈 값은 주 버튼 비활성).
   되돌리기 어려운 삭제(미디어 항목·열린 편집본·폴더)는 `alertdialog` 확인 대화상자, 주 버튼은 빨강 채움 "삭제".
-- 토스트: 4.13 의 알림 띠를 오른쪽 아래에 쌓는다(폭 320, 최대 3개). 글 + "닫기" 작은 버튼 한 줄. 정보·성공·경고는 6초 뒤 저절로
-  닫히고, 오류(danger)는 닫기 버튼으로만 닫힌다(`role="alert"`). 패널 안에 인라인 알림을 두지 않는다. 상태 줄 문구는 그대로다.
+- 토스트: 4.13 의 알림 띠를 오른쪽 아래에 쌓는다(폭 320, 최대 3개). 글 + 닫기 아이콘 버튼(16x16, 10px X 선 1.5px, 테두리 없음,
+  hover 때 hover 면 + hover-edge 테두리, `aria-label="알림 닫기"`, 2026-10-15). 글은 낱말 사이에서만 줄을 바꾸고(`keep-all`), 괄호 일시는
+  가르지 않는다. 정보·성공·경고는 6초 뒤 저절로 닫히고, 오류(danger)는 닫기 버튼으로만 닫힌다(`role="alert"`). 패널 안에 인라인 알림을
+  두지 않는다. 상태 줄 문구는 그대로다. 엔진의 영어 토스트는 `features/i18n/engine-messages.ts` 표로 옮기고, 화면이 같은 사건을 이미
+  알렸으면(같은 key, 5초) 하나만 남긴다.
 - 첫 화면 안내 카드: 편집본이 없을 때 타임라인 패널 본문을 채운다. 점선 1px border-strong 상자(canvas 면), 머리글 13px bold,
   네 단계(번호는 24px accent 사각 + 흰 숫자, 제목 bold + 설명 secondary)를 `auto-fit` 격자로, 아래에 버튼 "파일 가져오기"(기본)와
   "데모 영상 넣기"(주). 미디어 항목을 끌어다 놓는 대상이기도 하다(놓이면 accent 점선 + accent-subtle 면). 도움말 > 사용 안내는 같은
@@ -1080,6 +1088,22 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 - **병원 원무·간호 직원**: 같은 서식과 목록을 하루 수백 번 다룬다. 키보드와 우클릭을 쓴다. 화면이 바뀌는 것을 싫어한다.
 - **환자(서명 화면)**: 태블릿에서 한 번 서명한다. 큰 글자·큰 버튼(`touch` 테마)이 필요하다.
 - **전산 담당자(작성자)**: 여러 앱을 만들고 유지한다. 앱끼리 같은 부품·같은 단축키이길 원한다.
+
+### 4.26 창 제목 줄 (편집기 전용, 데스크톱, 2026-10-15)
+
+구현: `packages/editor/src/shell/TitleBar.tsx`, `shell/layout.css`(`.ve-chrome`, `.ve-titlebar`), 창 옵션 `apps/desktop/src/main/index.ts`.
+4.11 타이틀바를 바탕으로 하되 OS 창 버튼을 그대로 쓴다.
+
+- Windows·Linux 데스크톱 창은 OS 제목 줄을 숨기고(`titleBarStyle: 'hidden'`) 창 버튼(최소화·최대화·닫기)만 화면 오른쪽 위에 겹친다
+  (`titleBarOverlay`, Window Controls Overlay). 버튼 면은 투명이라 아래 크롬 그라데이션이 비치고, 글리프 색은 `--sh-color-text`, 높이는
+  `--sh-size-titlebar`(28). OS 의 닫기 hover 빨강·스냅 레이아웃은 OS 가 그린다. macOS 는 OS 제목 줄 그대로.
+- 띠: 4.11 과 같은 높이 28, `--sh-gradient-chrome`. 왼쪽 8px 에 앱 아이콘 16(32px 래스터), **창 가운데** 에 "문서 이름 (수정됨) -
+  SH Video Editor" 12px 보통 굵기 `--sh-color-text`, 넘치면 말줄임. 창 버튼 자리는 비우고 양쪽 여백을 같게 둬 제목이 창 가운데 온다.
+  글은 `document.title`(작업 표시줄)과 같다(`windowTitle`).
+- 제목 줄과 메뉴바(4.3)는 한 덩어리(`.ve-chrome`)로 쌓고 **둘 사이에 선을 두지 않는다**. 아래 경계선은 메뉴바의 1px frame 하나다.
+  OS 의 흰 제목 줄이 어두운 크롬 위에 따로 얹히던 것을 없애, 제목·메뉴가 하나로 이어진 크롬 띠가 된다(한글 2024 같은 문법).
+- 띠 전체가 창 손잡이(`app-region: drag`, 더블클릭 최대화는 OS 동작)다. 띠에 버튼을 두지 않는다.
+- 창 버튼 겹침이 꺼진 창(웹, 전체 화면, macOS)에서는 그리지 않는다(`navigator.windowControlsOverlay.visible`).
 
 ### 4.24 전사 패널 (편집기 전용, 2026-10-14)
 

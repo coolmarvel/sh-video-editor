@@ -71,14 +71,6 @@ export const useRecent = create<RecentState>((set, get) => ({
   },
 }));
 
-/** 날짜 표기(목록용): 오늘은 시각, 아니면 날짜 */
-export function formatOpenedAt(ms: number, now = Date.now()): string {
-  const d = new Date(ms);
-  const sameDay = new Date(now).toDateString() === d.toDateString();
-  const two = (n: number) => String(n).padStart(2, '0');
-  return sameDay ? `${two(d.getHours())}:${two(d.getMinutes())}` : `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
-}
-
 /** 파일 메뉴 "최근 프로젝트" 하위 메뉴 항목. 비어 있으면 안내 항목 하나(아무 동작 없음) */
 export function recentMenuEntries(): MenuEntry[] {
   const items = useRecent.getState().items;

@@ -81,7 +81,8 @@ test.describe('엔진 이벤트 통합', () => {
   test('엔진 토스트는 알림과 상태 줄로 온다', async ({ app }) => {
     // 엔진이 Toast 이벤트를 내는 커맨드(스크럽 중 소리 토글). 화면을 거치지 않았는데도 폴링이 받아 알림으로 띄운다
     const r = (await app.evaluate(() => window.shBridge.execute('audio.toggleScrubbing'))) as { scrubAudio: boolean };
-    const text = r.scrubAudio ? 'Audio during scrubbing on' : 'Audio during scrubbing off';
+    // 엔진의 영어 문구는 번역표(features/i18n/engine-messages.ts)를 거쳐 한국어로 보인다
+    const text = r.scrubAudio ? '스크럽할 때 소리를 켰습니다.' : '스크럽할 때 소리를 껐습니다.';
     await expect(app.getByRole('status').filter({ hasText: text })).toBeVisible({ timeout: 1000 });
     await expect(ui.status(app)).toContainText(text);
     await expect(ui.status(app)).not.toContainText('오류:');

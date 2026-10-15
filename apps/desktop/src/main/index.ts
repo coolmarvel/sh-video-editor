@@ -62,6 +62,10 @@ function createWindow() {
     // 개발 실행·Linux 창 아이콘. Windows 패키지는 exe 리소스 아이콘(build/icon.ico, electron-builder win.icon)을 쓴다
     icon: join(__dirname, '../../build/icon.png'),
     backgroundColor: '#2a2c32',
+    // OS 제목 줄을 숨기고 창 버튼만 화면 위에 겹친다(Window Controls Overlay). 제목 줄은 화면이 크롬 띠로 그린다
+    // (packages/editor/src/shell/TitleBar.tsx, DESIGN.md 4.26). 버튼 면은 투명이라 아래 크롬 그라데이션이 비치고, 높이·글리프 색은
+    // 토큰 --sh-size-titlebar(28)·--sh-color-text(#dde0e5) 와 같은 값. macOS 는 신호등 자리가 달라 OS 제목 줄을 그대로 둔다
+    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden' as const, titleBarOverlay: { color: '#00000000', symbolColor: '#dde0e5', height: 28 } }),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false },
   });
   if (process.env['ELECTRON_RENDERER_URL']) void win.loadURL(process.env['ELECTRON_RENDERER_URL']);

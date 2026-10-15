@@ -26,13 +26,13 @@ import {
   type TemplateTrack,
   type TemplateTransition,
 } from './format';
-import type { Exec } from './recipe';
+import { MATTE_NAME, type Exec } from './recipe';
 
 type ParamValue = number | boolean | string | [number, number];
 
-/** 색 매트 항목인지(`file.newColorMatte` 가 만든 생성 미디어) */
+/** 색 매트 항목인지(`file.newColorMatte` 가 만든 생성 미디어. 예전 이름 "Color Matte" 도) */
 export function isMatteItem(item: MediaItem | null): boolean {
-  return item !== null && item.type === 'Synthetic' && /color matte/i.test(item.name);
+  return item !== null && item.type === 'Synthetic' && (/color matte/i.test(item.name) || item.name.startsWith(MATTE_NAME));
 }
 
 export function slotKindOf(item: MediaItem | null): SlotKind {

@@ -167,7 +167,7 @@ export async function detectScenes(selected: ClipInfo[]): Promise<SceneResult | 
     const [job] = await useJobs.getState().waitFor([r.job]);
     if (job?.cancelled) {
       useEditor.setState({ status: '장면 찾기를 취소했습니다', error: null });
-      useProject.getState().notify('warning', '장면 찾기를 취소했습니다.');
+      useProject.getState().notify('warning', '장면 찾기를 취소했습니다.', undefined, { key: 'sceneDetect' });
       await refreshAll();
       return null;
     }
@@ -181,10 +181,15 @@ export async function detectScenes(selected: ClipInfo[]): Promise<SceneResult | 
     await refreshAll(status);
     useProject
       .getState()
-      .notify(cuts > 0 ? 'success' : 'info', cuts > 0 ? `${status}.` : '장면이 바뀌는 곳을 찾지 못했습니다. 한 장면으로 이어진 영상이거나 변화가 작습니다.');
+      .notify(
+        cuts > 0 ? 'success' : 'info',
+        cuts > 0 ? `${status}.` : '장면이 바뀌는 곳을 찾지 못했습니다. 한 장면으로 이어진 영상이거나 변화가 작습니다.',
+        undefined,
+        { key: 'sceneDetect' },
+      );
     return { clips: videos.length, cuts };
   } catch (e) {
-    useProject.getState().notify('danger', `장면을 찾지 못했습니다. ${errorMessage(e)}`);
+    useProject.getState().notify('danger', `장면을 찾지 못했습니다. ${errorMessage(e)}`, undefined, { key: 'sceneDetect' });
     await refreshAll();
     return null;
   } finally {

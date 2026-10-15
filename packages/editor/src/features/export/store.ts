@@ -1,4 +1,5 @@
 /** 내보내기 대화상자의 상태와 동작. 엔진은 export.* 커맨드로만 만진다. */
+import { displayProjectName } from '../i18n/engine-messages';
 import { create } from 'zustand';
 import { useEditor } from '../../store';
 import { findJobReport, runQueueLoop, type QueueItem } from './jobs';
@@ -128,7 +129,7 @@ export const useExport = create<ExportState>((set, get) => {
         const presets = buildUiPresets(presetsRaw.presets, formatId);
         const first = presets[0];
         // 엔진의 기본 이름 "Untitled" 는 화면처럼 "제목 없음" 으로
-        const projectName = project.name === 'Untitled' ? '제목 없음' : project.name;
+        const projectName = displayProjectName(project.name);
         set({
           formats,
           enginePresets: presetsRaw.presets,

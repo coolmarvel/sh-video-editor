@@ -321,3 +321,20 @@ describe('notify / dismiss', () => {
 
 /* 타입 보조 */
 export type { FakeEngine };
+
+describe('notify 중복 접기(key)', () => {
+  it('엔진 알림이 먼저 와도 같은 key 의 화면 알림이 그것을 갈아 끼운다', () => {
+    const p = useProject.getState();
+    expect(p.notify('success', '엔진 글', undefined, { key: 'sceneDetect', from: 'engine' })).toBe(true);
+    expect(p.notify('info', '화면 글', undefined, { key: 'sceneDetect' })).toBe(true);
+    expect(useProject.getState().notices.map((n) => n.text)).toEqual(['화면 글']);
+  });
+
+  it('key 가 없거나 다르면 접지 않는다', () => {
+    const p = useProject.getState();
+    p.notify('success', 'a');
+    p.notify('success', 'b', undefined, { key: 'x' });
+    expect(p.notify('success', 'c', undefined, { key: 'y', from: 'engine' })).toBe(true);
+    expect(useProject.getState().notices.map((n) => n.text)).toEqual(['a', 'b', 'c']);
+  });
+});

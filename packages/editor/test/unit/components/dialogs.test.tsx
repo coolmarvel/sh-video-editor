@@ -78,6 +78,18 @@ describe('RecoveryDialog', () => {
     await vi.waitFor(() => expect(engine.callsOf('file.recover')).toEqual([{ id: '1' }]));
   });
 
+  it('일시는 줄바꿈하지 않는 한 덩어리, 엔진 이름 Untitled 는 제목 없음', async () => {
+    await connect({ desktop: true, recovery: [cand('1', { projectName: 'Untitled' }), cand('2')] });
+    await useProject.getState().openRecovery();
+    render(<RecoveryDialog />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent("'제목 없음' 의 저장하지 않은 변경");
+    const stamp = dialog.querySelector('.ve-dialog-text .ve-nowrap');
+    expect(stamp?.textContent).toBe('(2026-10-14 01:00:00)');
+    const pick = screen.getByLabelText('후보') as HTMLSelectElement;
+    expect(pick.options[0]?.textContent).toBe('제목 없음 (2026-10-14 01:00:00)');
+  });
+
   it('정상 종료 후보는 문구가 다르고, 여러 후보는 select 로 고른다', async () => {
     const engine = await connect({ desktop: true, recovery: [cand('1', { cleanExit: true }), cand('2')] });
     await useProject.getState().openRecovery();

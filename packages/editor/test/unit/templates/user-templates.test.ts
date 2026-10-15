@@ -372,7 +372,7 @@ describe('저장소와 적용', () => {
     expect(res.sequence).toBe(engine.state.sequence!.id);
     expect(engine.callsOf('timeline.place').at(-2)).toEqual({ item: movie.item, track: 'V1', time: 0, insert: false, duration: 4 * T });
     expect(engine.callsOf('clip.speedDuration').at(-1)).toMatchObject({ speed: 200, reverse: true });
-    expect(engine.callsOf('file.newColorMatte').at(-1)).toEqual({ color: '#1b1f2a', seconds: 2 });
+    expect(engine.callsOf('file.newColorMatte').at(-1)).toEqual({ color: '#1b1f2a', seconds: 2, name: '색 배경' });
     expect(engine.callsOf('sequence.applyVideoTransition').at(-1)).toEqual({
       clip: expect.any(Number),
       edge: 'out',
@@ -382,7 +382,7 @@ describe('저장소와 적용', () => {
     });
     const seq = engine.state.sequence!;
     expect(seq.video[0]!.items[0]!.end - seq.video[0]!.items[0]!.start).toBe(2 * T);
-    expect(seq.video[1]!.items[0]!.name).toBe('Color Matte');
+    expect(seq.video[1]!.items[0]!.name).toBe('색 배경');
     expect(seq.selection).toEqual([]);
   });
 

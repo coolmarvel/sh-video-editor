@@ -83,7 +83,7 @@ async function startEdition(name: string, items: MediaItem[]): Promise<AddResult
       return { r, placed };
     });
     await refreshAll(`편집본 "${name}" 을 만들고 ${label(items)} 을 타임라인에 넣었습니다`);
-    useProject.getState().notify('success', `${label(items)} 으로 편집을 시작합니다. 타임라인에서 자르고 다듬어 보세요.`);
+    useProject.getState().notify('success', `편집을 시작합니다: ${label(items)}. 타임라인에서 자르고 다듬어 보세요.`);
     return { sequence: r.sequence, placed };
   } catch (e) {
     useProject.getState().notify('danger', `타임라인에 넣지 못했습니다. ${errorMessage(e)}`);

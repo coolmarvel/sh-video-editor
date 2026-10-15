@@ -7,7 +7,7 @@
 import type { MediaItem } from '../media/types';
 import { isStill } from './recipe';
 import type { TemplateClip, TemplateFile, TemplateSlotClip, TemplateTextClip } from './format';
-import { inspect, T, type Exec, type Recipe, type RecipeResult } from './recipe';
+import { MATTE_NAME, inspect, T, type Exec, type Recipe, type RecipeResult } from './recipe';
 
 /** 슬롯 번호 -> 항목. 영상·사진 항목은 영상·사진 슬롯에, 소리 항목은 소리 슬롯에 순서대로 */
 export function assignSlots(tpl: TemplateFile, items: MediaItem[]): Array<MediaItem | null> {
@@ -76,7 +76,7 @@ async function placeText(exec: Exec, clip: TemplateTextClip, trackIndex: number)
 }
 
 async function placeMatte(exec: Exec, clip: { start: number; duration: number; color: string }, track: string): Promise<number | null> {
-  const made = (await exec('file.newColorMatte', { color: clip.color, seconds: clip.duration / T })) as { item?: number };
+  const made = (await exec('file.newColorMatte', { color: clip.color, seconds: clip.duration / T, name: MATTE_NAME })) as { item?: number };
   if (made.item === undefined) return null;
   const r = (await exec('timeline.place', { item: made.item, track, time: clip.start, insert: false, duration: clip.duration })) as { clips?: number[] };
   return r.clips?.[0] ?? null;

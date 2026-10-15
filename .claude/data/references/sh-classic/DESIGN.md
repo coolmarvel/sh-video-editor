@@ -95,7 +95,7 @@ tokens:
     pressed: "linear-gradient(to bottom, #f2f2f2 0%, #d5d5d5 100%)"
     bevel: "linear-gradient(to bottom, #ffffff 0%, #e6e6e6 100%)"
   typography:
-    family-ui: 돋움, Dotum, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif
+    family-ui: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif"
     family-ui-skia: "'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif"
     family-content: 굴림, Gulim, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif
     family-mono: "'Cascadia Mono', Consolas, D2Coding, ui-monospace, monospace"
@@ -261,7 +261,7 @@ themes:
       gradient-status: "linear-gradient(to bottom, #bee1ff 0%, #bee1ff 100%)"
       gradient-pressed: "linear-gradient(to bottom, #f0f0f0 0%, #dddddd 100%)"
       gradient-bevel: "linear-gradient(to bottom, #ffffff 0%, #dddddd 100%)"
-      font-family-ui: 굴림, Gulim, 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif, 'Noto Sans CJK KR', 'Noto Sans KR', sans-serif
+      font-family-ui: 굴림, Gulim, 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif
   skin-blue:
     description: DEXT5 파랑 스킨 - sh-web-editor·sh-compositor 기본이던 크롬 색 (DEXT5 3.5 blue 실측)
     tokens:
@@ -574,7 +574,7 @@ themes:
 옛 Windows 업무 프로그램처럼 **사각사각하고 촘촘한** 화면이다. 2000년대 국산 업무용 소프트웨어(DEXT5 에디터,
 PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 
-- 반경 0, 모든 선 1px, 돋움 12px, 컨트롤 높이 24px.
+- 반경 0, 모든 선 1px, 맑은 고딕 12px, 컨트롤 높이 24px.
 - 크롬(메뉴바·툴바·상태 줄)은 얕은 세로 그라데이션 띠. 버튼은 흰색에서 회색으로 내려가는 베벨.
 - 색은 아낀다. 크롬은 회색·옅은 파랑, 채도 있는 색은 주 동작·선택·포커스와 hover 테두리에만.
 - 기능은 메뉴에서 찾는다. 툴바·버튼은 메뉴의 지름길이다.
@@ -607,8 +607,8 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 
 | 역할 | 토큰 | 값 |
 |---|---|---|
-| UI 글꼴 | `--sh-font-family-ui` | 돋움, 맑은 고딕, Apple SD Gothic Neo, Noto Sans KR 순 |
-| Avalonia/Skia | `--sh-font-family-ui-skia` | 맑은 고딕 우선. 돋움 비트맵이 비정수 크기·합성 굵게에서 깨진다 (2026-10-01) |
+| UI 글꼴 | `--sh-font-family-ui` | 맑은 고딕, Apple SD Gothic Neo, Noto Sans CJK KR, Noto Sans KR 순 (0.1.2 부터, ADR-0004) |
+| Avalonia/Skia | `--sh-font-family-ui-skia` | UI 글꼴과 같은 값. 0.1.1 까지 쓰던 이름을 호환용으로 남긴다 |
 | 편집 콘텐츠 | `--sh-font-family-content` | 굴림 (문서·에디터 본문) |
 | 고정폭 | `--sh-font-family-mono` | Cascadia Mono, Consolas, D2Coding 순 |
 
@@ -616,7 +616,10 @@ PACS 뷰어, 메신저 PC 판)의 문법을 지금 기술로 다시 만든다.
 굵기는 400 · 600(버튼) · 700(제목·legend, 상한). 줄 높이는 1.2 / 1.3 / 1.45.
 
 - 크롬 글자는 14px 를 넘지 않는다. 16px 는 문서·안내 페이지 제목에만.
-- 글자 크기는 정수 px 만. 11.5px 같은 값은 돋움이 깨진다.
+- 글자 크기는 정수 px 만. 11.5px 같은 값은 힌팅이 흐트러져 글자가 흐려진다.
+- 크롬 글자의 굵게는 실제 굵은 글꼴(맑은 고딕 Bold)로만 그린다. 굵은 글꼴이 없는 돋움·굴림을 UI 글꼴로 쓰지 않는다.
+  흉내 낸 굵게는 12px 에서 획이 번진다. 다만 `font-synthesis` 를 전역으로 끄지 않는다: 굴림 본문(`--sh-font-family-content`)의
+  사용자 굵게가 사라진다.
 - `letter-spacing`·대문자 변환을 쓰지 않는다. 글꼴 스무딩(`-webkit-font-smoothing`)을 건드리지 않는다.
 - 숫자 열(크기·시간·좌표)은 `font-variant-numeric: tabular-nums`.
 - 한국어 본문은 `word-break: keep-all`. 크롬 라벨은 줄바꿈하지 않는다(`nowrap` + 말줄임).

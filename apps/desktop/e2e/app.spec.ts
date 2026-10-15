@@ -68,6 +68,8 @@ test('창 제목, 엔진 상태 줄, 데스크톱 호스트 기능', async () =>
     expect(userData).toBe(ctx.userData);
     const windowTitle = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.getTitle());
     expect(windowTitle).toContain('SH Video Editor');
+    // OS 제목 줄 대신 앱 크롬 띠의 제목 줄(창 버튼 겹침, DESIGN.md 4.26): 작업 표시줄 제목과 같은 글
+    await expect(page.getByTestId('titlebar-title')).toHaveText(await page.title());
     await expect(page.locator('.ve-status')).toContainText('데스크톱');
     await expect(page.locator('.ve-version')).toContainText('sh-video-engine');
     await expect(page.locator('.ve-version')).not.toContainText('wasm');

@@ -93,6 +93,31 @@ describe('tick', () => {
     ]);
   });
 
+  it('엔진 영어 토스트는 한국어로 옮겨 상태 줄·알림에 보인다', async () => {
+    const engine = await connect();
+    const p = make(engine);
+    engine.pushToast('Scene Edit Detection: 2 cut point(s)');
+    await p.tick();
+    expect(useEditor.getState().status).toBe('장면 2곳에서 잘랐습니다.');
+    expect(useProject.getState().notices.map((n) => n.text)).toEqual(['장면 2곳에서 잘랐습니다.']);
+  });
+
+  it('화면이 이미 알린 사건(같은 key)의 엔진 토스트는 버리고 상태 줄도 그대로 둔다', async () => {
+    const engine = await connect();
+    const p = make(engine);
+    useEditor.setState({ status: '화면 문구' });
+    useProject.getState().notify('success', "'제목 없음' 의 저장하지 않은 변경을 되살렸습니다 (2026-10-15 14:44:06).", undefined, { key: 'recover' });
+    engine.pushToast('Recovered unsaved changes to Untitled from 2026-10-15 14:44:06');
+    await p.tick();
+    expect(useProject.getState().notices).toHaveLength(1);
+    expect(useEditor.getState().status).toBe('화면 문구');
+    // 5초가 지나면 같은 key 라도 엔진 알림을 보인다
+    vi.advanceTimersByTime(5001);
+    engine.pushToast('Recovered unsaved changes to Untitled from 2026-10-15 14:50:00');
+    await p.tick();
+    expect(useProject.getState().notices.map((n) => n.from)).toContain('engine');
+  });
+
   it('onToast 를 바꿔 끼울 수 있다', async () => {
     const engine = await connect();
     const seen: string[] = [];

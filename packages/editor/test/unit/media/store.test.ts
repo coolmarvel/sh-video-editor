@@ -250,7 +250,7 @@ describe('addToTimeline (편집본 자동 생성)', () => {
     expect(md().activeSequence).toBe(engine.state.sequence!.id);
     expect(useTimeline.getState().sequence?.name).toBe('여행 영상');
     expect(useEditor.getState().status).toBe('편집본 "여행 영상" 을 만들고 "clip.mp4" 을 타임라인에 넣었습니다');
-    expect(lastToast()).toMatchObject({ kind: 'success', text: '"clip.mp4" 으로 편집을 시작합니다. 타임라인에서 자르고 다듬어 보세요.' });
+    expect(lastToast()).toMatchObject({ kind: 'success', text: '편집을 시작합니다: "clip.mp4". 타임라인에서 자르고 다듬어 보세요.' });
     expect(md().busy).toBe(false);
   });
 

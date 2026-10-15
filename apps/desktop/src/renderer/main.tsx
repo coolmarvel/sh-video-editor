@@ -2,6 +2,8 @@ import { createRoot } from 'react-dom/client';
 import { App, type EngineBridge, type EngineEvent, type Frame } from '@editor';
 import '@tokens/css/tokens.css';
 import '@tokens/css/sh-classic.css';
+// 창 제목 줄의 앱 아이콘(16px 자리에 32px 래스터: 배율 2 화면에서도 선명하게)
+import appIcon from '../../build/icons/32.png';
 
 const api = window.shEngine;
 
@@ -62,4 +64,4 @@ const bridge: EngineBridge = {
 };
 
 const el = document.getElementById('root');
-if (el) createRoot(el).render(<App bridge={bridge} host="desktop" />);
+if (el) createRoot(el).render(<App bridge={bridge} host="desktop" appIcon={appIcon} />);

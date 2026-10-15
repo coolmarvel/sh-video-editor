@@ -5,8 +5,11 @@
   font-weight: var(--sh-font-weight-semibold);
   color: var(--sh-color-text-secondary);
 }
-.stt-actions {
+.sh-toolbar.stt-actions {
   flex-wrap: wrap;
+  /* 버튼이 두 줄로 접히면 도구 줄도 따라 높아진다(고정 높이면 아래 제목과 겹친다) */
+  height: auto;
+  min-height: var(--sh-size-toolbar);
 }
 .stt-notice {
   white-space: normal;

@@ -734,6 +734,7 @@ dependencies = [
  "filmcraft-frame",
  "filmcraft-geom",
  "filmcraft-interchange",
+ "filmcraft-lottie",
  "filmcraft-media",
  "filmcraft-mxf",
  "filmcraft-project",
@@ -861,6 +862,19 @@ name = "filmcraft-isobmff"
 version = "0.2.1"
 dependencies = [
  "filmcraft-bitstream",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "filmcraft-lottie"
+version = "0.2.1"
+dependencies = [
+ "filmcraft-color",
+ "filmcraft-frame",
+ "filmcraft-media",
+ "filmcraft-text",
+ "filmcraft-time",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 

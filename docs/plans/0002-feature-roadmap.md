@@ -177,10 +177,10 @@ domain: development
   - (b) features/overlay: "배경 색 지우기" 스포이드, PIP 위치 프리셋(모서리 4개), 불투명도·블렌드
   - (c) 그린스크린 샘플 클립에서 배경 알파 0, 피사체 알파 255(픽셀 샘플링)
   - (d) M
-- [~] **M3-4 스티커·Lottie** (2026-10-14 정적 스티커만, feat/keyframes-templates)
-  - (a) [ ] effectcraft `lottie` 이식 -> `graphics.newLottie` 신규. 에셋은 5절(CC0·OFL 아이콘, 자체 제작). Lottie 는 이식 전이라 하지 않았다
+- [x] **M3-4 스티커·Lottie** (2026-10-14 정적 스티커, 2026-10-15 Lottie 이식 + 움직이는 스티커 10종, feat/lottie-stickers)
+  - (a) [x] effectcraft `lottie` 는 가져오기 쪽(값·키프레임·도형·레이어 읽기)만 이식하고 평가·래스터를 새로 쓴 `crates/lottie`(`LottieSource`). `graphics.newLottie` 커맨드 대신 **미디어 풀 오프너**로 `.json`/`.lottie` 를 반복되는 벡터 영상 미디어(알파, 60초)로 연다: 가져오기 경로 하나로 데스크톱 파일·웹 Blob·사용자 Lottie 파일을 다 받고, 화면은 기존 `graphics.newFromFile {path, time, duration}`(duration 은 이번에 추가) 그대로 쓴다. 에셋은 직접 만든 bodymovin JSON 10종(`features/stickers/assets/*.json` + 미리보기 SVG, `ATTRIBUTION.md`), 외부 Lottie 는 라이선스 선별 비용 때문에 쓰지 않았다
   - (b) [x] 스티커 패널(분류 5개, 자체 제작 SVG 20종, `features/stickers/assets` + `.attribution` + `ATTRIBUTION.md`). 화면이 PNG 로 래스터해 웹은 `registerFiles`, 데스크톱은 `writeTempFile` 로 넘기고 엔진 `graphics.newFromFile {path, time}`(두 번째부터는 `timeline.place {duration}`). 엔진은 SVG 를 읽지 못한다(media: unrecognised format). 위치·크기는 모션 탭·변형 상자. 검색은 없음
-  - (c) [ ] Lottie 샘플 10개 렌더 골든
+  - (c) [x] Lottie 샘플 10개 렌더 골든: `packages/engine/tests/lottie.test.ts`(napi: 에셋마다 가져오기·5초 클립·1.5초 프레임의 정해진 자리 색·0.2초 대 0.5초 차이·한 바퀴 뒤 반복 일치, Lottie 아닌 .json 거부, 1080p 렌더 시간; wasm: putFile 경로 한 번), `cargo test -p filmcraft-lottie` 28개(이즈·도형·스타일 규칙·트림·리피터·마스크·매트·프리컴프·dotLottie·적대적 입력)
   - (d) L
 - [x] **M3-5 HEVC·WebM 내보내기** (2026-10-14 feat/webm-export + feat/hevc-export: WebM(VP9 + Opus)·HEVC(hevcenc) 소프트웨어 인코더, 프리셋 각 2종. 둘 다 단일 스레드라 1080p 는 H.264 의 5~9배 느림. 2026-10-15 feat/av1-export: AV1(av1enc) 형식 "AV1 (mp4)"·프리셋 2종, WebM 의 `videoCodec: av1`. 1080p 는 H.264 의 10배 느림, 파일은 46%)
   - (a) effectcraft `hevcenc`·`vp9enc`·`opusenc` 이식, `export::VideoEncoder`·`AudioEncoder` 구현, `export.formats` 에 hevc `available:true`, webm 포맷 신규(matroska 먹서는 디먹스만 있어 먹서 신규)

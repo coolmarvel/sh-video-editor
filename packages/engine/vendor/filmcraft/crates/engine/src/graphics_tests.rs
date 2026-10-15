@@ -374,6 +374,15 @@ fn new_layer_from_file_places_the_image_above() {
     assert_eq!((anchor.x, anchor.y), (w as f64 / 2.0, h as f64 / 2.0));
     assert_eq!(s.state.selection, vec![clip]);
     assert!(s.execute("graphics.newFromFile", json!({})).is_err());
+    // sh-video-editor: `duration` shortens the clip (never below a frame, never past the item)
+    let rate = s.sequence_rate();
+    let r = s.execute("graphics.newFromFile", json!({"path": path.to_string_lossy(), "durationSeconds": 2.0, "time": Tick::from_seconds_f64(30.0).0})).unwrap();
+    let short = ClipId(r["clip"].as_u64().unwrap());
+    let q = s.active_sequence().unwrap();
+    assert_eq!(q.find_item(short).unwrap().1.duration, rate.snap_nearest(Tick::from_seconds_f64(2.0)), "whole frames, nearest");
+    let r = s.execute("graphics.newFromFile", json!({"path": path.to_string_lossy(), "duration": 1, "time": Tick::from_seconds_f64(40.0).0})).unwrap();
+    let tiny = ClipId(r["clip"].as_u64().unwrap());
+    assert_eq!(s.active_sequence().unwrap().find_item(tiny).unwrap().1.duration, rate.frame_duration());
     let _ = std::fs::remove_dir_all(&dir);
 }
 

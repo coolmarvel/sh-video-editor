@@ -1,6 +1,7 @@
 /**
  * 키프레임·스티커·템플릿 e2e(웹, wasm 엔진, M3-1·M3-4·M3-6): 모션 탭에서 불투명도 키프레임 두 개를 만들면 타임라인 클립에 마커가
  * 보이고 스크럽하면 모니터 밝기가 바뀐다. 스티커 탭에서 별을 넣으면 클립과 변형 상자가 생기고 모니터에 노란 픽셀이 보인다.
+ * 움직이는 스티커(Lottie, 뛰는 하트)는 .json 으로 들어가 5초 클립이 되고 빨간 픽셀 수가 시각에 따라 달라진다.
  * 템플릿 탭에서 세로 Shorts 틀을 만들면 1080x1920 편집본에 제목·자막 띠가 들어간다. 1440 과 390 두 뷰포트(playwright.config.ts).
  */
 import type { Page } from '@playwright/test';
@@ -13,15 +14,16 @@ interface ShBridge {
 
 const T = 254_016_000_000;
 
-/** 모니터 캔버스의 평균 밝기와 노란(별) 픽셀 수 */
-async function canvasStats(page: Page): Promise<{ luma: number; yellow: number }> {
+/** 모니터 캔버스의 평균 밝기, 노란(별) 픽셀 수, 빨간(하트) 픽셀 수 */
+async function canvasStats(page: Page): Promise<{ luma: number; yellow: number; red: number }> {
   await page.waitForTimeout(450);
   return page.locator('.mon-canvas').evaluate((c: HTMLCanvasElement) => {
     const ctx = c.getContext('2d');
-    if (!ctx) return { luma: -1, yellow: -1 };
+    if (!ctx) return { luma: -1, yellow: -1, red: -1 };
     const d = ctx.getImageData(0, 0, c.width, c.height).data;
     let luma = 0;
     let yellow = 0;
+    let red = 0;
     const n = c.width * c.height;
     for (let i = 0; i < n; i++) {
       const r = d[i * 4] ?? 0;
@@ -29,8 +31,9 @@ async function canvasStats(page: Page): Promise<{ luma: number; yellow: number }
       const b = d[i * 4 + 2] ?? 0;
       luma += 0.2126 * r + 0.7152 * g + 0.0722 * b;
       if (r > 200 && g > 160 && b < 120) yellow++;
+      if (r > 180 && g < 110 && b < 110) red++;
     }
-    return { luma: luma / n, yellow };
+    return { luma: luma / n, yellow, red };
   });
 }
 
@@ -156,7 +159,7 @@ test.describe('스티커', () => {
     const m = media(app);
     await m.getByRole('tab', { name: '스티커' }).click();
     const gallery = app.getByTestId('sticker-gallery');
-    await expect(gallery.locator('.stk-card')).toHaveCount(20);
+    await expect(gallery.locator('.stk-card')).toHaveCount(30);
     await gallery.getByRole('button', { name: '별', exact: true }).click();
     await expect(ui.status(app)).toHaveText('스티커를 넣었습니다: 별');
     await expect(ui.videoClips(app)).toHaveCount(2);
@@ -178,6 +181,34 @@ test.describe('스티커', () => {
     const proj = await bridge(app).execute<{ root: { children: Array<{ name?: string; children?: unknown[] }> } }>('project.inspect');
     const flat = JSON.stringify(proj.root);
     expect(flat.split('sticker-star.png').length - 1).toBe(1);
+  });
+
+  test('움직이는 스티커(뛰는 하트)는 .json 으로 들어가 5초 클립이 되고 모니터의 빨간 픽셀이 시각마다 달라진다', async ({ app }, testInfo) => {
+    await makeDemoSequence(app);
+    const b = bridge(app);
+    await b.setPlayhead(2 * T);
+    await expect(ui.current(app)).toHaveText('00:00:02:00');
+    const before = await canvasStats(app);
+    const m = media(app);
+    await m.getByRole('tab', { name: '스티커' }).click();
+    const gallery = app.getByTestId('sticker-gallery');
+    await expect(gallery.getByRole('heading', { name: '움직이는 스티커' })).toBeVisible();
+    await expect(gallery.locator('.stk-card[data-animated]')).toHaveCount(10);
+    await gallery.getByRole('button', { name: '뛰는 하트', exact: true }).click();
+    await expect(ui.status(app)).toHaveText('스티커를 넣었습니다: 뛰는 하트');
+    await expect(ui.videoClips(app)).toHaveCount(2);
+    await expect(inspector(app).getByRole('tab', { name: '모션' })).toHaveAttribute('aria-selected', 'true');
+    await expect.poll(async () => (await canvasStats(app)).red, { timeout: 15_000 }).toBeGreaterThan(before.red + 50);
+    const seq = await b.execute<{ video: { items: { name: string; duration: number; start: number }[] }[] }>('sequence.inspect');
+    const sticker = seq.video.flatMap((t) => t.items).find((c) => c.name.startsWith('sticker-heart-beat'));
+    expect(sticker!.name.endsWith('.json')).toBe(true);
+    expect(Math.abs(sticker!.duration - 5 * T)).toBeLessThan(T / 20);
+    // 0.2초 뒤(하트가 커진 때)와 0.5초 뒤(제 크기)의 빨간 픽셀 수가 다르다
+    await b.setPlayhead(2.2 * T);
+    const big = await canvasStats(app);
+    await b.setPlayhead(2.5 * T);
+    await expect.poll(async () => Math.abs((await canvasStats(app)).red - big.red), { timeout: 15_000 }).toBeGreaterThan(40);
+    await testInfo.attach('animated-sticker', { body: await app.screenshot(), contentType: 'image/png' });
   });
 });
 

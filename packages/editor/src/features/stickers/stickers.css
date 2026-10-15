@@ -52,6 +52,10 @@
   color: var(--sh-color-text-disabled);
   opacity: 0.6;
 }
+.stk-card__frame {
+  position: relative;
+  display: inline-flex;
+}
 .stk-card__img {
   width: var(--sh-space-48);
   height: var(--sh-space-48);
@@ -66,4 +70,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+/* 움직이는 스티커 표식: 미리보기 오른쪽 아래 작은 재생 삼각형(accent 면 위 흰 글자) */
+.stk-card__anim {
+  position: absolute;
+  right: var(--sh-space-2);
+  bottom: var(--sh-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sh-space-12);
+  height: var(--sh-space-12);
+  border-radius: var(--sh-radius-none);
+  background: var(--sh-color-accent);
+  color: var(--sh-color-text-on-accent, var(--sh-color-text));
+  border: var(--sh-border-width) solid var(--sh-color-accent-pressed);
 }

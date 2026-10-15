@@ -310,6 +310,12 @@ struct Edge {
 /// Fill `path` into `m`, adding coverage (saturating at 1) — the union of what was there and the
 /// path for disjoint content.
 pub fn fill_into(path: &Path, m: &mut Mask, dx: f32, dy: f32) {
+    fill_into_rule(path, m, dx, dy, false)
+}
+
+/// [`fill_into`] with a fill rule: non-zero winding (`even_odd = false`) or even-odd (sh-video-editor
+/// addition for Lottie shape fills with `r: 2`).
+pub fn fill_into_rule(path: &Path, m: &mut Mask, dx: f32, dy: f32, even_odd: bool) {
     let (w, h) = (m.w, m.h);
     if w == 0 || h == 0 {
         return;
@@ -368,13 +374,14 @@ pub fn fill_into(path: &Path, m: &mut Mask, dx: f32, dy: f32) {
             xs.sort_by(|a, b| a.0.total_cmp(&b.0));
             let mut wind = 0;
             let mut span_start = 0.0f32;
+            let inside = |wind: i32| if even_odd { wind % 2 != 0 } else { wind != 0 };
             for &(x, d) in &xs {
                 let before = wind;
                 wind += d;
-                if before == 0 && wind != 0 {
+                if !inside(before) && inside(wind) {
                     span_start = x;
-                } else if before != 0
-                    && wind == 0
+                } else if inside(before)
+                    && !inside(wind)
                     && let Some((a, b)) = add_span(&mut row, span_start, x, weight, w)
                 {
                     lo = lo.min(a);

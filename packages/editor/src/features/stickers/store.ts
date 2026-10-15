@@ -1,6 +1,8 @@
 /**
- * 스티커 상태. 넣기는 (1) SVG 를 PNG 로 래스터, (2) 호스트 파일로 올리기(웹 registerFiles, 데스크톱 writeTempFile),
- * (3) 엔진 `graphics.newFromFile {path, time}`(가져오기 + 플레이헤드 위 빈 영상 트랙에 5초 배치, 트랙이 없으면 만든다).
+ * 스티커 상태. 넣기는 (1) 정지 스티커는 SVG 를 PNG 로 래스터, 움직이는 스티커는 Lottie JSON 바이트 그대로,
+ * (2) 호스트 파일로 올리기(웹 registerFiles, 데스크톱 writeTempFile), (3) 엔진 `graphics.newFromFile {path, time}`(가져오기 +
+ * 플레이헤드 위 빈 영상 트랙에 5초 배치, 트랙이 없으면 만든다). 움직이는 스티커는 엔진이 .json 을 반복되는 벡터 미디어(60초)로
+ * 열므로 `duration` 으로 5초만 놓는다.
  * 같은 스티커를 다시 넣을 때는 이미 가져온 항목으로 `timeline.place {duration}` 한다(미디어 패널에 중복 항목을 만들지 않게).
  * 편집 로직은 전부 엔진 커맨드이고 여기서는 순서만 정한다. 넣은 클립은 선택하고 인스펙터를 "모션" 탭으로 연다.
  */
@@ -14,7 +16,7 @@ import { useProject } from '../project/store';
 import { refreshAll } from '../shortcuts/actions';
 import { useTimeline } from '../timeline/store';
 import type { SequenceInfo } from '../timeline/types';
-import { STICKER_PNG_SIZE, STICKER_SECONDS, stickerDef } from './catalog';
+import { STICKER_PNG_SIZE, STICKER_SECONDS, isAnimated, stickerDef } from './catalog';
 import { rasterizeSvg, type Rasterizer } from './raster';
 
 interface StickersState {
@@ -67,13 +69,16 @@ export const useStickers = create<StickersState>((set, get) => ({
         }
       }
       if (clip === undefined) {
-        const bytes = await get().rasterizer(def.svg, STICKER_PNG_SIZE);
-        const name = `sticker-${def.id}.png`;
+        const animated = isAnimated(def);
+        const bytes = animated ? new TextEncoder().encode(def.lottie) : await get().rasterizer(def.svg, STICKER_PNG_SIZE);
+        const name = animated ? `sticker-${def.id}.json` : `sticker-${def.id}.png`;
+        const type = animated ? 'application/json' : 'image/png';
         let path: string | null = null;
-        if (bridge.registerFiles) [path = null] = await bridge.registerFiles([new File([bytes as BlobPart], name, { type: 'image/png' })]);
+        if (bridge.registerFiles) [path = null] = await bridge.registerFiles([new File([bytes as BlobPart], name, { type })]);
         else if (bridge.writeTempFile) path = await bridge.writeTempFile(name, bytes);
         if (!path) throw new Error('이 환경에서는 스티커 파일을 만들 수 없습니다');
-        const r = (await bridge.execute('graphics.newFromFile', { path, time })) as { clip?: number; item?: number };
+        const params = animated ? { path, time, duration: STICKER_SECONDS * TICKS_PER_SECOND } : { path, time };
+        const r = (await bridge.execute('graphics.newFromFile', params)) as { clip?: number; item?: number };
         clip = r.clip;
         if (typeof r.item === 'number') set((s) => ({ items: { ...s.items, [id]: r.item as number } }));
       }

@@ -122,7 +122,7 @@ export function App({ bridge, host, appIcon }: AppProps) {
         <JobsPane />
         <MonitorStatusPane />
         <ProjectStatus />
-        <span className="sh-pane">{host === 'desktop' ? '데스크톱' : '웹'}</span>
+        <span className="sh-pane ve-host">{host === 'desktop' ? '데스크톱' : '웹'}</span>
         <span className="sh-pane sh-tnum ve-version">{version || '엔진 없음'}</span>
       </div>
       <ProjectHost />

@@ -9,10 +9,10 @@ export function ProjectStatus() {
   const state = dirty ? '수정됨' : path ? '저장됨' : '저장 안 함';
   return (
     <>
-      <span className="sh-pane" title={path ?? '아직 파일로 저장하지 않았습니다'}>
+      <span className="sh-pane ve-project-name" title={path ?? '아직 파일로 저장하지 않았습니다'}>
         {name}
       </span>
-      <span className="sh-pane" title={autosave === 'on' ? '자동 저장 켜짐' : '자동 저장 없음'}>
+      <span className="sh-pane ve-project-state" title={autosave === 'on' ? '자동 저장 켜짐' : '자동 저장 없음'}>
         {state}
       </span>
     </>

@@ -192,6 +192,26 @@ test.describe('흔들림 줄이기', () => {
     await section.getByRole('button', { name: '흔들림 줄이기' }).click();
     const pane = app.getByTestId('jobs-pane');
     await expect(pane.getByTestId('jobs-text')).toHaveText(/^흔들림 분석 \d+%$/);
+    // 상태 줄이 넘치지 않고 잡 칸이 화면 안에 있으며, 프로젝트 이름·상태가 잘리지 않는다(390 폭에서 "제", "수" 로 잘리던 것, 2026-10-15)
+    const bar = await app.evaluate(() => {
+      const el = document.querySelector('.ve-status') as HTMLElement;
+      const cut = (sel: string) => {
+        const p = el.querySelector(sel) as HTMLElement | null;
+        return p ? p.scrollWidth > p.clientWidth : null;
+      };
+      const jobs = el.querySelector('[data-testid="jobs-pane"]')!.getBoundingClientRect();
+      return {
+        overflow: el.scrollWidth > el.clientWidth,
+        jobsRight: jobs.right,
+        vw: window.innerWidth,
+        name: cut('.ve-project-name'),
+        state: cut('.ve-project-state'),
+      };
+    });
+    expect(bar.overflow).toBe(false);
+    expect(bar.jobsRight).toBeLessThanOrEqual(bar.vw);
+    expect(bar.name).toBe(false);
+    expect(bar.state).toBe(false);
     await expect.poll(async () => (await firstClip(app)).effects.some((e) => e.effect === 'warp_stabilizer')).toBe(true);
     await pane.getByTestId('jobs-cancel').click();
     await expect(ui.status(app)).toHaveText('흔들림 분석을 취소하고 효과를 뗐습니다', { timeout: 30_000 });

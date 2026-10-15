@@ -152,7 +152,7 @@ impl ImageSequenceSource {
             start_timecode: None,
             file_size: None,
         };
-        let cache = FrameCache::new(256 << 20);
+        let cache = FrameCache::new(crate::cache::SOURCE_CACHE_BUDGET);
         cache.insert(frames.iter().position(Option::is_some).unwrap_or(0), Arc::new(VideoFrame::rgba8(w, h, img.to_rgba8().into_raw())));
         Ok(Self { info, frames, loader, cache })
     }

@@ -4,7 +4,7 @@
  */
 import type { KeyboardEvent, ReactNode } from 'react';
 
-export interface DialogProps {
+interface DialogProps {
   /** 제목 span 의 id(aria-labelledby) */
   titleId: string;
   title: ReactNode;

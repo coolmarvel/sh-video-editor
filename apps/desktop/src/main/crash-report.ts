@@ -3,23 +3,27 @@
  * `<userData>/crash-reports/YYYY-MM-DD-HHMMSS.json` 하나를 남긴다. 서버로 보내지 않는다. 사용자가 폴더를 열어
  * 파일을 첨부하는 용도다(도움말 > 문제 보고 폴더 열기, 토스트의 "폴더 열기").
  * 내용: 종료 코드(가능하면 시그널 이름), 앱·엔진 버전, OS·Electron 버전, 마지막 커맨드 20개와 읽기를 뺀 마지막 편집
- * 커맨드 20개(엔진 프로세스가 'executed' 알림으로 보내 온 링 버퍼), 메모리 수치. 엔진의 `history.list` 는 죽은 프로세스에서 읽을 수 없으므로
- * 링 버퍼가 그 역할을 대신한다.
+ * 커맨드 20개(엔진 프로세스가 'executed' 알림으로 보내 온 링 버퍼), 마지막 실행 취소 목록(엔진 프로세스가 편집마다 'history' 알림으로
+ * 보낸 `history.list` 스냅샷. 죽은 프로세스에서는 읽을 수 없어서다), 메모리 수치. 앱 이름은 엔진·폴더 이름(name)과 사람이 보는 제품
+ * 이름(productName, package.json build.productName) 둘 다 적는다: 개발 실행의 app.getName() 은 패키지 이름이라서다.
  */
 import { app } from 'electron';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { constants as osConstants, freemem, release, totalmem } from 'node:os';
 import { join } from 'node:path';
-import { RECENT_COMMANDS, type ExecutedRecord } from '../engine-protocol';
+import { build } from '../../package.json';
+import { RECENT_COMMANDS, type ExecutedRecord, type HistorySnapshot } from '../engine-protocol';
 
 export const CRASH_REPORT_DIR = 'crash-reports';
-const CRASH_REPORT_SCHEMA = 1;
+/** 2: app.productName·packaged, history 추가(2026-10-15) */
+const CRASH_REPORT_SCHEMA = 2;
 
 interface CrashReport {
   schema: number;
   /** 작성 시각(ISO 8601) */
   at: string;
-  app: { name: string; version: string };
+  /** name 은 app.getName()(개발 실행이면 패키지 이름), productName 은 설치본의 제품 이름 */
+  app: { name: string; productName: string; version: string; packaged: boolean };
   /** 죽은 엔진이 마지막으로 보고한 버전. 준비되기 전에 죽었으면 null */
   engine: { version: string | null };
   os: { platform: string; release: string; arch: string; electron: string; chrome: string; node: string };
@@ -34,6 +38,8 @@ interface CrashReport {
   recentCommands: ExecutedRecord[];
   /** 읽기(inspect·list 류, engine-protocol.ts isQueryCommand)를 뺀 마지막 커맨드. 최대 RECENT_COMMANDS 개 */
   recentEdits: ExecutedRecord[];
+  /** 엔진이 죽기 전 마지막 실행 취소·다시 실행 목록. 편집이 없었으면 null */
+  history: HistorySnapshot | null;
   memory: {
     /** main 프로세스 process.memoryUsage() */
     main: { rss: number; heapTotal: number; heapUsed: number; external: number };
@@ -83,6 +89,7 @@ interface CrashContext {
   recentRestarts: number;
   recentCommands: ExecutedRecord[];
   recentEdits: ExecutedRecord[];
+  history: HistorySnapshot | null;
 }
 
 function buildCrashReport(ctx: CrashContext, now: Date = new Date()): CrashReport {
@@ -90,7 +97,7 @@ function buildCrashReport(ctx: CrashContext, now: Date = new Date()): CrashRepor
   return {
     schema: CRASH_REPORT_SCHEMA,
     at: now.toISOString(),
-    app: { name: app.getName(), version: app.getVersion() },
+    app: { name: app.getName(), productName: build.productName, version: app.getVersion(), packaged: app.isPackaged },
     engine: { version: ctx.engineVersion },
     os: {
       platform: process.platform,
@@ -104,6 +111,7 @@ function buildCrashReport(ctx: CrashContext, now: Date = new Date()): CrashRepor
     crashes: { total: ctx.crashes, recentRestarts: ctx.recentRestarts },
     recentCommands: ctx.recentCommands,
     recentEdits: ctx.recentEdits,
+    history: ctx.history,
     memory: {
       main: { rss: mem.rss, heapTotal: mem.heapTotal, heapUsed: mem.heapUsed, external: mem.external },
       system: { total: totalmem(), free: freemem() },

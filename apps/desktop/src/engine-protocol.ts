@@ -51,7 +51,36 @@ export type HostControl = { type: 'port'; who: 'main' | 'renderer' };
  *  - 'executed': 어느 채널에서든 커맨드(execute·undo·redo)를 하나 처리했다. main 이 마지막 20개를 링 버퍼로 들고 있다가
  *    프로세스가 비정상 종료하면 문제 보고 파일(src/main/crash-report.ts)에 남긴다. params 는 200자까지만.
  */
-export type HostNotice = { type: 'ready' } | ({ type: 'executed' } & ExecutedRecord);
+export type HostNotice = { type: 'ready' } | ({ type: 'executed' } & ExecutedRecord) | ({ type: 'history' } & HistorySnapshot);
+
+/**
+ * 엔진 `history.list` 의 스냅샷(실행 취소·다시 실행 단계 이름). 엔진 프로세스가 편집 커맨드(읽기 아닌 것)·undo·redo 뒤마다
+ * 'history' 알림으로 보내고 main 이 마지막 것만 들고 있다가 문제 보고에 넣는다. 죽은 프로세스에서는 읽을 수 없어서다.
+ * `history.list` 는 약 3us(2026-10-15 napi 실측)라 편집마다 읽어도 된다. 각 목록은 끝에서 HISTORY_LIMIT 개만.
+ */
+export interface HistorySnapshot {
+  /** 실행 취소할 수 있는 단계(오래된 것이 앞) */
+  undo: string[];
+  /** 다시 실행할 수 있는 단계 */
+  redo: string[];
+  /** 잘라 낸 앞쪽 단계 수(undo 와 redo 합) */
+  dropped: number;
+}
+
+/** 문제 보고에 남기는 실행 취소 단계 수(목록마다) */
+export const HISTORY_LIMIT = 50;
+
+/** history.list 결과를 끝에서 HISTORY_LIMIT 개로 자른 스냅샷으로. 모양이 다르면 null */
+export function historySnapshot(raw: unknown, limit = HISTORY_LIMIT): HistorySnapshot | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as { undo?: unknown; redo?: unknown };
+  const names = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : null);
+  const undo = names(r.undo);
+  const redo = names(r.redo);
+  if (!undo || !redo) return null;
+  const cut = (a: string[]) => (a.length > limit ? a.slice(a.length - limit) : a);
+  return { undo: cut(undo), redo: cut(redo), dropped: Math.max(0, undo.length - limit) + Math.max(0, redo.length - limit) };
+}
 
 /** 커맨드 처리 기록 하나(문제 보고의 recentCommands 항목). */
 export interface ExecutedRecord {

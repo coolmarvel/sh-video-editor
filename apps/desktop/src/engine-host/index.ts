@@ -10,7 +10,16 @@
  */
 import * as engine from '@sh-video-editor/engine-node';
 import type { MessagePortMain } from 'electron';
-import { clipText, isEngineRequest, type EngineRequest, type EngineResponse, type HostControl, type HostNotice } from '../engine-protocol';
+import {
+  clipText,
+  historySnapshot,
+  isEngineRequest,
+  isQueryCommand,
+  type EngineRequest,
+  type EngineResponse,
+  type HostControl,
+  type HostNotice,
+} from '../engine-protocol';
 import { sttMethods } from './stt';
 
 let session: engine.Engine | null = null;
@@ -39,8 +48,13 @@ function record(id: string, params: string | undefined, t0: number, ok: boolean,
   if (!mainPort) return;
   try {
     mainPort.postMessage({ type: 'executed', id, params: clipText(params), at: t0, ms: Date.now() - t0, ok, error: clipText(error) } satisfies HostNotice);
+    // 편집(읽기가 아닌 커맨드, undo·redo)이 성공했으면 실행 취소 목록도 보낸다. 엔진이 죽으면 main 이 이 마지막 스냅샷을 문제 보고에 넣는다
+    if (ok && session && !isQueryCommand(id)) {
+      const snap = historySnapshot(JSON.parse(session.execute('history.list')));
+      if (snap) mainPort.postMessage({ type: 'history', ...snap } satisfies HostNotice);
+    }
   } catch {
-    // 기록은 진단용이다. 포트가 닫혔어도 커맨드는 정상 처리한다
+    // 기록은 진단용이다. 포트가 닫혔거나 history.list 를 못 읽어도 커맨드는 정상 처리한다
   }
 }
 

@@ -31,7 +31,7 @@ stt = ["filmcraft-engine/whisper", "filmcraft-engine/speech-download", "dep:film
 crate-type = ["cdylib"]
 
 [dependencies]
-filmcraft-engine = { workspace = true }
+filmcraft-engine = { workspace = true, features = ["interchange"] }
 filmcraft-project = { workspace = true }
 filmcraft-time = { workspace = true }
 filmcraft-audio-dsp = { workspace = true }

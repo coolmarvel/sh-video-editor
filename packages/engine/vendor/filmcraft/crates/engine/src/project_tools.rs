@@ -762,6 +762,10 @@ fn export_selection(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"path": path, "items": keep.iter().map(|i| i.0).collect::<Vec<_>>()}))
 }
 
+#[cfg(not(feature = "interchange"))]
+use crate::interchange::export_ale;
+
+#[cfg(feature = "interchange")]
 fn export_ale(s: &mut Session, p: &Value) -> Result<Value> {
     let path = str_p(p, "path").ok_or_else(|| bad("file.exportAle", "need `path`"))?.to_string();
     let mut items: Vec<ItemId> = match p.get("items").and_then(Value::as_array) {

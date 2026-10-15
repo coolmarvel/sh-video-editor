@@ -163,13 +163,20 @@ jobs:
           path: packages/engine/bindings
       - run: npm run build -w apps/web
       - run: npx playwright install --with-deps chromium
+      - name: ffmpeg (web-files e2e 가 시험 영상을 만든다)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
       - name: e2e 1440 + 390 (포트는 playwright.config.ts 가 빈 포트를 고른다. 390 은 2026-10-15 부터 PR 을 막는다)
         run: npx playwright test -c apps/web/playwright.config.ts --project desktop-1440 --project mobile-390
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: web-e2e-results
-          path: apps/web/e2e/.results
+          path: |
+            apps/web/e2e/.results
+            apps/web/e2e/.report
           retention-days: 7
 
   desktop:
@@ -202,7 +209,9 @@ jobs:
         if: failure()
         with:
           name: desktop-e2e-results
-          path: apps/desktop/e2e/.results
+          path: |
+            apps/desktop/e2e/.results
+            apps/desktop/e2e/.report
           retention-days: 7
 
   vendor-ci:

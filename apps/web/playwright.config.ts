@@ -26,7 +26,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: CI ? 1 : 0,
-  reporter: CI ? [['list'], ['html', { open: 'never', outputFolder: './e2e/.results/report' }]] : [['list']],
+  reporter: CI ? [['list'], ['html', { open: 'never', outputFolder: './e2e/.report' }]] : [['list']],
   outputDir: './e2e/.results',
   use: {
     baseURL: `http://localhost:${PORT}`,

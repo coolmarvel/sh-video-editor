@@ -12,6 +12,15 @@ domain: development
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
 
+## 2026-10-15 - CI 웹 e2e 실패 수정 (ffmpeg, 보고서 폴더)
+
+- **상황**: 0.1.8·0.1.9 푸시의 GitHub Actions 가 web job 에서 실패했다(다른 job 은 통과). 로컬 검증은 통과했기에 놓쳤다: 푸시 뒤 CI 결과를
+  확인하지 않고 끝냈다. 사용자가 "중간에 멈춘 건가?" 로 물어 확인하며 발견.
+- **원인**: web-files e2e "가져온 파일 보관" 이 시험 영상을 ffmpeg 로 만드는데 CI web job 에 ffmpeg 가 없었다(`spawnSync ffmpeg ENOENT`,
+  1440·390 각 1건). 덤으로 Playwright HTML 보고서 폴더가 결과 폴더 안(`e2e/.results/report`)이라 "folder clashes" 경고.
+- **수정**: ci.yml web job 에 ffmpeg 설치 단계, 웹·데스크톱 보고서 폴더를 `e2e/.report` 로(.gitignore, CI 아티팩트 경로에 추가).
+- **검증**: `CI=1` 로 웹 web-files e2e 5 통과(skip 1 큰 파일), 데스크톱 e2e 7 통과, 경고 없음. 푸시 뒤 GitHub Actions 결과 확인.
+
 ## 2026-10-15 - UI 다듬기: 선명한 굵은 글씨(sh-design-system 0.1.2), 일시·줄바꿈, 토스트, 제목 줄 (사용자 피드백 3장, v0.1.9)
 
 - **요청/피드백**: `docs/feedback-archive/2026-10-15-ui-typography/`(한글 화면 비교, 복구 대화상자, 복구 뒤 토스트·자막 탭). 굵은 글씨 번짐,

@@ -16,13 +16,10 @@ domain: development
 
 ## P2 - 가까운 로드맵
 
+- [ ] 웹 decode 캐시가 탐색 뒤 474MB 까지 남음. 예산을 줄이면 긴 GOP 뒤로 문지르기가 느려져(V1 표) 되돌렸다. 디코더 상태 스냅샷 같은 다른 방법이 필요 (`crates/codecs/src/gop.rs`)
 - [ ] HEVC 내보내기 바이트가 wasm 과 napi 에서 다름(0.1.9 부터, 같은 플랫폼 안에서는 작업자 수와 무관하게 같음). lambda·레이트 컨트롤의 `powf`·`log` 부동소수 의심 (`crates/hevcenc`)
-- [ ] 움직이는 스티커가 512px 문서 크기로 래스터되어 그보다 훨씬 키우면 가장자리가 부드러워짐. 항목 크기를 모션 scale 에 맞춰 `at_size` 로 다시 열기 (`vendor/.../media_pool.rs`, `features/stickers/store.ts`)
-- [ ] 흔들림 분석 캐시가 프로세스 전역이고 새 프로젝트·열기 때만 비움. 클립 삭제·미디어 교체 때도 무효화 (`vendor/.../render/src/vfx/temporal.rs`, `crates/engine/src/stabilize.rs`)
 - [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
-- [ ] wasm 14.2MB 에서 12MB 로: interchange(AAF/OMF/FCPXML/OTIO 0.7MB)·image(tiff/gif/webp 0.5MB)·symphonia(0.4MB)·코덱 feature(1MB) 분리 (`docs/guides/wasm-performance.md`)
-- [ ] 데모 장면 OceanSunset 74ms·Forest 64ms 가 wasm renderFrame 60ms 목표 초과(x·y 둘 다에 걸린 fbm 이 남은 비용) (`crates/media/src/generators.rs`)
-- [ ] wasm 프레임 캐시가 1080p 탐색 몇 번에 선형 메모리를 약 670MB 로 키우고 줄지 않음. 캐시 예산 (`crates/media/src/cache.rs` 호출부)
+- [ ] wasm 13.99MB 에서 12MB 로: 남은 후보(webp·gif 이미지, symphonia 음악 가져오기, MPEG-2·AV1 코덱)는 웹 기능을 빼야 해 결정 필요 (`docs/guides/wasm-performance.md`)
 
 ## P3 - 품질
 

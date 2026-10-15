@@ -195,7 +195,7 @@ export function MenuBar({ host }: { host: HostKind }) {
         </div>
       );
     }
-    const key = shortcutLabel(e.action);
+    const key = shortcutLabel(e.action, host);
     const checked = e.checked ? e.checked() : false;
     return (
       <button

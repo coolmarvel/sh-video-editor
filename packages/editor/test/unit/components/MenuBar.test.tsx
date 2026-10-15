@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MenuBar } from '@editor/shell/MenuBar';
+import { shortcutForKeys, shortcutLabel } from '@editor/features/shortcuts/keymap';
 import { useTimeline } from '@editor/features/timeline/store';
 import { engineWithClips } from '../../fake-bridge';
 import { connect, flush, resetStores } from '../../stores';
@@ -26,13 +27,26 @@ describe('MenuBar', () => {
     const labels = within(menu)
       .getAllByRole('menuitem')
       .map((m) => m.textContent ?? '');
-    expect(labels[0]).toBe('새 프로젝트Ctrl+N');
+    // 웹: Chrome 이 Ctrl+N(새 창)을 페이지에 넘기지 않으므로 통하는 Alt+N 을 보인다(keymap.ts reservedOnWeb)
+    expect(labels[0]).toBe('새 프로젝트Alt+N');
     expect(labels.some((l) => l.startsWith('내보내기'))).toBe(true);
     for (const l of labels) {
       expect(l, l).not.toMatch(/Cmd|Undo|Redo|Violet|Iris|Demo Project/);
     }
     fireEvent.click(screen.getByRole('button', { name: '파일' }));
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('데스크톱 메뉴는 새 프로젝트를 Ctrl+N 으로 보이고, 두 조합 모두 같은 동작이다', async () => {
+    await connect();
+    render(<MenuBar host="desktop" />);
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
+    expect(within(screen.getByRole('menu')).getAllByRole('menuitem')[0]!.textContent).toBe('새 프로젝트Ctrl+N');
+    expect(shortcutForKeys('Ctrl+N')?.id).toBe('file.new');
+    expect(shortcutForKeys('Alt+N')?.id).toBe('file.new');
+    expect(shortcutLabel('file.new', 'web')).toBe('Alt+N');
+    expect(shortcutLabel('file.open', 'web')).toBe('Ctrl+O');
+    expect(shortcutLabel('nope', 'web')).toBeNull();
   });
 
   it('편집 > 실행 취소를 누르면 엔진 undo 가 실행되고 메뉴가 닫힌다', async () => {

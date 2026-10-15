@@ -29,6 +29,24 @@ export interface UiPreset {
   id: string;
   label: string;
   params: Record<string, unknown>;
+  /**
+   * H.264 엔진 프리셋을 어느 형식으로든 쓰는 프리셋(SNS 카드)의 H.264 목표 비트레이트(kbps). 있으면 다른 형식으로 내보낼 때
+   * `presetParams` 가 FORMAT_KBPS_RATIO 로 줄인 bitrateKbps 를 넣는다(VP9 가 H.264 비트레이트 16~45 Mbps 로 인코딩하던 것)
+   */
+  h264Kbps?: number;
+}
+
+/**
+ * 같은 화질에 H.264 대비 쓰는 비트레이트 비율. 엔진 1080p 프리셋의 목표값에서 왔다(H.264 20, HEVC 12, AV1 10, WebM 8 Mbps).
+ * 아래 OVERRIDE_KBPS 의 720p 값(10000, 6000, 5000, 4000)과 같은 비율이다.
+ */
+export const FORMAT_KBPS_RATIO: Record<string, number> = { h264: 1, hevc: 0.6, av1: 0.5, webm: 0.4 };
+
+/** export.resolve·export.queue.add 에 넘길 설정: 프리셋 params + 형식, H.264 기준 프리셋이면 형식에 맞춘 비트레이트 */
+export function presetParams(preset: UiPreset, format: string): Record<string, unknown> {
+  const ratio = FORMAT_KBPS_RATIO[format];
+  if (preset.h264Kbps === undefined || ratio === undefined || ratio === 1) return { ...preset.params, format };
+  return { ...preset.params, format, bitrateKbps: Math.round((preset.h264Kbps * ratio) / 100) * 100 };
 }
 
 /**

@@ -1,12 +1,13 @@
 /**
  * SNS 내보내기 프리셋 선택 버튼. 엔진 `export.presets.list` 에서 형식·화면 크기로 고른 프리셋 위에 네 가지를 만든다
  * (이름에 특수기호가 있어 글자로 적지 않는다). 해상도·fps·비트레이트는 `export.resolve` 가 돌려주는 값을 그대로 보인다.
- * 고른 프리셋은 내보내기 store 의 프리셋 목록에 더해져 같은 presetId 로 선택된다.
+ * 고른 프리셋은 내보내기 store 의 프리셋 목록에 더해져 같은 presetId 로 선택된다. 카드는 H.264 엔진 프리셋이라 H.264 목표
+ * 비트레이트(h264Kbps)를 함께 들고, 다른 형식이면 내보내기 store 의 presetParams 가 형식 비율로 줄인다. 형식이 바뀌면 표시값을 다시 읽는다.
  */
 import { create } from 'zustand';
 import { useEditor } from '../../store';
 import { useExport } from '../export/store';
-import type { EnginePreset, UiPreset } from '../export/presets';
+import { presetParams, type EnginePreset, type UiPreset } from '../export/presets';
 
 interface SnsCard extends UiPreset {
   /** 어디에 올리는 용도인지 */
@@ -59,39 +60,51 @@ export function describeSns(info: SnsInfo | null | undefined): string {
 interface SnsState {
   cards: SnsCard[];
   info: Record<string, SnsInfo | null>;
+  /** info 를 읽은 형식. 내보내기 형식과 다르면 다시 읽는다 */
+  infoFormat: string | null;
   loading: boolean;
   /** 프리셋 목록을 읽어 카드를 만들고, 각 카드를 export.resolve 로 해석해 표시값을 채운 뒤 내보내기 프리셋 목록에 더한다 */
   load(): Promise<void>;
 }
 
-export const useSnsPresets = create<SnsState>((set) => ({
+export const useSnsPresets = create<SnsState>((set, get) => ({
   cards: [],
   info: {},
+  infoFormat: null,
   loading: false,
 
   async load() {
     const bridge = useEditor.getState().bridge;
-    if (!bridge) return;
+    // 형식 변경과 대화상자 열기가 겹쳐도 한 번만 읽는다
+    if (!bridge || get().loading) return;
     set({ loading: true });
     try {
       const listed = (await bridge.execute('export.presets.list', { format: 'h264' })) as { presets: EnginePreset[] };
-      const cards = buildSnsCards(listed.presets);
+      const built = buildSnsCards(listed.presets);
       const formatId = useExport.getState().formatId;
+      const resolveOutput = async (params: Record<string, unknown>) => ((await bridge.execute('export.resolve', params)) as { output: SnsInfo }).output;
+      const cards: SnsCard[] = [];
       const info: Record<string, SnsInfo | null> = {};
-      for (const c of cards) {
+      for (const c of built) {
         try {
-          const r = (await bridge.execute('export.resolve', { ...c.params, format: formatId })) as { output: SnsInfo };
-          info[c.id] = { width: r.output.width, height: r.output.height, fps: r.output.fps, targetKbps: r.output.targetKbps };
+          // 카드의 H.264 목표(프리셋 값 또는 덮어쓴 값). 다른 형식은 이것을 형식 비율로 줄여 내보낸다
+          const h264 = await resolveOutput({ ...c.params, format: 'h264' });
+          const card: SnsCard = { ...c, h264Kbps: h264.targetKbps };
+          const o = formatId === 'h264' ? h264 : await resolveOutput(presetParams(card, formatId));
+          cards.push(card);
+          info[c.id] = { width: o.width, height: o.height, fps: o.fps, targetKbps: o.targetKbps };
         } catch {
+          cards.push(c);
           info[c.id] = null;
         }
       }
-      set({ cards, info, loading: false });
+      set({ cards, info, infoFormat: formatId, loading: false });
+      // 내보내기 목록의 SNS 카드는 h264Kbps 를 가진 새 카드로 바꾼다(형식이 바뀐 뒤 다시 읽은 경우도)
       const ex = useExport.getState();
-      const missing = cards.filter((c) => !ex.presets.some((p) => p.id === c.id)).map(({ id, label, params }) => ({ id, label, params }));
-      if (missing.length > 0) useExport.setState({ presets: [...ex.presets, ...missing] });
+      const plain = ex.presets.filter((p) => !isSnsPreset(p.id));
+      useExport.setState({ presets: [...plain, ...cards.map(({ id, label, params, h264Kbps }) => ({ id, label, params, h264Kbps }))] });
     } catch {
-      set({ cards: [], info: {}, loading: false });
+      set({ cards: [], info: {}, infoFormat: null, loading: false });
     }
   },
 }));

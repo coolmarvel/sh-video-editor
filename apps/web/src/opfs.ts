@@ -3,6 +3,8 @@
 // 경로는 OPFS 루트 기준 상대 경로('recovery/snapshot.fcproj'). 엔진이 'opfs:/' 접두 경로로 쓴 바이트는
 // queueWrite 로 들어와 경로별로 합쳐져(마지막 바이트가 이김) 하나씩 기록된다.
 
+import { errorMessage } from '@editor/errors';
+
 type OpfsEntry = { name: string; kind: 'file' | 'directory' };
 
 // TypeScript DOM 라이브러리에 아직 없는 비동기 반복자(entries)와 Worker 전용 동기 핸들
@@ -48,7 +50,9 @@ async function fileAt(rel: string, create: boolean): Promise<FileHandle | null> 
   if (!dir) return null;
   try {
     return (await dir.getFileHandle(name, { create })) as unknown as FileHandle;
-  } catch {
+  } catch (e) {
+    // 만들려다 실패한 것(공간 부족 등)은 이유를 그대로 올린다. 읽기에서 없는 파일은 null
+    if (create) throw e;
     return null;
   }
 }
@@ -104,6 +108,59 @@ export async function remove(rel: string): Promise<void> {
   }
 }
 
+/** 복사 조각 크기. 큰 파일도 이만큼씩만 메모리에 올린다 */
+export const COPY_CHUNK = 8 << 20;
+
+/** OPFS 파일을 File 로(바이트는 읽지 않는다). 없으면 null */
+export async function getFile(rel: string): Promise<File | null> {
+  const fh = await fileAt(rel, false);
+  return fh ? fh.getFile() : null;
+}
+
+/** 디렉토리 바로 아래 파일 이름들 */
+export async function listFiles(dirRel: string): Promise<string[]> {
+  return (await list(dirRel)).filter((e) => e.kind === 'file').map((e) => e.name);
+}
+
+/** Blob 을 OPFS 파일로 COPY_CHUNK 씩 복사한다. 조각 사이에 이벤트 루프를 놓아 엔진 메시지가 끼어들 수 있다 */
+export async function copyIn(rel: string, blob: Blob): Promise<void> {
+  const fh = await fileAt(rel, true);
+  if (!fh) throw new Error(`OPFS: ${rel} 을(를) 만들 수 없습니다`);
+  if (fh.createSyncAccessHandle) {
+    const h = await fh.createSyncAccessHandle();
+    try {
+      h.truncate(0);
+      for (let at = 0; at < blob.size; at += COPY_CHUNK) {
+        const part = new Uint8Array(await blob.slice(at, at + COPY_CHUNK).arrayBuffer());
+        const n = Number(h.write(part, { at }));
+        if (n !== part.length) throw new Error(`OPFS: ${rel} 을(를) ${at} 바이트 뒤에서 더 쓰지 못했습니다(공간 부족)`);
+      }
+      h.flush();
+    } finally {
+      h.close();
+    }
+    return;
+  }
+  const w = await fh.createWritable();
+  await blob.stream().pipeTo(w);
+}
+
+export async function readText(rel: string): Promise<string | null> {
+  const bytes = await read(rel);
+  return bytes ? new TextDecoder().decode(bytes) : null;
+}
+
+export async function writeText(rel: string, text: string): Promise<void> {
+  await write(rel, new TextEncoder().encode(text));
+}
+
+/** 사이트 저장 공간 사용량과 한도. 모르면 null */
+export async function estimate(): Promise<{ usage: number; quota: number } | null> {
+  if (!navigator.storage?.estimate) return null;
+  const e = await navigator.storage.estimate();
+  return typeof e.usage === 'number' && typeof e.quota === 'number' ? { usage: e.usage, quota: e.quota } : null;
+}
+
 // ----- 엔진 쓰기 큐 -----
 
 const queue = new Map<string, Bytes>();
@@ -121,7 +178,7 @@ export function queueWrite(rel: string, bytes: Bytes): void {
         try {
           await write(k, v);
         } catch (e) {
-          lastError = `${k}: ${e instanceof Error ? e.message : String(e)}`;
+          lastError = `${k}: ${errorMessage(e)}`;
         }
       }
       draining = null;

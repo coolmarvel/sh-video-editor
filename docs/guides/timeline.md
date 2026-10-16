@@ -1,7 +1,7 @@
 ---
 title: 타임라인 (트랙·클립·razor·이동·트림·끌어다 놓기)
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: editor
 ---
 
@@ -12,15 +12,15 @@ domain: editor
 
 ## 파일
 
-| 파일           | 역할                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `store.ts`     | zustand 상태. 편집은 전부 `EngineBridge.execute` 로 커맨드를 보내고 끝나면 `sequence.inspect` 재조회 |
-| `Timeline.tsx` | 툴바·눈금자·트랙·플레이헤드, 포인터 제스처(스크럽·이동·트림), 단축키, 미디어 drop                    |
-| `Track.tsx`    | 트랙 머리(잠금·음소거·숨김 토글), 레인, 클립 블록(트림 핸들)                                         |
-| `Ruler.tsx`    | 보이는 구간의 눈금과 타임코드 라벨, 플레이헤드 머리                                                  |
-| `geometry.ts`  | tick 과 px 변환, 프레임 스냅, 눈금 간격, 스냅 보정 (순수 함수)                                       |
-| `dnd.ts`       | 미디어 패널과의 DnD 계약 `application/x-sh-media-item`                                               |
-| `types.ts`     | `sequence.inspect` 결과 타입                                                                         |
+| 파일           | 역할                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `store.ts`     | zustand 상태. 편집은 전부 `EngineBridge.execute` 로 커맨드를 보내고 끝나면 `sequence.inspect` 재조회                                              |
+| `Timeline.tsx` | 툴바·눈금자·트랙·플레이헤드, 포인터 제스처(스크럽·이동·트림), 단축키, 미디어 drop                                                                 |
+| `Track.tsx`    | 트랙 머리(잠금·음소거·숨김 토글), 레인, 클립 블록(트림 핸들). 클립이 48개를 넘는 레인은 보이는 구간(앞뒤 한 화면)만 그린다, 레인·클립 블록은 memo |
+| `Ruler.tsx`    | 보이는 구간의 눈금과 타임코드 라벨, 플레이헤드 머리                                                                                               |
+| `geometry.ts`  | tick 과 px 변환, 프레임 스냅, 눈금 간격, 스냅 보정 (순수 함수)                                                                                    |
+| `dnd.ts`       | 미디어 패널과의 DnD 계약 `application/x-sh-media-item`                                                                                            |
+| `types.ts`     | `sequence.inspect` 결과 타입                                                                                                                      |
 
 ## 엔진 커맨드 대응
 
@@ -50,10 +50,14 @@ domain: editor
 ## 갱신 시점
 
 - 마운트, 엔진 연결 후.
-- 이 기능이 보낸 커맨드 뒤(성공·실패 모두).
-- 루트 `useEditor.status` 가 바뀔 때(메뉴 등 다른 곳에서 커맨드를 실행한 뒤) 60ms 뒤 재조회.
-- 플레이헤드는 200ms 마다 `bridge.playhead()` 를 읽는다(모니터 재생을 따라가기 위해). 제스처 중에는 읽지 않는다.
-  엔진 이벤트(`drainEvents`) 통합은 아직 없다.
+- 이 기능이 보낸 커맨드 뒤(성공·실패 모두). 실행 취소·다시 실행은 타임라인 store 가 다시 읽고, 단축키 동작은 나머지 패널만 갱신한다
+  (`refreshAll(status, { timeline: false })`).
+- 엔진 이벤트: features/events 의 폴링 하나(정지 250ms, 재생 100ms, 숨김 1초)가 `drainEvents` 의 projectChanged·sequenceChanged 를 올리면
+  `refresh(revision)` 한다. 이미 그 revision 을 읽었으면 건너뛴다(`RevisionGate`).
+- 몰린 요청: 읽는 중에 들어온 need 없는 refresh 는 뒤의 읽기 하나에 붙는다(실행 취소를 연달아 눌러도 "지금 읽기 + 마지막 한 번").
+- 플레이헤드는 폴링이 `bridge.playhead()` 로 읽어 playheadChanged 로 올린다. 제스처 중에는 화면 값을 지킨다.
+- 같은 순간 여러 패널이 보낸 같은 읽기(`sequence.inspect`, `project.inspect` 등)는 `engine/coalesce.ts` 가 하나로 합친다.
+  수치는 `docs/guides/performance-audit.md`.
 
 ## 확인 방법
 

@@ -20,6 +20,7 @@ import {
 } from './cleanup';
 import './audio.css';
 import { errorMessage } from '../../errors';
+import { SEQUENCE_READ } from '../timeline/store';
 
 /** 볼륨 슬라이더 범위(dB). -96 은 음소거와 같다(엔진 db_to_gain 이 0 으로 본다) */
 const GAIN_MIN = -48;
@@ -130,7 +131,7 @@ export function AudioInspector(ctx: InspectorContext) {
       useEditor.setState({ error: `페이드를 걸 수 없습니다: ${errorMessage(e)}` });
     } finally {
       setBusy(false);
-      await execCommand('sequence.inspect', undefined, useEditor.getState().status);
+      await execCommand('sequence.inspect', SEQUENCE_READ, useEditor.getState().status);
     }
   };
   const duck = async () => {
@@ -138,7 +139,7 @@ export function AudioInspector(ctx: InspectorContext) {
     setBusy(true);
     try {
       const r = await applyDucking(bridge, seq, clip.clip);
-      await execCommand('sequence.inspect', undefined, `음성 구간 ${r.triggers}개를 찾아 키프레임 ${r.keyframes}개를 만들었습니다`);
+      await execCommand('sequence.inspect', SEQUENCE_READ, `음성 구간 ${r.triggers}개를 찾아 키프레임 ${r.keyframes}개를 만들었습니다`);
     } catch (e) {
       useEditor.setState({ error: `자동 낮춤을 만들 수 없습니다: ${errorMessage(e)}` });
     } finally {
@@ -155,7 +156,7 @@ export function AudioInspector(ctx: InspectorContext) {
       const r = await applyVoiceCleanup(bridge, cleanTargets, strength);
       await execCommand(
         'sequence.inspect',
-        undefined,
+        SEQUENCE_READ,
         `음성 깨끗하게(${strengthLabel(strength)})를 클립 ${r.clips}개에 적용했습니다 (${(r.ms / 1000).toFixed(2)}초)`,
       );
     } catch (e) {
@@ -169,7 +170,7 @@ export function AudioInspector(ctx: InspectorContext) {
     setBusy(true);
     try {
       const n = await revertVoiceCleanup(bridge, cleanTargets);
-      await execCommand('sequence.inspect', undefined, n > 0 ? `음성 깨끗하게를 껐습니다 (클립 ${n}개)` : '끌 효과가 없습니다');
+      await execCommand('sequence.inspect', SEQUENCE_READ, n > 0 ? `음성 깨끗하게를 껐습니다 (클립 ${n}개)` : '끌 효과가 없습니다');
     } catch (e) {
       useEditor.setState({ error: `원래대로 되돌릴 수 없습니다: ${errorMessage(e)}` });
     } finally {
@@ -182,7 +183,7 @@ export function AudioInspector(ctx: InspectorContext) {
     try {
       const r = await normalizeLoudness(bridge, seq, target);
       setLoudness(r);
-      await execCommand('sequence.inspect', undefined, `소리 크기를 ${target} LUFS 로 맞췄습니다: ${describeLoudness(r)}`);
+      await execCommand('sequence.inspect', SEQUENCE_READ, `소리 크기를 ${target} LUFS 로 맞췄습니다: ${describeLoudness(r)}`);
     } catch (e) {
       useEditor.setState({ error: `소리 크기를 맞출 수 없습니다: ${errorMessage(e)}` });
     } finally {

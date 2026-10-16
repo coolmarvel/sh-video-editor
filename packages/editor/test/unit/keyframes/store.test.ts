@@ -45,6 +45,8 @@ describe('키프레임 store', () => {
   });
 
   it('애니메이션 중 값 변경은 effects.setParam {time} 으로 키프레임을 추가하고, 아니면 정적 값만 바꾼다', async () => {
+    // 모션 탭처럼 선택한 클립(고정 효과 값은 선택 클립에만 온다, sequence.inspect summary)
+    await useTimeline.getState().selectClip(a.clip);
     await kf().setValue(a.clip, 'motion', 'scale', 50);
     expect(engine.callsOf('effects.setParam').at(-1)).toEqual({ clip: a.clip, effect: 'motion', param: 'scale', value: 50, time: 0 });
     expect(kf().tracks[paramKey(a.clip, 'motion', 'scale')]).toBeUndefined();

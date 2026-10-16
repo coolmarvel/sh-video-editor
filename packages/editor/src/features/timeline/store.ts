@@ -14,6 +14,9 @@ import { DEFAULT_PX_PER_SEC, clampZoom, snapToFrame } from './geometry';
 import { findClip, type SequenceInfo, type TrackKind } from './types';
 import { errorMessage } from '../../errors';
 
+/** 타임라인 store 가 편집마다 읽는 sequence.inspect 파라미터(엔진 `effects: "summary"`, docs/guides/engine-commands.md) */
+export const SEQUENCE_READ = { effects: 'summary' } as const;
+
 interface ClipMove {
   clip: number;
   track: number;
@@ -124,7 +127,9 @@ export const useTimeline = create<TimelineState>((set, get) => {
       if (!bridge) return Promise.resolve();
       return gate.run(need, async () => {
         try {
-          const [seq, playhead] = await Promise.all([bridge.execute('sequence.inspect') as Promise<SequenceInfo>, bridge.playhead()]);
+          // 편집마다 읽는 길이라 가벼운 모양(effects: summary): 선택하지 않은 클립의 고정 효과는 키프레임 있는 파라미터만 온다.
+          // 선택 클립(인스펙터)과 나머지 효과는 그대로라 화면이 읽는 값은 같다. 모든 클립의 값이 필요한 곳(템플릿 저장)은 full 로 따로 읽는다
+          const [seq, playhead] = await Promise.all([bridge.execute('sequence.inspect', SEQUENCE_READ) as Promise<SequenceInfo>, bridge.playhead()]);
           set({ sequence: seq, playhead, revision: seq.revision ?? need ?? -1 });
         } catch {
           // "no active sequence": 편집본이 없으면 빈 상태를 그린다. 이 revision 에 편집본이 없다는 것도 읽은 결과다

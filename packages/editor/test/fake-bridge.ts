@@ -482,6 +482,9 @@ const ENGINE_FORMATS = [
   { id: 'wav', label: 'Waveform Audio', extension: 'wav', available: true, video: false, audio: true },
 ];
 
+/** 엔진의 고정 효과(EffectDef.intrinsic): 모든 클립에 있다 */
+const FAKE_INTRINSIC: ReadonlySet<string> = new Set(['motion', 'opacity', 'time_remap', 'volume', 'channel_volume', 'panner']);
+
 export class FakeEngineError extends Error {}
 
 function clone<V>(v: V): V {
@@ -1270,9 +1273,22 @@ export class FakeEngine {
     return { width, height, rgba };
   }
 
-  inspectSequence(): unknown {
+  /**
+   * `sequence.inspect`. `summary` 은 엔진의 `effects: "summary"` 와 같다: 선택하지 않은 클립의 고정 효과(motion, opacity,
+   * time_remap, volume, channel_volume, panner)는 키프레임이 있는 파라미터만 남기고 `summary: true` 를 붙인다(항목·순서는 그대로)
+   */
+  inspectSequence(summary = false): unknown {
     const seq = this.sequence;
     const ft = frameTicksOf(seq);
+    const selected = new Set(seq.selection);
+    const brief = (c: FakeClip, list: unknown[]): unknown[] =>
+      !summary || selected.has(c.clip)
+        ? list
+        : (list as Array<{ effect: string; params?: Record<string, { keyframes?: number }> }>).map((e) =>
+            FAKE_INTRINSIC.has(e.effect)
+              ? { ...e, params: Object.fromEntries(Object.entries(e.params ?? {}).filter(([, v]) => (v?.keyframes ?? 0) > 0)), summary: true }
+              : e,
+          );
     const toClip = (c: FakeClip) => ({
       clip: c.clip,
       item: c.item,
@@ -1291,12 +1307,12 @@ export class FakeEngine {
       link: c.link,
       ...speedFields(c),
       ...(c.gainDb !== undefined ? { gainDb: c.gainDb } : {}),
-      effects: clone(c.effects ?? []),
+      effects: brief(c, clone(c.effects ?? [])),
       // 실제 엔진처럼 텍스트 클립은 고정 효과(motion, opacity, time_remap) 뒤에 graphic_text 레이어가 보인다
       ...(this.state.graphics[c.clip]
         ? {
             effects: [
-              ...clone(c.effects ?? []),
+              ...brief(c, clone(c.effects ?? [])),
               { effect: 'graphic_text', enabled: true, masks: 0, params: FakeEngine.debugParams(this.state.graphics[c.clip] as FakeGraphic) },
             ],
           }
@@ -1523,8 +1539,12 @@ export class FakeEngine {
       case 'project.deselectAll':
         s.selectedItems = [];
         return null;
-      case 'sequence.inspect':
-        return this.inspectSequence();
+      case 'sequence.inspect': {
+        const mode = p['effects'];
+        if (mode !== undefined && mode !== 'full' && mode !== 'summary')
+          throw new FakeEngineError(`invalid parameters for \`sequence.inspect\`: unknown \`effects\` value \`${String(mode)}\` (full or summary)`);
+        return this.inspectSequence(mode === 'summary');
+      }
       case 'sequence.snap':
         s.snap = typeof p['on'] === 'boolean' ? p['on'] : !s.snap;
         return { on: s.snap };

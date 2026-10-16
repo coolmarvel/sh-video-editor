@@ -21,6 +21,12 @@ export interface ClipEffectInfo {
   enabled: boolean;
   masks: number;
   params: Record<string, EffectParamInfo>;
+  /**
+   * 타임라인 store 는 `sequence.inspect {effects: "summary"}` 로 읽는다. 선택하지 않은 클립의 고정 효과(motion, opacity, time_remap,
+   * volume, channel_volume, panner)는 키프레임 있는 파라미터만 오고 이 값이 true 다. 선택 클립과 다른 효과는 모든 파라미터가 온다.
+   * 선택하지 않은 클립의 고정 효과 값이 필요하면 `sequence.inspect {effects: "full"}` 로 따로 읽는다(템플릿 저장)
+   */
+  summary?: boolean;
 }
 
 export interface ClipInfo {

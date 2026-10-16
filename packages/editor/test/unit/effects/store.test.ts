@@ -93,7 +93,8 @@ describe('효과 추가, 값, 켜기 끄기, 삭제', () => {
     expect(useEditor.getState().status).toBe('효과 값을 바꿨습니다');
     await tl().undo();
     expect(effectsOf(clipOf(video))[0]!.params['brightness']!.value).toBe(0);
-    // 숫자 입력(묶지 않음)과 이름으로 가리키는 고정 효과
+    // 숫자 입력(묶지 않음)과 이름으로 가리키는 고정 효과. 화면은 인스펙터가 보는 선택 클립에만 고정 효과 값을 받는다(sequence.inspect summary)
+    await useTimeline.getState().selectClip(video);
     await fx().setParam(video, 'opacity', 'opacity', 40);
     await fx().setParam(video, 'motion', 'position', [100, 200]);
     expect(engine.callsOf('effects.setParam').slice(-2)).toEqual([

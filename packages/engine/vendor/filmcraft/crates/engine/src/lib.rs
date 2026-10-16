@@ -38,6 +38,7 @@ pub mod mixer;
 pub mod multicam;
 pub mod panels;
 pub mod perf;
+pub mod playback;
 pub mod presets;
 pub mod previews;
 pub mod project_manager;
@@ -417,6 +418,9 @@ pub struct Session {
     pub browser: media_browser::BrowserState,
     /// Nesting depth of [`Session::execute`] (commands that run other commands).
     exec_depth: u32,
+    /// sh-video-editor: program monitor decode-ahead and preroll ([`playback`]), created on
+    /// first use.
+    read_ahead: std::sync::OnceLock<playback::ReadAhead>,
 }
 
 /// Units of work one [`SteppedTask::step`] does (frames). Small on the web so a `pump_jobs`
@@ -526,6 +530,7 @@ impl Session {
             log: Default::default(),
             browser: Default::default(),
             exec_depth: 0,
+            read_ahead: std::sync::OnceLock::new(),
         }
     }
 
@@ -1154,6 +1159,76 @@ impl Session {
         Ok(img.transformed(want_w, want_h, &m))
     }
 
+    /// sh-video-editor: the program frame at `t` as sRGB RGBA8 over black (`w`, `h`, bytes), the
+    /// form the bindings hand to the screen. Served from the playback read-ahead when it has the
+    /// frame ([`Session::playback_start`]), otherwise rendered here.
+    pub fn render_program_rgba8(&self, scale: f32, t: Tick) -> Option<(usize, usize, Vec<u8>)> {
+        let seq = self.renderable_sequence(scale).ok()?;
+        let t = self.sequence_rate().snap(t.max(Tick::ZERO));
+        if let Some(ra) = self.read_ahead.get()
+            && let Some(f) = ra.take(&self.playback_target(seq, scale), t)
+        {
+            return Some((f.w, f.h, f.rgba));
+        }
+        let img = self.render_program_at(scale, t)?;
+        let rgba = img.over_black_rgba8();
+        self.read_ahead().remember(self.playback_target(seq, scale), t);
+        Some((img.w, img.h, rgba))
+    }
+
+    fn playback_target(&self, seq: ItemId, scale: f32) -> playback::Target {
+        playback::Target { project: self.project.clone(), seq, revision: self.revision, scale }
+    }
+
+    fn read_ahead(&self) -> &playback::ReadAhead {
+        self.read_ahead.get_or_init(|| playback::ReadAhead::new(self.media.clone(), self.services.clone()))
+    }
+
+    /// sh-video-editor: start decoding program frames ahead of `t` in the direction and stride of
+    /// `rate` at render `scale` ([`playback`]). Hosts call it when playback starts (and when the
+    /// rate or scale changes), then poll [`Session::playback_status`] to preroll.
+    pub fn playback_start(&self, t: Tick, rate: f64, scale: f32) -> Result<()> {
+        let seq = self.renderable_sequence(scale)?;
+        let rate_frame = self.sequence_rate();
+        let t = rate_frame.snap(t.max(Tick::ZERO));
+        self.read_ahead().start(self.playback_target(seq, scale), t, rate, rate_frame.frame_duration());
+        Ok(())
+    }
+
+    /// sh-video-editor: while paused, prepare the first frames at `t` (decoders opened) so the
+    /// next play starts at once ([`playback`]).
+    pub fn playback_prepare(&self, t: Tick, scale: f32) -> Result<()> {
+        let seq = self.renderable_sequence(scale)?;
+        let rate_frame = self.sequence_rate();
+        let t = rate_frame.snap(t.max(Tick::ZERO));
+        self.read_ahead().prepare(self.playback_target(seq, scale), t, rate_frame.frame_duration());
+        Ok(())
+    }
+
+    /// sh-video-editor: stop the read-ahead and drop its frames.
+    pub fn playback_stop(&self) {
+        if let Some(ra) = self.read_ahead.get() {
+            ra.stop();
+        }
+    }
+
+    /// sh-video-editor: read-ahead state `{active, playing, ready, target, bytes, hits, misses,
+    /// rendered, warmed}`.
+    pub fn playback_status(&self) -> serde_json::Value {
+        match self.read_ahead.get() {
+            Some(ra) => ra.status(),
+            None => {
+                serde_json::json!({"active": false, "playing": false, "ready": 0, "target": 0, "bytes": 0, "hits": 0, "misses": 0, "rendered": 0, "warmed": 0, "threaded": cfg!(not(target_arch = "wasm32"))})
+            }
+        }
+    }
+
+    /// sh-video-editor, wasm32: advance the read-ahead for up to `budget` (no threads there).
+    /// True while work remains. Native hosts have a thread and get false.
+    pub fn playback_pump(&self, budget: std::time::Duration) -> bool {
+        self.read_ahead.get().is_some_and(|ra| ra.pump(budget))
+    }
+
     /// The active sequence, if a frame of it at `scale` is within the image size limits.
     fn renderable_sequence(&self, scale: f32) -> Result<ItemId> {
         let id = self.state.active_sequence.ok_or(EngineError::NoSequence)?;
@@ -1252,6 +1327,8 @@ mod nest_fidelity_tests;
 mod nesting_tests;
 #[cfg(test)]
 mod panels_tests;
+#[cfg(test)]
+mod playback_tests;
 #[cfg(test)]
 mod presets_tests;
 #[cfg(test)]

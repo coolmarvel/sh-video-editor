@@ -1,9 +1,10 @@
 import { createRoot } from 'react-dom/client';
-import { App, type EngineBridge, type EngineEvent, type Frame } from '@editor';
+import { App, type EngineBridge, type EngineEvent, type Frame, type PlaybackStatus } from '@editor';
 import '@tokens/css/tokens.css';
 import '@tokens/css/sh-classic.css';
 // 창 제목 줄의 앱 아이콘(16px 자리에 32px 래스터: 배율 2 화면에서도 선명하게)
 import appIcon from '../../build/icons/32.png';
+import { callFrames } from './frame-port';
 
 const api = window.shEngine;
 
@@ -24,14 +25,23 @@ const bridge: EngineBridge = {
   pickOpenPath: (filters) => api.pickOpenPath(filters),
   writeTempFile: (name, bytes) => api.writeTempFile(name, bytes),
   renderFrame: async (tick, scale): Promise<Frame | null> => {
-    const f = await api.renderFrame(tick, scale);
+    const direct = callFrames<{ width: number; height: number; rgba: Uint8Array } | null>('renderFrame', tick, scale);
+    const f = direct ? await direct : await api.renderFrame(tick, scale);
+    // 받은 바이트를 복사하지 않고 그대로 본다(프레임마다 약 2MB, docs/guides/playback.md)
     return f
       ? {
           width: f.width,
           height: f.height,
-          rgba: new Uint8ClampedArray(f.rgba),
+          rgba: new Uint8ClampedArray(f.rgba.buffer as ArrayBuffer, f.rgba.byteOffset, f.rgba.byteLength),
         }
       : null;
+  },
+  playback: {
+    start: (tick, rate, scale) => api.playbackStart(tick, rate, scale),
+    prepare: (tick, scale) => api.playbackPrepare(tick, scale),
+    stop: () => api.playbackStop(),
+    status: () => api.playbackStatus() as Promise<PlaybackStatus>,
+    pump: (ms) => api.playbackPump(ms),
   },
   drainEvents: () => api.drainEvents() as Promise<EngineEvent[]>,
   renderItemThumbnail: async (item, tick, width): Promise<Frame> => {

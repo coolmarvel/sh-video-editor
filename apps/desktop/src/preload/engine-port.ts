@@ -52,6 +52,31 @@ ipcRenderer.on('engine:port', (e) => {
   if (p) attach(p);
 });
 
+// 프레임 전용 포트는 페이지(main world)로 넘긴다(renderer/frame-port.ts). 포트는 페이지 스크립트가 뜨기 전에 올 수 있으므로
+// 들고 있다가 페이지가 요청('sh-engine-frame-port-request')하면, 또는 요청한 뒤에 새 포트(엔진 재시작)가 오면 보낸다
+type PortLike = object;
+const win = globalThis as unknown as {
+  postMessage(m: unknown, o: string, t: PortLike[]): void;
+  addEventListener(t: 'message', cb: (ev: { data: unknown }) => void): void;
+};
+let framePort: PortLike | null = null;
+let frameRequested = false;
+function sendFramePort() {
+  if (!framePort || !frameRequested) return;
+  const p = framePort;
+  framePort = null;
+  win.postMessage({ type: 'sh-engine-frame-port' }, '*', [p]);
+}
+ipcRenderer.on('engine:frame-port', (e) => {
+  framePort = (e.ports[0] as PortLike | undefined) ?? null;
+  sendFramePort();
+});
+win.addEventListener('message', (ev) => {
+  if ((ev.data as { type?: unknown } | null)?.type !== 'sh-engine-frame-port-request') return;
+  frameRequested = true;
+  sendFramePort();
+});
+
 ipcRenderer.on('engine:crashed', (_e, info: EngineCrash) => {
   port?.close();
   port = null;

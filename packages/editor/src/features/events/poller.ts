@@ -164,8 +164,10 @@ export class EnginePoller {
       await this.bridge.pollPersistence().catch(() => undefined);
     }
     const events = this.bridge.drainEvents ? await this.bridge.drainEvents() : await this.inspectFallback();
-    this.apply(classify(events));
-    const playhead = await this.bridge.playhead();
+    const c = classify(events);
+    this.apply(c);
+    // 바인딩이 drainEvents 끝에 플레이헤드를 붙였으면 따로 묻지 않는다(R2, 메시지 반감)
+    const playhead = c.playhead ?? (await this.bridge.playhead());
     if (playhead !== useEngineEvents.getState().playhead) {
       useEngineEvents.setState((s) => ({ playhead, playheadChanged: s.playheadChanged + 1 }));
     }

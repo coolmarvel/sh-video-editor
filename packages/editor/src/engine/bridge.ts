@@ -31,6 +31,8 @@ export type EngineEvent =
   | { type: 'openSequence'; item: number }
   | { type: 'openSource'; item: number }
   | { type: 'revealInProject'; item: number }
+  /** 바인딩이 drainEvents 끝에 붙이는 지금 플레이헤드(tick). 폴링이 playhead() 를 따로 부르지 않는다 */
+  | { type: 'playhead'; tick: number }
   | JobProgressEvent;
 
 /**
@@ -183,6 +185,36 @@ export interface TemplateStore {
   remove(id: string): Promise<void>;
 }
 
+/** 재생 읽어 두기 상태(엔진 `playbackStatus`). `ready >= target` 이면 프리롤이 찼다. 카운터는 엔진 세션 누적이다 */
+export interface PlaybackStatus {
+  active: boolean;
+  playing: boolean;
+  ready: number;
+  target: number;
+  bytes: number;
+  hits: number;
+  misses: number;
+  rendered: number;
+  warmed: number;
+}
+
+/**
+ * 재생 읽어 두기와 프리롤(docs/guides/playback.md). 엔진이 재생 위치보다 앞 프레임을 미리 그려 두고, renderFrame 이 그것을
+ * 그대로 돌려준다. 데스크톱은 엔진 스레드가 일하고, 웹(wasm, 스레드 없음)은 `pump` 를 부를 때 나아간다.
+ * 없는 호스트(테스트 가짜 엔진, 오래된 바인딩)에서는 화면이 예전처럼 프레임을 그때그때 그린다.
+ */
+export interface PlaybackHost {
+  /** `tick` 부터 `rate` 방향·보폭으로 `scale` 프레임을 미리 그린다. 재생 시작과 배율·배속이 바뀔 때 부른다 */
+  start(tick: number, rate: number, scale: number): Promise<void>;
+  /** 정지 중: `tick` 부터 몇 프레임을 준비해 다음 재생이 바로 시작하게(디코더 열기 포함) */
+  prepare(tick: number, scale: number): Promise<void>;
+  /** 멈춤(준비한 프레임은 버린다) */
+  stop(): Promise<void>;
+  status(): Promise<PlaybackStatus>;
+  /** 웹: `budgetMs` 만큼 진행. 할 일이 남으면 true. 데스크톱은 항상 false */
+  pump(budgetMs: number): Promise<boolean>;
+}
+
 export interface EngineBridge {
   version(): Promise<string>;
   commands(): Promise<CommandSpec[]>;
@@ -194,6 +226,8 @@ export interface EngineBridge {
   setPlayhead(tick: number): Promise<void>;
   pumpJobs(budgetMs: number): Promise<boolean>;
   renderFrame(tick: number, scale: number): Promise<Frame | null>;
+  /** 재생 읽어 두기와 프리롤. 없으면 화면은 프레임을 그때그때 그린다(features/monitor) */
+  playback?: PlaybackHost;
   /**
    * 쌓인 엔진 이벤트를 비워 돌려준다(한 번 읽으면 엔진 쪽에서 사라진다). features/events 의 폴링 하나만 부른다.
    * 없는 호스트에서는 화면이 project.inspect 의 revision 비교로 대신한다.

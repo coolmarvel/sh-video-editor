@@ -1,7 +1,7 @@
 ---
 title: 엔진 커맨드 보강 (vendor filmcraft 에 우리가 더한 것)
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: engine
 ---
 
@@ -121,6 +121,19 @@ domain: engine
 - 웹(wasm) 빌드는 `filmcraft-engine` 의 `interchange` feature 를 끈다. `file.exportInterchange`·`file.exportEdl`·`file.exportFcp7Xml`·`file.exportFcpxml`·
   `file.exportOtio`·`file.exportAaf`·`file.exportOmf`·`file.importAaf`·`file.exportAle` 는 카탈로그에 그대로 있고(687개, 데스크톱과 같은 목록) 부르면
   "not available in this build" 오류, `file.import` 는 교환 문서를 알아보지 않는다. 데스크톱은 그대로다. wasm 이 749KB 줄었다(`docs/guides/wasm-performance.md`).
+
+## 재생 읽어 두기와 프리롤 (2026-10-16)
+
+커맨드가 아니라 바인딩 API 다(napi·wasm 같은 모양, `crates/engine/src/playback.rs`, 동작은 `docs/guides/playback.md`).
+
+| API                                   | 모양                                                                                                                                                                                                                         | 이유                                                                                                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `playbackStart(tick, rate, scale)`    | `tick` 부터 `rate` 방향·보폭(2 = 한 프레임 건너, 음수 = 뒤로)으로 `scale` 프레임을 미리 그린다. 시퀀스가 없으면 오류                                                                                                         | 화면이 프레임을 하나씩 그때그때 요청해 첫 재생에서 디코더 열기·자르기 지점마다 끊겼다(상류의 미리 읽기는 이식하지 않은 egui 플레이어에 있었다) |
+| `playbackPrepare(tick, scale)`        | 정지 중 `tick` 다음 프레임부터 몇 장(네이티브 3, wasm 1)과 3초 안에 시작하는 클립의 디코더를 준비                                                                                                                            | 다음 재생이 기다림 없이 시작하게(GStreamer 의 PAUSED 프리롤)                                                                                   |
+| `playbackStop()`                      | 멈추고 준비한 프레임을 버린다                                                                                                                                                                                                |                                                                                                                                                |
+| `playbackStatus()`                    | JSON `{active, playing, ready, target, bytes, hits, misses, rendered, warmed, threaded}`. 카운터는 세션 누적                                                                                                                 | 화면이 `ready >= target` 까지 기다리면 프리롤                                                                                                  |
+| `playbackPump(budgetMs)`              | wasm 만 일한다(스레드가 없어 호스트가 부를 때 진행). 네이티브는 늘 false                                                                                                                                                     |                                                                                                                                                |
+| `renderFrame(tick, scale)`(바뀐 동작) | 계획이 있고 그 tick 이 준비돼 있으면 그것을 돌려준다(앞선 프레임은 버림). 없으면 예전처럼 그 자리에서 그리고, 탐색·편집(revision)·배율이 바뀌었으면 다음 프레임부터 다시 계획한다. 지금 그리는 중인 프레임이면 기다려 받는다 | 같은 그림: 테스트가 그때그때 그린 것과 바이트까지 같음을 본다(`playback_tests.rs`, `packages/engine/tests/playback.test.ts`)                   |
 
 ## 남은 것
 

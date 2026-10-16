@@ -301,3 +301,21 @@ describe('onRestart (데스크톱 엔진 재시작)', () => {
     expect(useProject.getState().notices.some((n) => n.action)).toBe(false);
   });
 });
+
+describe('drainEvents 의 playhead (R2)', () => {
+  it('바인딩이 플레이헤드를 붙이면 폴링은 playhead() 를 따로 부르지 않는다', async () => {
+    const { engine } = engineWithClips();
+    await connect({}, engine);
+    const p = make(engine);
+    const drain = engine.bridge.drainEvents!;
+    engine.bridge.drainEvents = async () => [...(await drain()), { type: 'playhead', tick: FT30 * 7 }];
+    const playhead = vi.spyOn(engine.bridge, 'playhead');
+    await p.tick();
+    expect(playhead).not.toHaveBeenCalled();
+    expect(ev().playhead).toBe(FT30 * 7);
+    // 붙이지 않는 바인딩(예전)은 예전처럼 묻는다
+    engine.bridge.drainEvents = drain;
+    await p.tick();
+    expect(playhead).toHaveBeenCalledTimes(1);
+  });
+});

@@ -31,6 +31,13 @@ export interface NapiEngine {
   setPlayhead(tick: number): void;
   pumpJobs(budgetMs: number): boolean;
   renderFrame(tick: number, scale: number): { width: number; height: number; rgba: Buffer } | null;
+  /** 재생 읽어 두기(docs/guides/playback.md) */
+  playbackStart(tick: number, rate: number, scale: number): void;
+  playbackPrepare(tick: number, scale: number): void;
+  playbackStop(): void;
+  /** JSON `{active, playing, ready, target, bytes, hits, misses, rendered, warmed, threaded}` */
+  playbackStatus(): string;
+  playbackPump(budgetMs: number): boolean;
   /** JSON 배열 문자열 `[{type, ...}]` (bridge.ts 의 EngineEvent) */
   renderAudio(tick: number, frames: number, sampleRate?: number | null): Float32Array;
   audioPeaks(item: number, perSecond: number): Float32Array;
@@ -92,6 +99,11 @@ export interface WasmEngine {
   setPlayhead(tick: bigint): void;
   pumpJobs(budgetMs: number): boolean;
   renderFrame(tick: bigint, scale: number): Uint8Array;
+  playbackStart(tick: bigint, rate: number, scale: number): void;
+  playbackPrepare(tick: bigint, scale: number): void;
+  playbackStop(): void;
+  playbackStatus(): string;
+  playbackPump(budgetMs: number): boolean;
   drainEvents(): string;
   /** renderFrame 과 같은 포장([w, h] LE u32 + RGBA8). 실패는 throw */
   renderItemThumbnail(item: bigint, tick: bigint, width: number): Uint8Array;

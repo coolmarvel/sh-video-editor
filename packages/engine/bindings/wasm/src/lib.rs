@@ -60,7 +60,11 @@ extern "C" {
     #[wasm_bindgen(js_name = blobSize, catch)]
     fn blob_size(blob: &JsValue) -> Result<f64, JsValue>;
     #[wasm_bindgen(js_name = readBlobRange, catch)]
-    fn read_blob_range(blob: &JsValue, offset: f64, len: f64) -> Result<js_sys::Uint8Array, JsValue>;
+    fn read_blob_range(
+        blob: &JsValue,
+        offset: f64,
+        len: f64,
+    ) -> Result<js_sys::Uint8Array, JsValue>;
 }
 
 enum Entry {
@@ -118,7 +122,11 @@ impl Table {
         if self.cache_bytes <= CACHE_BUDGET {
             return;
         }
-        let mut all: Vec<((u32, u64), u64, usize)> = self.chunks.iter().map(|(k, (d, t))| (*k, *t, d.len())).collect();
+        let mut all: Vec<((u32, u64), u64, usize)> = self
+            .chunks
+            .iter()
+            .map(|(k, (d, t))| (*k, *t, d.len()))
+            .collect();
         all.sort_unstable_by_key(|x| x.1);
         for (k, _, n) in all {
             if self.cache_bytes <= CACHE_BUDGET / 10 * 9 {
@@ -152,7 +160,11 @@ fn with_table<R>(engine: u32, f: impl FnOnce(&mut Table) -> R) -> io::Result<R> 
 }
 
 fn not_found(path: &str) -> io::Error {
-    let hint = if path.starts_with(OPFS_PREFIX) { " (OPFS file not staged for this command)" } else { " (not registered in this browser session)" };
+    let hint = if path.starts_with(OPFS_PREFIX) {
+        " (OPFS file not staged for this command)"
+    } else {
+        " (not registered in this browser session)"
+    };
     io::Error::new(io::ErrorKind::NotFound, format!("{path}: not found{hint}"))
 }
 
@@ -161,16 +173,27 @@ fn eof() -> io::Error {
 }
 
 fn js_err(what: &str, e: JsValue) -> io::Error {
-    let msg = e.as_string().or_else(|| js_sys::Reflect::get(&e, &"message".into()).ok().and_then(|m| m.as_string())).unwrap_or_else(|| format!("{e:?}"));
+    let msg = e
+        .as_string()
+        .or_else(|| {
+            js_sys::Reflect::get(&e, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+        })
+        .unwrap_or_else(|| format!("{e:?}"));
     io::Error::other(format!("{what}: {msg}"))
 }
 
 /// Blob 에서 `[offset, offset + len)` 을 동기로 읽는다(호출자가 범위를 검사한다).
 fn fetch_blob(handle: &JsValue, offset: u64, len: usize) -> io::Result<Vec<u8>> {
-    let arr = read_blob_range(handle, offset as f64, len as f64).map_err(|e| js_err("blob read", e))?;
+    let arr =
+        read_blob_range(handle, offset as f64, len as f64).map_err(|e| js_err("blob read", e))?;
     let v = arr.to_vec();
     if v.len() != len {
-        return Err(io::Error::other(format!("blob read returned {} bytes, expected {len}", v.len())));
+        return Err(io::Error::other(format!(
+            "blob read returned {} bytes, expected {len}",
+            v.len()
+        )));
     }
     Ok(v)
 }
@@ -192,8 +215,13 @@ impl ByteReader for BlobReader {
         if buf.is_empty() {
             return Ok(());
         }
-        let end = offset.checked_add(buf.len() as u64).filter(|e| *e <= self.size).ok_or_else(eof)?;
-        with_table(self.engine, |t| t.stats.range_reads = t.stats.range_reads.wrapping_add(1))?;
+        let end = offset
+            .checked_add(buf.len() as u64)
+            .filter(|e| *e <= self.size)
+            .ok_or_else(eof)?;
+        with_table(self.engine, |t| {
+            t.stats.range_reads = t.stats.range_reads.wrapping_add(1)
+        })?;
         if buf.len() >= DIRECT_READ_MIN {
             let v = fetch_blob(&self.handle, offset, buf.len())?;
             with_table(self.engine, |t| {
@@ -215,12 +243,15 @@ impl ByteReader for BlobReader {
             })?;
             let data = match cached {
                 Some(d) => {
-                    with_table(self.engine, |t| t.stats.chunk_hits = t.stats.chunk_hits.wrapping_add(1))?;
+                    with_table(self.engine, |t| {
+                        t.stats.chunk_hits = t.stats.chunk_hits.wrapping_add(1)
+                    })?;
                     d
                 }
                 None => {
                     let start = c.checked_mul(CHUNK).ok_or_else(eof)?;
-                    let len = usize::try_from(CHUNK.min(self.size.saturating_sub(start))).map_err(|_| eof())?;
+                    let len = usize::try_from(CHUNK.min(self.size.saturating_sub(start)))
+                        .map_err(|_| eof())?;
                     let v: Arc<[u8]> = fetch_blob(&self.handle, start, len)?.into();
                     with_table(self.engine, |t| {
                         t.stats.blob_reads = t.stats.blob_reads.wrapping_add(1);
@@ -230,9 +261,19 @@ impl ByteReader for BlobReader {
                     v
                 }
             };
-            let a = if c == c0 { usize::try_from(offset - c * CHUNK).map_err(|_| eof())? } else { 0 };
-            let n = data.len().saturating_sub(a).min(buf.len().saturating_sub(pos));
-            let (src, dst) = (data.get(a..a + n).ok_or_else(eof)?, buf.get_mut(pos..pos + n).ok_or_else(eof)?);
+            let a = if c == c0 {
+                usize::try_from(offset - c * CHUNK).map_err(|_| eof())?
+            } else {
+                0
+            };
+            let n = data
+                .len()
+                .saturating_sub(a)
+                .min(buf.len().saturating_sub(pos));
+            let (src, dst) = (
+                data.get(a..a + n).ok_or_else(eof)?,
+                buf.get_mut(pos..pos + n).ok_or_else(eof)?,
+            );
             dst.copy_from_slice(src);
             pos = pos.saturating_add(n);
         }
@@ -251,9 +292,12 @@ struct WebServices {
 impl WebServices {
     fn entry_reader(&self, path: &str) -> io::Result<SharedReader> {
         with_table(self.engine, |t| match t.entries.get(path) {
-            Some(Entry::Blob { id, handle, size }) => {
-                Ok(Arc::new(BlobReader { engine: self.engine, id: *id, handle: handle.clone(), size: *size }) as SharedReader)
-            }
+            Some(Entry::Blob { id, handle, size }) => Ok(Arc::new(BlobReader {
+                engine: self.engine,
+                id: *id,
+                handle: handle.clone(),
+                size: *size,
+            }) as SharedReader),
             Some(Entry::Mem(b)) => Ok(Arc::new(MemReader(b.clone())) as SharedReader),
             None => Err(not_found(path)),
         })?
@@ -264,7 +308,10 @@ impl Services for WebServices {
     fn read_file(&self, path: &str) -> io::Result<Vec<u8>> {
         let r = self.entry_reader(path)?;
         if r.len() > WHOLE_FILE_MAX {
-            return Err(io::Error::other(format!("{path}: too large to read whole in the browser ({} bytes)", r.len())));
+            return Err(io::Error::other(format!(
+                "{path}: too large to read whole in the browser ({} bytes)",
+                r.len()
+            )));
         }
         let len = usize::try_from(r.len()).map_err(|_| eof())?;
         filmcraft_media::reader::read_range(&*r, 0, len)
@@ -274,22 +321,30 @@ impl Services for WebServices {
         if let Some(rel) = path.strip_prefix(OPFS_PREFIX) {
             let hook = with_table(self.engine, |t| t.on_opfs_write.clone())?;
             let Some(hook) = hook else {
-                return Err(io::Error::other(format!("{path}: no OPFS writer on this host")));
+                return Err(io::Error::other(format!(
+                    "{path}: no OPFS writer on this host"
+                )));
             };
             let bytes = js_sys::Uint8Array::from(data);
-            hook.call2(&JsValue::NULL, &JsValue::from_str(rel), &bytes).map_err(|e| js_err("opfs write", e))?;
+            hook.call2(&JsValue::NULL, &JsValue::from_str(rel), &bytes)
+                .map_err(|e| js_err("opfs write", e))?;
             return Ok(());
         }
         let hook = with_table(self.engine, |t| t.on_write.clone())?;
         let taken = match hook {
             Some(h) => {
                 let bytes = js_sys::Uint8Array::from(data);
-                h.call2(&JsValue::NULL, &JsValue::from_str(path), &bytes).map_err(|e| js_err("write hook", e))?.is_truthy()
+                h.call2(&JsValue::NULL, &JsValue::from_str(path), &bytes)
+                    .map_err(|e| js_err("write hook", e))?
+                    .is_truthy()
             }
             None => false,
         };
         if !taken {
-            with_table(self.engine, |t| t.entries.insert(path.to_string(), Entry::Mem(Arc::from(data))))?;
+            with_table(self.engine, |t| {
+                t.entries
+                    .insert(path.to_string(), Entry::Mem(Arc::from(data)))
+            })?;
         }
         Ok(())
     }
@@ -311,10 +366,19 @@ impl Services for WebServices {
         if dir.starts_with(OPFS_PREFIX) {
             return None;
         }
-        let prefix = if dir.ends_with('/') { dir.to_string() } else { format!("{dir}/") };
+        let prefix = if dir.ends_with('/') {
+            dir.to_string()
+        } else {
+            format!("{dir}/")
+        };
         Some(with_table(self.engine, |t| {
-            let mut names: Vec<String> =
-                t.entries.keys().filter_map(|p| p.strip_prefix(prefix.as_str())).filter(|r| !r.is_empty() && !r.contains('/')).map(str::to_string).collect();
+            let mut names: Vec<String> = t
+                .entries
+                .keys()
+                .filter_map(|p| p.strip_prefix(prefix.as_str()))
+                .filter(|r| !r.is_empty() && !r.contains('/'))
+                .map(str::to_string)
+                .collect();
             names.sort();
             names
         }))
@@ -330,12 +394,26 @@ impl Services for WebServices {
 /// - jobProgress {id, kind, label, progress 0..1, done, cancelled, error|null} (잡 진행률이 바뀔 때마다 하나)
 pub fn event_json(e: Event) -> serde_json::Value {
     match e {
-        Event::ProjectChanged { revision } => serde_json::json!({"type": "projectChanged", "revision": revision}),
-        Event::Toast { message, error } => serde_json::json!({"type": "toast", "message": message, "error": error}),
+        Event::ProjectChanged { revision } => {
+            serde_json::json!({"type": "projectChanged", "revision": revision})
+        }
+        Event::Toast { message, error } => {
+            serde_json::json!({"type": "toast", "message": message, "error": error})
+        }
         Event::OpenSequence(item) => serde_json::json!({"type": "openSequence", "item": item.0}),
         Event::OpenSource(item) => serde_json::json!({"type": "openSource", "item": item.0}),
-        Event::RevealInProject(item) => serde_json::json!({"type": "revealInProject", "item": item.0}),
-        Event::JobProgress { id, kind, label, progress, done, cancelled, error } => serde_json::json!({
+        Event::RevealInProject(item) => {
+            serde_json::json!({"type": "revealInProject", "item": item.0})
+        }
+        Event::JobProgress {
+            id,
+            kind,
+            label,
+            progress,
+            done,
+            cancelled,
+            error,
+        } => serde_json::json!({
             "type": "jobProgress",
             "id": id,
             "kind": kind,
@@ -350,11 +428,16 @@ pub fn event_json(e: Event) -> serde_json::Value {
 
 /// `[w, h]` LE u32 머리 + RGBA8 바이트. Worker 가 풀어 `Frame` 으로 만든다.
 fn pack_frame(img: &filmcraft_render::Image) -> Option<Vec<u8>> {
-    let (w, h) = u32::try_from(img.w).ok().zip(u32::try_from(img.h).ok())?;
-    let mut out = Vec::with_capacity(8 + img.w * img.h * 4);
-    out.extend_from_slice(&w.to_le_bytes());
-    out.extend_from_slice(&h.to_le_bytes());
-    out.extend_from_slice(&img.over_black_rgba8());
+    pack_rgba(img.w, img.h, &img.over_black_rgba8())
+}
+
+/// `renderFrame` 포장: 폭·높이 u32 LE 8바이트 + RGBA8.
+fn pack_rgba(w: usize, h: usize, rgba: &[u8]) -> Option<Vec<u8>> {
+    let (w32, h32) = u32::try_from(w).ok().zip(u32::try_from(h).ok())?;
+    let mut out = Vec::with_capacity(8 + rgba.len());
+    out.extend_from_slice(&w32.to_le_bytes());
+    out.extend_from_slice(&h32.to_le_bytes());
+    out.extend_from_slice(rgba);
     Some(out)
 }
 
@@ -366,8 +449,15 @@ pub fn start() {
 /// 끝에 `hw: WebCodecs` 가 붙으면(`setWebCodecsHooks` 뒤) 브라우저 디코더가 레지스트리 앞에 있다. napi 의 `hw: ...` 와 같은 자리.
 #[wasm_bindgen]
 pub fn engine_version() -> String {
-    let hw = if webcodecs::enabled() { ", hw: WebCodecs" } else { "" };
-    format!("sh-video-engine {} (base {BASE_ENGINE}, wasm{hw})", env!("CARGO_PKG_VERSION"))
+    let hw = if webcodecs::enabled() {
+        ", hw: WebCodecs"
+    } else {
+        ""
+    };
+    format!(
+        "sh-video-engine {} (base {BASE_ENGINE}, wasm{hw})",
+        env!("CARGO_PKG_VERSION")
+    )
 }
 
 /// 호스트의 WebCodecs 훅(apps/web/src/webcodecs.ts)을 설치해 브라우저 디코더를 엔진 디코더 앞에 둔다. 프로세스 전역이라
@@ -388,7 +478,13 @@ pub fn add_font_data(data: &[u8]) -> u32 {
 /// wasm32 빌드가 안에 품지 않는 번들 글꼴 파일 이름(JSON 배열). 호스트가 같은 파일을 서빙해 `addFontData` 로 넣는다.
 #[wasm_bindgen(js_name = hostFontFiles)]
 pub fn host_font_files() -> String {
-    serde_json::Value::Array(filmcraft_text::fonts::HOST_SUPPLIED_FONTS.iter().map(|f| serde_json::Value::String((*f).to_string())).collect()).to_string()
+    serde_json::Value::Array(
+        filmcraft_text::fonts::HOST_SUPPLIED_FONTS
+            .iter()
+            .map(|f| serde_json::Value::String((*f).to_string()))
+            .collect(),
+    )
+    .to_string()
 }
 
 #[wasm_bindgen]
@@ -416,7 +512,10 @@ impl Engine {
             v
         });
         let services = Arc::new(WebServices { engine: id });
-        Engine { session: Session::new(services), id }
+        Engine {
+            session: Session::new(services),
+            id,
+        }
     }
 
     // ---------- 웹 전용: 파일 공간 ----------
@@ -437,7 +536,14 @@ impl Engine {
             }
             let id = t.next_blob;
             t.next_blob = t.next_blob.wrapping_add(1);
-            t.entries.insert(path.to_string(), Entry::Blob { id, handle: blob, size: size_u });
+            t.entries.insert(
+                path.to_string(),
+                Entry::Blob {
+                    id,
+                    handle: blob,
+                    size: size_u,
+                },
+            );
         })
         .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(size)
@@ -451,7 +557,8 @@ impl Engine {
                 let old = *id;
                 t.drop_blob(old);
             }
-            t.entries.insert(path.to_string(), Entry::Mem(Arc::from(data)));
+            t.entries
+                .insert(path.to_string(), Entry::Mem(Arc::from(data)));
         })
         .map_err(|e| JsError::new(&e.to_string()))
     }
@@ -492,8 +599,12 @@ impl Engine {
             t.entries
                 .iter()
                 .map(|(p, e)| match e {
-                    Entry::Blob { size, .. } => serde_json::json!({"path": p, "size": size, "kind": "blob"}),
-                    Entry::Mem(b) => serde_json::json!({"path": p, "size": b.len(), "kind": "memory"}),
+                    Entry::Blob { size, .. } => {
+                        serde_json::json!({"path": p, "size": size, "kind": "blob"})
+                    }
+                    Entry::Mem(b) => {
+                        serde_json::json!({"path": p, "size": b.len(), "kind": "memory"})
+                    }
                 })
                 .collect::<Vec<_>>()
         })
@@ -536,10 +647,15 @@ impl Engine {
 
     pub fn execute(&mut self, id: &str, params_json: Option<String>) -> Result<String, JsError> {
         let params = match params_json {
-            Some(s) if !s.trim().is_empty() => serde_json::from_str(&s).map_err(|e| JsError::new(&format!("params: {e}")))?,
+            Some(s) if !s.trim().is_empty() => {
+                serde_json::from_str(&s).map_err(|e| JsError::new(&format!("params: {e}")))?
+            }
             _ => serde_json::Value::Object(Default::default()),
         };
-        let out = self.session.execute(id, params).map_err(|e| JsError::new(&e.to_string()))?;
+        let out = self
+            .session
+            .execute(id, params)
+            .map_err(|e| JsError::new(&e.to_string()))?;
         Ok(out.to_string())
     }
 
@@ -550,7 +666,11 @@ impl Engine {
         if !(item.is_finite() && item >= 0.0 && item.fract() == 0.0) {
             return Err(JsError::new("item id must be a non-negative integer"));
         }
-        filmcraft_engine::transcript::host_item_audio(&self.session, filmcraft_project::ItemId(item as u64)).map_err(|e| JsError::new(&e))
+        filmcraft_engine::transcript::host_item_audio(
+            &self.session,
+            filmcraft_project::ItemId(item as u64),
+        )
+        .map_err(|e| JsError::new(&e))
     }
 
     #[wasm_bindgen(js_name = isEnabled)]
@@ -569,8 +689,14 @@ impl Engine {
 
     /// napi 와 같은 모양. 브라우저에는 스레드·파일 잠금이 없어 자동 저장 저널을 시작할 수 없다(OPFS 저장은 호스트 몫).
     #[wasm_bindgen(js_name = startAutosave)]
-    pub fn start_autosave(&mut self, _data_dir: &str, _local_offset_seconds: i32) -> Result<(), JsError> {
-        Err(JsError::new("auto save is not available in the browser build"))
+    pub fn start_autosave(
+        &mut self,
+        _data_dir: &str,
+        _local_offset_seconds: i32,
+    ) -> Result<(), JsError> {
+        Err(JsError::new(
+            "auto save is not available in the browser build",
+        ))
     }
 
     /// 백그라운드 작업(프록시·내보내기 큐)의 알림을 반영한다. 호스트가 주기적으로 부른다.
@@ -598,27 +724,79 @@ impl Engine {
 
     #[wasm_bindgen(js_name = pumpJobs)]
     pub fn pump_jobs(&mut self, budget_ms: u32) -> bool {
-        self.session.pump_jobs(std::time::Duration::from_millis(u64::from(budget_ms)))
+        self.session
+            .pump_jobs(std::time::Duration::from_millis(u64::from(budget_ms)))
     }
 
     /// 프레임을 `[w, h]` 와 RGBA8 바이트로. 시퀀스가 없으면 빈 배열.
     #[wasm_bindgen(js_name = renderFrame)]
     pub fn render_frame(&self, tick: i64, scale: f32) -> Vec<u8> {
-        self.session.render_program_at(scale, Tick(tick)).and_then(|img| pack_frame(&img)).unwrap_or_default()
+        // 재생 중이면 읽어 두기(playbackStart + playbackPump)가 준비한 프레임을 그대로 쓴다
+        self.session
+            .render_program_rgba8(scale, Tick(tick))
+            .and_then(|(w, h, rgba)| pack_rgba(w, h, &rgba))
+            .unwrap_or_default()
+    }
+
+    /// napi 와 같은 모양: 재생 읽어 두기 시작. wasm 은 스레드가 없어 Worker 가 한가할 때 `playbackPump` 로 진행한다.
+    #[wasm_bindgen(js_name = playbackStart)]
+    pub fn playback_start(&self, tick: i64, rate: f64, scale: f32) -> Result<(), JsError> {
+        self.session
+            .playback_start(Tick(tick), rate, scale)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// napi 와 같은 모양: 정지 중 미리 준비.
+    #[wasm_bindgen(js_name = playbackPrepare)]
+    pub fn playback_prepare(&self, tick: i64, scale: f32) -> Result<(), JsError> {
+        self.session
+            .playback_prepare(Tick(tick), scale)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// napi 와 같은 모양: 읽어 두기 멈춤.
+    #[wasm_bindgen(js_name = playbackStop)]
+    pub fn playback_stop(&self) {
+        self.session.playback_stop();
+    }
+
+    /// napi 와 같은 모양: 읽어 두기 상태 JSON.
+    #[wasm_bindgen(js_name = playbackStatus)]
+    pub fn playback_status(&self) -> String {
+        self.session.playback_status().to_string()
+    }
+
+    /// 읽어 두기를 `budget_ms` 만큼 진행한다(프레임 단위라 한 장이 예산을 넘을 수 있다). 할 일이 남으면 true.
+    #[wasm_bindgen(js_name = playbackPump)]
+    pub fn playback_pump(&self, budget_ms: u32) -> bool {
+        self.session
+            .playback_pump(std::time::Duration::from_millis(u64::from(budget_ms)))
     }
 
     /// 쌓인 엔진 이벤트(프로젝트 변경·토스트·시퀀스 열기)를 비워 JSON 배열 문자열 `[{type, ...}]` 로. 모양은 `event_json`.
     #[wasm_bindgen(js_name = drainEvents)]
     pub fn drain_events(&mut self) -> String {
-        serde_json::Value::Array(self.session.drain_events().into_iter().map(event_json).collect()).to_string()
+        // 끝에 지금 플레이헤드를 하나 붙인다: 화면의 폴링이 playhead() 를 따로 부르지 않게(메시지 반감,
+        // docs/guides/performance-audit.md R2)
+        let mut events: Vec<serde_json::Value> = self.session.drain_events().into_iter().map(event_json).collect();
+        events.push(serde_json::json!({"type": "playhead", "tick": self.session.playhead().0}));
+        serde_json::Value::Array(events).to_string()
     }
 
     /// 미디어 항목(영상·사진·시퀀스)의 썸네일을 `renderFrame` 과 같은 포장으로. `tick` 은 미디어 시간이고 음수면
     /// 포스터 프레임(없으면 0). `width` 픽셀 폭으로 축소한다(확대는 하지 않음, 상한 1024). 소리만 있는 항목·없는 항목은 오류.
     #[wasm_bindgen(js_name = renderItemThumbnail)]
-    pub fn render_item_thumbnail(&self, item: u64, tick: i64, width: u32) -> Result<Vec<u8>, JsError> {
+    pub fn render_item_thumbnail(
+        &self,
+        item: u64,
+        tick: i64,
+        width: u32,
+    ) -> Result<Vec<u8>, JsError> {
         let t = (tick >= 0).then_some(Tick(tick));
-        let img = self.session.render_item_thumbnail(ItemId(item), t, width).map_err(|e| JsError::new(&e.to_string()))?;
+        let img = self
+            .session
+            .render_item_thumbnail(ItemId(item), t, width)
+            .map_err(|e| JsError::new(&e.to_string()))?;
         pack_frame(&img).ok_or_else(|| JsError::new("thumbnail too large"))
     }
 
@@ -626,7 +804,12 @@ impl Engine {
     /// (길이 `frames * 2`, Float32Array). `sample_rate` 기본 48000. 시퀀스가 없으면 무음. 한 번에 최대 10초.
     #[wasm_bindgen(js_name = renderAudio)]
     pub fn render_audio(&self, tick: i64, frames: u32, sample_rate: Option<u32>) -> Vec<f32> {
-        audio::render_audio(&self.session, tick, frames as usize, sample_rate.unwrap_or(audio::DEFAULT_SAMPLE_RATE))
+        audio::render_audio(
+            &self.session,
+            tick,
+            frames as usize,
+            sample_rate.unwrap_or(audio::DEFAULT_SAMPLE_RATE),
+        )
     }
 
     /// napi 와 같은 모양: 미디어 항목 `item` 의 파형, 초당 `per_second` 칸의 min/max 피크(interleaved). 소리가 없으면 빈 배열.

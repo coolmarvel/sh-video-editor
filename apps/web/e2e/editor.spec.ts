@@ -177,6 +177,21 @@ test.describe('모니터', () => {
     await expect(ui.timeline(app).locator('.tl-title__tc')).toHaveText(stopped);
   });
 
+  test('재생 화질을 고르면 재생 중 배율이 그 값이 되고 다시 열어도 남는다', async ({ app }) => {
+    await makeDemoSequence(app);
+    const quality = app.getByRole('combobox', { name: '재생 화질' });
+    await expect(quality).toHaveValue('auto');
+    await quality.selectOption('quarter');
+    await app.getByRole('button', { name: '재생', exact: true }).click();
+    // 1080p 편집본을 1/4 로 그리면 캔버스 폭이 480 이다(상태 줄 배율 칸은 390 폭에서 숨는다)
+    await expect.poll(() => app.locator('.mon-canvas').evaluate((c) => (c as HTMLCanvasElement).width), { timeout: 10_000 }).toBe(480);
+    await app.getByRole('button', { name: '정지', exact: true }).click();
+    await app.reload();
+    await expect(app.locator('.ve-status')).toContainText(/준비됨: 커맨드 \d+개/, { timeout: 60_000 });
+    // 편집본이 없어 콤보는 비활성이지만 고른 값은 남아 있다(테스트마다 새 브라우저 컨텍스트라 되돌릴 필요 없음)
+    await expect(app.getByRole('combobox', { name: '재생 화질' })).toHaveValue('quarter');
+  });
+
   test('스크러버와 프레임 이동', async ({ app }) => {
     await makeDemoSequence(app);
     // 데모 클립으로 만든 시퀀스는 클립의 프레임레이트(23.976)를 따른다. 프레임 수는 엔진 tick 으로 확인한다

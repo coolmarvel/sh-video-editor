@@ -5,6 +5,7 @@ import { MonitorController } from './controller';
 import { setMonitorController, useMonitorOverlays } from './registry';
 import { Scrubber } from './Scrubber';
 import { PLAYBACK_RATES, useMonitor } from './store';
+import { PLAYBACK_QUALITIES, type PlaybackQuality } from './quality';
 import { AudioToolbar } from '../audio/AudioToolbar';
 import './monitor.css';
 
@@ -36,6 +37,8 @@ export function MonitorPanel() {
   const tick = useMonitor((s) => s.tick);
   const playing = useMonitor((s) => s.playing);
   const rate = useMonitor((s) => s.rate);
+  const quality = useMonitor((s) => s.quality);
+  const preparing = useMonitor((s) => s.preparing);
   const error = useMonitor((s) => s.error);
   const overlays = useMonitorOverlays((s) => s.overlays);
 
@@ -143,13 +146,13 @@ export function MonitorPanel() {
         <button
           type="button"
           className="sh-tool"
-          title={playing ? '정지 (Space)' : '재생 (Space)'}
-          aria-label={playing ? '정지' : '재생'}
-          aria-pressed={playing}
+          title={playing || preparing ? '정지 (Space)' : '재생 (Space)'}
+          aria-label={playing || preparing ? '정지' : '재생'}
+          aria-pressed={playing || preparing}
           disabled={disabled}
           onClick={() => ctl()?.toggle()}
         >
-          <Icon d={playing ? ICON.pause : ICON.play} />
+          <Icon d={playing || preparing ? ICON.pause : ICON.play} />
         </button>
         <button
           type="button"
@@ -182,8 +185,30 @@ export function MonitorPanel() {
             </option>
           ))}
         </select>
+        <select
+          className="sh-select mon-quality"
+          aria-label="재생 화질"
+          title="재생 화질: 자동은 재생이 계속 늦을 때만 낮추고 빨라지면 다시 올립니다. 정지하면 언제나 화면 크기에 맞춰 선명하게 그립니다"
+          disabled={disabled}
+          value={quality}
+          onChange={(e) => {
+            ctl()?.setQuality(e.target.value as PlaybackQuality);
+            e.currentTarget.blur();
+          }}
+        >
+          {PLAYBACK_QUALITIES.map((q) => (
+            <option key={q.id} value={q.id}>
+              {q.label}
+            </option>
+          ))}
+        </select>
         <AudioToolbar />
         <span className="sh-separator" />
+        {preparing ? (
+          <span className="mon-preparing" role="status" data-testid="mon-preparing">
+            준비 중
+          </span>
+        ) : null}
         <span className="sh-tnum mon-timecode" aria-live="off">
           <b data-testid="mon-current">{current}</b> / <span data-testid="mon-total">{total}</span>
         </span>

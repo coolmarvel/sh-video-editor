@@ -208,6 +208,14 @@ export class EngineSupervisor {
         const { port1, port2 } = new MessageChannelMain();
         child.postMessage({ type: 'port', who: 'renderer' } satisfies HostControl, [port1]);
         wc.postMessage('engine:port', null, [port2]);
+        // 프레임 전용 포트: preload 가 페이지(main world)로 넘겨 renderFrame 이 contextBridge 복사를 거치지 않게 한다
+        // (2MB 프레임에서 왕복 약 8ms/MB, docs/guides/playback.md)
+        // SH_FRAME_PORT=0 이면 끈다(실측 비교·문제 확인용, 그때 렌더러는 preload 경로로 그린다)
+        if (process.env['SH_FRAME_PORT'] !== '0') {
+          const frames = new MessageChannelMain();
+          child.postMessage({ type: 'port', who: 'renderer' } satisfies HostControl, [frames.port1]);
+          wc.postMessage('engine:frame-port', null, [frames.port2]);
+        }
       })
       .catch((e: Error) => console.error(`engine: cannot connect renderer: ${e.message}`));
   }

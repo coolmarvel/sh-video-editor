@@ -1,8 +1,10 @@
-import type { EngineBridge, Frame } from '../../engine/bridge';
+import type { EngineBridge, Frame, PlaybackHost } from '../../engine/bridge';
 import { TICKS_PER_SECOND } from '../../engine/time';
 import { useEngineEvents } from '../events/store';
 import { RevisionGate, neededRevision } from '../events/revision-gate';
 import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
+import { AutoQuality, SCALES, playStartScale, saveQuality, type PlaybackQuality } from './quality';
+import { useTimeline } from '../timeline/store';
 import { errorMessage } from '../../errors';
 
 /** 재생 중 백그라운드 작업(pumpJobs) 호출 간격과 1회 예산 */
@@ -11,11 +13,13 @@ const PUMP_BUDGET_MS = 2;
 /** 상태 줄 수치 갱신 주기 */
 const STATS_INTERVAL_MS = 500;
 const RENDER_SAMPLE_COUNT = 30;
-/** 재생 배율을 내릴지 판단하는 표본 수와 허용 배수(평균 렌더 ms > 프레임 간격 x 배수). 한 프레임이 x4 를 넘으면 바로 내린다 */
-const ADAPT_SAMPLE_COUNT = 3;
-const ADAPT_THRESHOLD = 1.2;
-const ADAPT_IMMEDIATE_THRESHOLD = 4;
-const SCALES: RenderScale[] = [0.25, 0.5, 1];
+/** 프리롤(docs/guides/playback.md): 재생을 누르면 첫 프레임이 준비될 때까지 시계를 출발시키지 않는다. 이 시간을 넘으면 그냥 출발한다 */
+export const PREROLL_TIMEOUT_MS = 1000;
+/** 프리롤이 이만큼 걸리면 조작 줄에 "준비 중" 을 보인다(짧은 대기는 보이지 않는다) */
+export const PREROLL_NOTICE_MS = 300;
+const PREROLL_POLL_MS = 4;
+/** 정지·탐색·편집 뒤 다음 재생을 준비하는 지연(연달아 바뀌면 마지막에만) */
+export const PREPARE_DELAY_MS = 250;
 
 /**
  * 재생 루프와 프레임 요청을 맡는다. React 밖에서 살고, 화면은 store 를 구독한다.
@@ -59,6 +63,12 @@ export class MonitorController {
   private readonly gate = new RevisionGate(() => this.readRevision);
 
   private renderTimes: number[] = [];
+  /** 자동 화질 판단기(quality.ts) */
+  private readonly auto = new AutoQuality();
+  /** 프리롤 진행 표시: 다른 동작(정지·다시 재생)이 오면 바뀌어 기다리던 프리롤을 버린다 */
+  private prerollToken = 0;
+  private prerolling = false;
+  private prepareTimer: ReturnType<typeof setTimeout> | null = null;
   private framesDrawn = 0;
   private dropped = 0;
   private statsWall = 0;
@@ -67,6 +77,8 @@ export class MonitorController {
   constructor(private readonly bridge: EngineBridge) {}
 
   start(): void {
+    // 읽어 두기 스레드가 있는 호스트인지 미리 물어 둔다(첫 재생에서 왕복을 하나 줄인다)
+    void this.readAhead();
     this.unsubscribe?.();
     this.unsubscribe = useEngineEvents.subscribe((s, prev) => {
       if (s.projectChanged !== prev.projectChanged || s.sequenceChanged !== prev.sequenceChanged) {
@@ -77,8 +89,9 @@ export class MonitorController {
   }
 
   dispose(): void {
-    this.disposed = true;
     this.pause();
+    this.disposed = true;
+    this.cancelPrepare();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.canvas = null;
@@ -102,13 +115,51 @@ export class MonitorController {
     if (next !== this.scale) {
       this.scale = next;
       this.publishStats(performance.now(), true);
-      if (!this.playing) this.requestRender(useMonitor.getState().tick);
+      if (!this.playing) {
+        this.requestRender(useMonitor.getState().tick);
+        this.schedulePrepare();
+      }
     }
   }
 
-  /** 지금 renderFrame 에 넘길 배율. 재생 중에는 playScale 이 상한이다. */
+  /** 지금 renderFrame 에 넘길 배율. 재생 중에는 화질 설정과 자동 판단이 정한 playScale, 정지 중에는 표시 크기에 맞춘 배율 */
   private currentScale(): RenderScale {
     return this.playing ? (Math.min(this.scale, this.playScale) as RenderScale) : this.scale;
+  }
+
+  /** 엔진 읽어 두기를 쓰는지(스레드가 있는 호스트만. 웹 wasm 은 예전처럼 그때그때 그린다) */
+  private threaded: boolean | null = null;
+  private async readAhead(): Promise<PlaybackHost | null> {
+    const pb = this.bridge.playback;
+    if (!pb) return null;
+    if (this.threaded === null) {
+      try {
+        const st = await pb.status();
+        this.threaded = (st as { threaded?: boolean }).threaded !== false;
+      } catch {
+        this.threaded = false;
+      }
+    }
+    return this.threaded ? pb : null;
+  }
+
+  /** 재생 화질을 바꾼다(모니터 조작 줄). 재생 중이면 그 자리에서 새 배율로 이어 간다 */
+  setQuality(q: PlaybackQuality): void {
+    saveQuality(q);
+    useMonitor.setState({ quality: q });
+    if (!this.playing) return;
+    this.playScale = playStartScale(this.scale, q);
+    this.auto.reset(this.playScale);
+    this.renderTimes = [];
+    this.publishStats(performance.now(), true);
+    void this.restartReadAhead(useMonitor.getState().tick);
+  }
+
+  private async restartReadAhead(tick: number): Promise<void> {
+    const pb = await this.readAhead();
+    if (!pb || !this.playing) return;
+    const rate = useMonitor.getState().rate || 1;
+    pb.start(tick, rate, this.currentScale()).catch(() => undefined);
   }
 
   // -- 재생 제어 ----------------------------------------------------------
@@ -117,9 +168,9 @@ export class MonitorController {
     return this.playing;
   }
 
-  /** Space: 재생 중이면 정지, 아니면 정방향으로 재생(배율은 유지, 방향만 앞으로). */
+  /** Space: 재생 중(프리롤 포함)이면 정지, 아니면 정방향으로 재생(배율은 유지, 방향만 앞으로). */
   toggle(): void {
-    if (this.playing) this.pause();
+    if (this.playing || this.prerolling) this.pause();
     else this.play();
   }
 
@@ -152,38 +203,118 @@ export class MonitorController {
     this.playAt(direction * magnitude);
   }
 
-  /** 부호 있는 배율로 재생한다. 이미 재생 중이면 지금 tick 에서 배율만 바꾼다. */
+  /**
+   * 부호 있는 배율로 재생한다. 이미 재생 중이면 지금 tick 에서 배율만 바꾼다. 정지에서 시작할 때는 프리롤을 거친다: 엔진 읽어 두기를
+   * 걸고 첫 프레임이 준비될 때까지(최대 PREROLL_TIMEOUT_MS) 시계를 출발시키지 않는다. 그래야 디코더 열기·탐색이 재생 시간을
+   * 먹지 않고, 소리(useMonitor.playing 을 따라 시작)도 영상과 같이 출발한다.
+   */
   private playAt(rate: number): void {
     const seq = useMonitor.getState().sequence;
     if (!seq || rate === 0) return;
     let tick = useMonitor.getState().tick;
-    if (!this.playing) {
-      // 끝에서 앞으로, 처음에서 뒤로 재생하면 반대쪽 끝에서 시작한다
-      if (rate > 0 && tick >= seq.duration) tick = 0;
-      if (rate < 0 && tick <= 0) tick = seq.duration;
-      this.playing = true;
-      this.playScale = this.scale;
-      this.renderTimes = [];
-      this.lastRequestedTick = -1;
-      this.framesDrawn = 0;
-      this.statsWall = performance.now();
+    if (this.playing) {
+      this.startWall = performance.now();
+      this.startTick = tick;
+      useMonitor.setState({ tick, rate });
+      void this.restartReadAhead(tick);
+      return;
     }
+    // 끝에서 앞으로, 처음에서 뒤로 재생하면 반대쪽 끝에서 시작한다
+    if (rate > 0 && tick >= seq.duration) tick = 0;
+    if (rate < 0 && tick <= 0) tick = seq.duration;
+    useMonitor.setState({ rate });
+    const scale = playStartScale(this.scale, useMonitor.getState().quality);
+    this.cancelPrepare();
+    // 읽어 두기가 없는 호스트(웹 wasm, 테스트 가짜 엔진)는 예전처럼 바로 출발한다
+    if (!this.bridge.playback || this.threaded === false) {
+      this.beginPlaying(tick, scale);
+      return;
+    }
+    void this.prerollThenPlay(tick, rate, scale);
+  }
+
+  private async prerollThenPlay(tick: number, rate: number, scale: number): Promise<void> {
+    const token = ++this.prerollToken;
+    this.prerolling = true;
+    const t0 = performance.now();
+    const pb = await this.readAhead();
+    if (pb) {
+      try {
+        await pb.start(tick, rate, scale);
+        while (token === this.prerollToken && !this.disposed) {
+          const st = await pb.status();
+          if (!st.active || st.ready >= st.target) break;
+          const waited = performance.now() - t0;
+          if (waited >= PREROLL_TIMEOUT_MS) break;
+          if (waited >= PREROLL_NOTICE_MS && !useMonitor.getState().preparing) useMonitor.setState({ preparing: true });
+          await new Promise((r) => setTimeout(r, PREROLL_POLL_MS));
+        }
+      } catch (e) {
+        this.fail(e);
+      }
+    }
+    if (token !== this.prerollToken || this.disposed) return;
+    this.prerolling = false;
+    this.beginPlaying(tick, scale as RenderScale);
+  }
+
+  /** 시계를 출발시킨다(프리롤 뒤, 또는 읽어 두기가 없을 때 바로) */
+  private beginPlaying(tick: number, scale: RenderScale): void {
+    this.playing = true;
+    this.playScale = scale;
+    this.auto.reset(scale);
+    this.renderTimes = [];
+    this.lastRequestedTick = -1;
+    this.framesDrawn = 0;
+    this.statsWall = performance.now();
     this.startWall = performance.now();
     this.startTick = tick;
-    useMonitor.setState({ playing: true, tick, rate });
+    useMonitor.setState({ playing: true, preparing: false, tick });
     cancelAnimationFrame(this.rafId);
     this.rafId = requestAnimationFrame(this.loop);
   }
 
   pause(): void {
+    if (this.prerolling) {
+      // 프리롤 중 정지: 기다리던 재생을 버린다
+      this.prerollToken += 1;
+      this.prerolling = false;
+      useMonitor.setState({ preparing: false });
+      this.bridge.playback?.stop().catch(() => undefined);
+      this.schedulePrepare();
+      return;
+    }
     if (!this.playing) return;
     this.playing = false;
     cancelAnimationFrame(this.rafId);
     useMonitor.setState({ playing: false });
+    this.bridge.playback?.stop().catch(() => undefined);
     // 재생 중 내려갔던 배율이 상태 줄에 남지 않게 표시 배율로 바로 갱신한다
     this.publishStats(performance.now(), true);
-    // 재생 중 기록한 마지막 tick 을 엔진에서 다시 읽어 확정한다
+    // 재생 중 기록한 마지막 tick 을 엔진에서 다시 읽어 확정한다(그 뒤 다음 재생을 준비한다)
     void this.syncPlayhead();
+  }
+
+  /** 정지 중 다음 재생 준비(PREPARE_DELAY_MS 뒤, 연달아 부르면 마지막만). 플레이헤드 프레임 뒤 몇 장과 다가오는 클립의 디코더 */
+  private schedulePrepare(): void {
+    this.cancelPrepare();
+    if (this.disposed || !this.bridge.playback) return;
+    this.prepareTimer = setTimeout(() => {
+      this.prepareTimer = null;
+      void this.prepareNow();
+    }, PREPARE_DELAY_MS);
+  }
+
+  private cancelPrepare(): void {
+    if (this.prepareTimer !== null) clearTimeout(this.prepareTimer);
+    this.prepareTimer = null;
+  }
+
+  private async prepareNow(): Promise<void> {
+    if (this.disposed || this.playing || this.prerolling || !useMonitor.getState().sequence) return;
+    const pb = await this.readAhead();
+    if (!pb || this.playing || this.prerolling) return;
+    pb.prepare(useMonitor.getState().tick, playStartScale(this.scale, useMonitor.getState().quality)).catch(() => undefined);
   }
 
   /** 스크러버·클릭 탐색. 프레임 경계로 맞춘 뒤 엔진에 쓰고 다시 읽는다. */
@@ -194,6 +325,7 @@ export class MonitorController {
     if (this.playing) {
       this.startWall = performance.now();
       this.startTick = snapped;
+      void this.restartReadAhead(snapped);
     }
     try {
       await this.bridge.setPlayhead(snapped);
@@ -246,7 +378,10 @@ export class MonitorController {
     }
     if (this.disposed) return;
     if (useMonitor.getState().tick !== tick) useMonitor.setState({ tick });
-    if (!this.playing) this.requestRender(tick);
+    if (!this.playing) {
+      this.requestRender(tick);
+      if (!this.prerolling) this.schedulePrepare();
+    }
   }
 
   /**
@@ -261,13 +396,21 @@ export class MonitorController {
     let seq: SequenceInfo | null = null;
     // 결과에 revision 이 없으면(실패, 오래된 바인딩) 이벤트가 준 값, 그것도 없으면 모름(-1: 다음 이벤트에 다시 읽는다)
     let revision = need ?? -1;
-    try {
-      const raw = await this.bridge.execute('sequence.inspect');
-      seq = toSequenceInfo(raw);
-      const r = (raw as { revision?: unknown }).revision;
-      if (typeof r === 'number') revision = r;
-    } catch {
-      seq = null; // "no active sequence"
+    const shared = need !== undefined ? useTimeline.getState() : null;
+    if (shared && need !== undefined && shared.revision >= need && shared.revision >= 0) {
+      // 타임라인 store 가 이미 그 revision 이상을 읽었다: 같은 sequence.inspect 를 다시 보내지 않는다
+      // (편집마다 한 번 줄어든다, docs/guides/performance-audit.md R4)
+      seq = shared.sequence ? toSequenceInfo(shared.sequence) : null;
+      revision = shared.revision;
+    } else {
+      try {
+        const raw = await this.bridge.execute('sequence.inspect');
+        seq = toSequenceInfo(raw);
+        const r = (raw as { revision?: unknown }).revision;
+        if (typeof r === 'number') revision = r;
+      } catch {
+        seq = null; // "no active sequence"
+      }
     }
     if (this.disposed) return;
     this.readRevision = revision;
@@ -300,6 +443,7 @@ export class MonitorController {
     if (this.disposed || this.playing) return;
     if (useMonitor.getState().tick !== tick) useMonitor.setState({ tick });
     this.requestRender(tick);
+    this.schedulePrepare();
   }
 
   /** 다른 화면(효과 패널 등)이 엔진을 바꾼 직후 부른다. 이벤트 폴링을 기다리지 않고 시퀀스를 다시 읽고 현재 프레임을 다시 그린다. */
@@ -357,7 +501,7 @@ export class MonitorController {
     this.lastRenderedTick = tick;
     this.lastRenderedScale = scale;
     this.lastRenderedRevision = revision;
-    this.adaptPlayScale();
+    this.adaptPlayScale(t1 - t0);
     this.publishStats(t1, false);
     if (this.pendingTick !== null) {
       const next = this.pendingTick;
@@ -366,20 +510,16 @@ export class MonitorController {
     }
   }
 
-  /** 재생 중 평균 렌더가 프레임 간격보다 길면 배율을 한 단계 내린다. */
-  private adaptPlayScale(): void {
+  /** 자동 화질(quality.ts): 재생 중 렌더가 계속 늦으면 한 단계 내리고, 낮춘 배율에서 충분히 빠르면 다시 올린다 */
+  private adaptPlayScale(ms: number): void {
     const seq = useMonitor.getState().sequence;
-    if (!this.playing || !seq || this.renderTimes.length === 0) return;
-    const frameMs = 1000 / seq.fps;
-    const last = this.renderTimes[this.renderTimes.length - 1] ?? 0;
-    const avg = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length;
-    const tooSlow = last > frameMs * ADAPT_IMMEDIATE_THRESHOLD || (this.renderTimes.length >= ADAPT_SAMPLE_COUNT && avg > frameMs * ADAPT_THRESHOLD);
-    const idx = SCALES.indexOf(this.currentScale());
-    if (tooSlow && idx > 0) {
-      this.playScale = SCALES[idx - 1] ?? 0.25;
-      this.renderTimes = [];
-      this.publishStats(performance.now(), true);
-    }
+    if (!this.playing || !seq || useMonitor.getState().quality !== 'auto') return;
+    const next = this.auto.observe(ms, 1000 / seq.fps);
+    if (next === null || next === this.playScale) return;
+    this.playScale = Math.min(next, this.scale) as RenderScale;
+    this.renderTimes = [];
+    this.publishStats(performance.now(), true);
+    void this.restartReadAhead(useMonitor.getState().tick);
   }
 
   private draw(frame: Frame): void {
@@ -418,6 +558,7 @@ export class MonitorController {
       // 끝(역재생은 처음)에 닿으면 그 위치를 엔진에 쓰고 멈춘다
       const edge = rate > 0 ? seq.duration : 0;
       this.playing = false;
+      this.bridge.playback?.stop().catch(() => undefined);
       useMonitor.setState({ playing: false, tick: edge });
       void this.bridge
         .setPlayhead(edge)

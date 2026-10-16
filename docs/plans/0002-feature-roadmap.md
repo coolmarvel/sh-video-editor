@@ -1,7 +1,7 @@
 ---
 title: 기능 로드맵 - 경쟁 제품 조사·엔진 갭·마일스톤 2~4
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: development
 ---
 
@@ -208,6 +208,7 @@ domain: development
 - [ ] **M4-7 썸네일·파형 커맨드**: `media.thumbnail`(item, time, size) 신규, `clip.generateAudioWaveform` 결과를 바인딩으로 노출. SQLite 캐시(M2-8)와 연결. (d) M
 - [x] **M4-8 이벤트 통합** (2026-10-14 RevisionGate. 2026-10-15 데스크톱도 실측: napi drainEvents 는 처음부터 revision 을 실어 데모 넣기 + 타임라인에 넣기가 sequence.inspect 4~6, project.inspect 3~4, media.status 2, 데스크톱 e2e 가 상한을 지킨다): `drainEvents` 를 store 가 폴링해 revision 하나로 갱신(todo P1). (d) S
 - [ ] **M4-9 한글화**: 커맨드 라벨·메뉴 한글(todo P2), 자막 기본 글꼴 한글. (d) S
+- [x] **M4-10 재생 파이프라인** (2026-10-16 feat/playback, 사용자 보고 "첫 재생이 끊기고 다시 재생하면 괜찮다"): 엔진 읽어 두기 큐(`crates/engine/src/playback.rs`, ffplay·mpv 의 프레임 큐와 같은 자리)와 다음 클립 디코더 미리 열기, 화면 프리롤(GStreamer PAUSED·AVPlayer preroll 처럼 첫 프레임이 준비된 뒤 시계 출발)과 정지 중 준비, 재생 화질 선택(자동·전체·1/2·1/4, Premiere·Resolve 처럼). 데스크톱 프레임 전용 포트(contextBridge 복사 없음), drainEvents 의 플레이헤드(유휴 메시지 반감), 모니터가 타임라인의 시퀀스 읽기를 나눔. 실측과 남은 것(YUV 전달, 웹 앞서 디코드, 렌더 캐시)은 `docs/guides/playback.md`. (d) L
 
 ### 상위 10개 제안 (가치 x 크기 x 보유)
 

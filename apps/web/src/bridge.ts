@@ -1,4 +1,4 @@
-import type { EngineBridge, EngineEvent, Frame } from '@editor';
+import type { EngineBridge, EngineEvent, Frame, PlaybackStatus } from '@editor';
 import type { OpfsStore } from '@editor/engine/bridge';
 import { createIdbCache } from './cache';
 import { createIdbTemplates } from './templates';
@@ -79,6 +79,13 @@ export function createWorkerBridge(): EngineBridge & { diag: WebBridgeDiag } {
     pollPersistence: () => call('pollPersistence'),
     // startAutosave·pickSavePath·pickOpenPath 는 웹 파일(OPFS·다운로드) 담당이 붙인다. 없으면 화면이 안내 문구를 보인다.
     renderFrame: (tick, scale) => call<Frame | null>('renderFrame', tick, scale),
+    playback: {
+      start: (tick, rate, scale) => call<void>('playbackStart', tick, rate, scale),
+      prepare: (tick, scale) => call<void>('playbackPrepare', tick, scale),
+      stop: () => call<void>('playbackStop'),
+      status: () => call<PlaybackStatus>('playbackStatus'),
+      pump: (ms) => call<boolean>('playbackPump', ms),
+    },
     drainEvents: () => call<EngineEvent[]>('drainEvents'),
     renderItemThumbnail: (item, tick, width) => call<Frame>('renderItemThumbnail', item, tick, width),
     renderAudio: (tick, frames, sampleRate) => call<Float32Array>('renderAudio', tick, frames, sampleRate),

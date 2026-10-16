@@ -1,7 +1,7 @@
 ---
 title: 세션 로그
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: development
 ---
 
@@ -11,6 +11,59 @@ domain: development
 (커밋은 검증 통과 후 에이전트가, 성긴 단위. git history 를 이력 SSOT 로 삼지 않는다.)
 
 블록 형식: `## YYYY-MM-DD - 제목` 아래에 **요청/피드백, 수정, 검증, 다음** 순서로 간결하게.
+
+## 2026-10-16 - 첫 재생 끊김(읽어 두기·프리롤·재생 화질), 성능 전수조사, inspect 경량화, todo (v0.1.11)
+
+- **요청/피드백**: "처음 재생할 때 엄청 끊기고 다시 재생하면 괜찮다, 로딩이 없는 건가". 다른 회사·솔루션도 그렇게 하는지 확인하고, 다음 todo 와
+  함께 버퍼·성능 문제를 전수조사해 다시 리팩토링. 앞서 화면에서 끝난 fork 가 계속 "진행 중" 으로 보여 정리(일은 끝나 병합돼 있었음).
+- **조사**: 재생은 시계를 바로 출발시키고 프레임을 그때그때 하나씩 요청했고 미리 읽기가 없었다(상류는 이식하지 않은 egui 플레이어에 있음).
+  업계 방식은 GStreamer 프리롤, AVPlayer preroll·automaticallyWaitsToMinimizeStalling, ffplay·mpv 의 디코드 큐, Premiere·Resolve 의 재생 해상도
+  선택과 렌더 캐시. 우리 "한 프레임 늦으면 재생 끝까지 화질을 내림" 규칙은 업계 방식이 아니었다. 출처는 docs/guides/playback.md.
+- **방법**: 워크트리 넷(playback·todo-next·inspect-slim 은 Rust, perf-audit 은 TS 만). 병합 순서 perf-audit, todo-next, playback, inspect-slim.
+- **수정**:
+  - perf-audit(TS 만, 커밋 247d5d9·52aee41·89390d1·7cb3319): 성능 전수조사(scripts/perf-survey.mjs 웹 1440·390, scripts/perf-survey-desktop.cjs
+    Electron xvfb, 5분 소크)를 docs/guides/performance-audit.md 에 순위표 15로. 고친 것 셋: (1) 같은 순간 여러 store 가 보내던 같은 읽기를
+    engine/coalesce.ts 가 하나로(사이에 상태를 바꾸는 호출이 없을 때만), RevisionGate 는 읽는 중 온 요청을 뒤의 읽기 하나로, 실행 취소 단축키가
+    타임라인을 두 번 읽던 것: 200 클립 실행 취소 10+10 연타 데스크톱 2310ms·호출 161 에서 529~725ms·41, 웹 요청 174~192 에서 81~95. (2) 클립 48개
+    넘는 레인은 보이는 구간만 DOM 에, Lane·ClipBlock memo: 200 클립 줌 웹 37~88ms 에서 11~29ms(긴 작업 0), 데스크톱 42~84 에서 23~27ms. (3) 스티커
+    미리보기 img data:svg 30장을 인라인 SVG 로: 처음 열기 47~85ms 에서 23~29ms. async decoding 시도는 나아지지 않아 되돌림. 엔진·재생 쪽 발견은
+    보고만(R1 sequence.inspect 200 클립 429KB, R2 drainEvents playheadChanged, R3 데스크톱 프레임 2MB 복사, R4 모니터 읽기 공유). 워크트리 검증:
+    단위 797, 엔진 214, 웹 e2e 전체 163(skip 5), 데스크톱 스모크·e2e 8.
+  - todo-next(커밋 936cd20·27787e2·5e088d7·aeb5a91): (1) "HEVC 내보내기가 wasm 과 napi 에서 바이트가 다르다" 의 원인은 인코더가 아니라 데모 입력:
+    hevcenc·h264enc·opusenc 는 같은 입력이면 네이티브와 브라우저 wasm 에서 같은 바이트이고, 데모 생성기의 sin·exp·powf·atan2 마지막 비트가 C
+    라이브러리와 Rust libm 에서 가끔 달랐다. export-parallel 을 OceanSunset 영상만으로 바꿔 WebM·H.264·HEVC·AV1 바이트 같음을 요구. (2) AV1 band
+    재사용은 페이지 폴트 -2.6%, CPU 시간 같음(할당기가 이미 재사용)이라 되돌림. (3) flaky: 390 최근 프로젝트는 제품 경쟁(하위 메뉴에 마우스가 들어오면
+    열리고 클릭이 토글이라 방금 연 것을 닫음, 실제 사용자도 겪음)이라 클릭은 열기만(부하 중 40회 통과). keyframes 390 은 부하 21 에서 70회 통과로 재현
+    안 됨. vendor HEVC draft_mode 는 픽스처 동시 생성 경쟁이라 testkit fixture_lock 으로(부하 32 에서 20회 통과). (4) `npm run check:artifacts`(빠진 엔진
+    산출물 안내, typecheck 앞에서). (5) Windows 11 스냅 레이아웃이 투명 overlay 위에도 뜸(실기 캡처). (6) `verify:full`(verify + 스모크 + 웹·데스크톱
+    e2e). 워크트리 검증: 단위 785, 엔진 215, 웹 e2e 163, 데스크톱 e2e 8, xtask ci 1981.
+  - playback(`engine(vendor):` 2 + `feat:` + `perf:` 3 + `docs:`, 커밋 8514683·f7cd986·d63934d·80378eb·3cda1e4·b567e0b·361a46e, 사용자 보고
+    "첫 재생이 끊기고 다시 재생하면 괜찮다"): 화면이 시계를 바로 출발시키고 프레임을 하나씩 그때그때 요청해, 첫 재생이 디코더 열기와 자르기
+    지점마다 새 디코더(Windows Media Foundation 1080p H.264 첫 프레임 400~650ms)를 재생 시간 안에서 치렀고, 한 프레임만 늦어도 재생 끝까지 화질을
+    내렸다(상류의 미리 읽기는 이식하지 않은 egui 플레이어에 있었다). 다른 제품처럼(GStreamer PAUSED 프리롤, AVPlayer preroll, ffplay·mpv 프레임
+    큐, Premiere·Resolve 재생 해상도) 엔진 읽어 두기 큐(playback.rs: 8장·96MB, 탐색·편집 뒤 다시 계획, 3초 안 다음 클립 디코더 미리 열기), 화면
+    프리롤(첫 프레임 준비 뒤 시계 출발, 최대 1초, 300ms 넘으면 "준비 중"), 정지·탐색·편집 250ms 뒤 플레이헤드부터 3장 준비, 재생 화질(자동·전체·
+    1/2·1/4, 자동은 시작 6프레임을 빼고 계속 늦을 때만 내리고 빨라지면 올림). 웹(wasm)은 스레드가 없어 읽어 두기 없음. 실측(1080p30 배율 0.5):
+    Windows 클립 3개 첫 재생 건너뜀 12~18 에서 0(가장 느린 프레임 150~182 에서 9ms), H.264 10초 9~21 에서 0, 다시 재생 12~19 에서 0. HEVC 다시
+    재생의 멈춤 한 번(예전부터)은 700 에서 490ms. 웹 첫 재생 같음, 다시 재생 33 에서 13. 감사 R2(drainEvents 에 플레이헤드), R3(데스크톱 프레임
+    전용 포트, 2MB 14.3~22.7 에서 12.5~14.5ms), R4(모니터가 타임라인 읽기를 씀, 편집당 2 에서 1). 워크트리 검증: 단위 813, 엔진 220, 웹 e2e 전체
+    161(skip 5), 데스크톱 스모크·e2e 8, vendor xtask ci 1989(stabilize 테스트 1건 전역 캐시 경쟁으로 1회 실패 뒤 통과, todo).
+  - inspect-slim(`engine(vendor):` + `perf:` + `docs:`, 커밋 b125dc5·442d54b·19abc94, performance-audit R1): `sequence.inspect {effects: "summary"}`
+    (기본·full 은 그대로, CLI·MCP 같음). 모든 클립·효과 항목과 순서는 두고(키프레임 store 가 효과를 순서 번호로 가리킴) 선택하지 않은 클립의 고정
+    효과는 키프레임 있는 파라미터만. 타임라인 store·오디오 인스펙터가 summary, 템플릿 저장은 full 로 따로 읽음(값 보존 테스트). 200 클립 429KB 에서
+    219KB, napi·wasm 25.5·26.7ms 에서 8.5·9.8ms, 데스크톱 편집 하나에서 마지막 읽기까지 51~55 에서 37~40ms. 병합 뒤 남은 한 줄(모니터의 실행 취소 뒤
+    자기 읽기도 summary 로, 읽기 합치기가 묶음)을 직접 바꿔 24~25ms(에이전트 실측), 요청 모양을 고정하는 단위 테스트는 예전 코드에서 실패 확인.
+  - flaky 근본 수정(engine-media·inspect-slim·playback 이 각각 1회씩 본 stabilize 테스트): 흔들림 분석 캐시는 프로세스 전역인데 새 프로젝트·열기
+    마다 비워서 병렬 테스트가 서로의 캐시를 지웠다. 캐시 키가 이미 클립 시간·속도·미디어 참조를 담아(engine-media 의 relink 수정) 다른 프로젝트의
+    같은 키는 같은 입력이므로 비우기를 빼고(캐시는 원래 64개 상한), 테스트 시작의 비우기 3곳도 뺌. 원래 버그(같은 id 다른 영상)를 지키는 회귀 테스트
+    a_new_project_with_the_same_ids_but_other_footage_is_analysed_again 추가. engine 크레이트 전체 병렬 반복 26회 중 25회 통과, 출력을 저장하지 않은 1회의 실패 테스트는 특정 못 함(그 뒤 21회 연속
+    통과, todo P3 관찰).
+- **병합 뒤 검증(v0.1.11, main)**: prettier, clippy, 엔진 빌드(napi·wasm·speech-wasm), typecheck, cargo test(바인딩), 단위 817, 엔진 기능 224, 워크플로 회귀 8.8초, 앱 빌드,
+  웹 e2e 165 통과(skip 5, 실패 0, 9.1분, 1440·390), 데스크톱 스모크(687 커맨드)·e2e 8, vendor `cargo xtask ci` 1991. Windows 엔진 0.1.11 크로스 빌드,
+  인스톨러 0.1.11(122.7MB)을 바탕화면 `seonghyun` 폴더에(0.1.10 제거). Windows 실기 캡처로 재생 화질 칸("자동")과 엔진 0.1.11 Media Foundation 확인,
+  "준비 중" 표시는 300ms 넘는 프리롤에서만 떠 이 캡처에는 없음. 푸시 뒤 GitHub Actions 결과까지 확인.
+- **다음**: 웹 재생 읽어 두기(WebCodecs Worker), HEVC 다시 재생 멈춤, 데스크톱 프레임 YUV 전송, 렌더 캐시(무거운 효과 구간), 남은 결정 두 건(wasm 12MB 의
+  기능 제외, 상류 단축키 충돌).
 
 ## 2026-10-15 - P2 세 갈래: 인코더 병렬화, 엔진 미디어, 앱 다듬기 (v0.1.10)
 

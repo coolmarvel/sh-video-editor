@@ -7,7 +7,7 @@ members = ["bindings/napi", "bindings/wasm", "bindings/speech-wasm"]  # crates/s
 exclude = ["vendor"]
 
 [workspace.package]
-version = "0.1.10"
+version = "0.1.11"
 edition = "2024"
 license = "UNLICENSED"
 publish = false

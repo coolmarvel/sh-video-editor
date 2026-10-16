@@ -2,6 +2,7 @@
  * SVG 문자열을 PNG 바이트로 래스터한다(브라우저 Image + canvas). 엔진은 SVG 를 읽지 못하므로(media: unrecognised format)
  * 화면이 PNG 를 만들어 호스트 파일(웹 registerFiles, 데스크톱 writeTempFile)로 넘긴다. 테스트는 다른 구현을 주입한다.
  */
+import { stickerDataUrl } from './catalog';
 export type Rasterizer = (svg: string, size: number) => Promise<Uint8Array>;
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -14,7 +15,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 export const rasterizeSvg: Rasterizer = async (svg, size) => {
-  const img = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  const img = await loadImage(stickerDataUrl(svg));
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;

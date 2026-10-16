@@ -57,12 +57,18 @@
   display: inline-flex;
 }
 .stk-card__img {
+  display: block;
   width: var(--sh-space-48);
   height: var(--sh-space-48);
   background: var(--sh-color-stage-image);
   border: var(--sh-border-width) solid var(--sh-color-border);
   padding: var(--sh-space-4);
   box-sizing: border-box;
+}
+.stk-card__img > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .stk-card__label {
   font-size: var(--sh-font-size-caption);

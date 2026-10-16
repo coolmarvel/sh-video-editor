@@ -4,7 +4,7 @@
  * 표식이 붙는다. DESIGN.md 4.23
  */
 import { useStickers } from './store';
-import { STICKER_CATEGORIES, isAnimated, stickerDataUrl, stickersInCategory } from './catalog';
+import { STICKER_CATEGORIES, isAnimated, stickersInCategory } from './catalog';
 import { useTimeline } from '../timeline/store';
 import './stickers.css';
 
@@ -37,7 +37,9 @@ export function StickerGallery() {
                     onClick={() => void addSticker(s.id)}
                   >
                     <span className="stk-card__frame">
-                      <img className="stk-card__img" src={stickerDataUrl(s.svg)} alt="" draggable={false} />
+                      {/* 미리보기는 SVG 를 문서에 그대로 넣는다. <img src="data:image/svg+xml"> 는 그림마다 따로 SVG 문서를 만들어 탭을 처음
+                          열 때 30개에 약 54ms 가 걸렸다(docs/guides/performance-audit.md). 원문은 이 저장소의 에셋(assets/*.svg)이다 */}
+                      <span className="stk-card__img" aria-hidden="true" dangerouslySetInnerHTML={{ __html: s.svg }} />
                       {isAnimated(s) ? (
                         <span className="stk-card__anim" aria-hidden="true">
                           <svg viewBox="0 0 8 8" width="8" height="8" focusable="false">

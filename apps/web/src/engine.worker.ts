@@ -217,6 +217,24 @@ async function handle(method: string, args: unknown[]): Promise<{ result: unknow
       const [tick, scale] = args as [number, number];
       return unpackFrame(engine.renderFrame(BigInt(tick), scale));
     }
+    // 재생 읽어 두기(docs/guides/playback.md). wasm 은 스레드가 없어 화면이 한가할 때 playbackPump 로 진행한다
+    case 'playbackStart': {
+      const [tick, rate, scale] = args as [number, number, number];
+      engine.playbackStart(BigInt(tick), rate, scale);
+      return { result: undefined };
+    }
+    case 'playbackPrepare': {
+      const [tick, scale] = args as [number, number];
+      engine.playbackPrepare(BigInt(tick), scale);
+      return { result: undefined };
+    }
+    case 'playbackStop':
+      engine.playbackStop();
+      return { result: undefined };
+    case 'playbackStatus':
+      return { result: JSON.parse(engine.playbackStatus()) };
+    case 'playbackPump':
+      return { result: engine.playbackPump(args[0] as number) };
     case 'drainEvents':
       return { result: JSON.parse(engine.drainEvents()) };
     case 'renderItemThumbnail': {

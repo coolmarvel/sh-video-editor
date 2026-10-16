@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { TICKS_PER_SECOND } from '../../engine/time';
+import { loadQuality, type PlaybackQuality } from './quality';
 
 /**
  * 모니터(미리보기) 상태.
@@ -51,6 +52,10 @@ interface MonitorState {
   rate: number;
   stats: MonitorStats;
   error: string | null;
+  /** 재생 화질(자동·전체·1/2·1/4). 정지 중에는 표시 크기에 맞춰 그린다(quality.ts) */
+  quality: PlaybackQuality;
+  /** 재생을 눌렀지만 첫 프레임을 준비하는 중(프리롤이 300ms 를 넘을 때만 켠다) */
+  preparing: boolean;
 }
 
 export const useMonitor = create<MonitorState>(() => ({
@@ -60,6 +65,8 @@ export const useMonitor = create<MonitorState>(() => ({
   rate: 1,
   stats: { renderMs: 0, fps: 0, dropped: 0, scale: 0.5 },
   error: null,
+  quality: loadQuality(),
+  preparing: false,
 }));
 
 /** sequence.inspect 결과에서 모니터가 쓰는 값만 뽑는다. */

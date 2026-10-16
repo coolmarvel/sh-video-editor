@@ -90,7 +90,17 @@
   }
 }
 /* 재생 배율 select: 툴바 한 줄 높이에 맞춘 좁은 콤보(글자 4자 + 화살표) */
-.mon-rate {
+.mon-rate,
+.mon-quality {
   width: calc(var(--sh-space-48) + var(--sh-space-16));
   flex: none;
+}
+/* 프리롤이 300ms 를 넘을 때만 보이는 "준비 중"(DESIGN.md 4.29). 타임코드가 margin-left auto 로 오른쪽에 붙으므로 그 왼쪽에 둔다 */
+.mon-preparing {
+  margin-left: auto;
+  font-size: var(--sh-font-size-caption);
+  color: var(--sh-color-text-secondary);
+}
+.mon-preparing + .mon-timecode {
+  margin-left: var(--sh-space-8);
 }

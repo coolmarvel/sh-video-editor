@@ -80,6 +80,12 @@ const methods: Record<EngineRequest['m'], (...a: never[]) => unknown> = {
     // Buffer 를 그대로 보낸다. 구조적 복제가 받는 쪽에서 Uint8Array 로 만들며, 여기서 복사하지 않는다.
     return f ? { width: f.width, height: f.height, rgba: f.rgba } : null;
   },
+  // 재생 읽어 두기(docs/guides/playback.md): 엔진 스레드가 앞 프레임을 그리는 동안 이 프로세스는 다른 요청을 계속 받는다
+  playbackStart: (tick: number, rate: number, scale: number) => getSession().playbackStart(tick, rate, scale),
+  playbackPrepare: (tick: number, scale: number) => getSession().playbackPrepare(tick, scale),
+  playbackStop: () => getSession().playbackStop(),
+  playbackStatus: () => JSON.parse(getSession().playbackStatus()) as unknown,
+  playbackPump: (budgetMs: number) => getSession().playbackPump(budgetMs),
   // 바인딩은 JSON 문자열을 돌려준다. 여기서 풀어 배열로 보낸다(렌더러는 EngineEvent[] 를 받는다).
   drainEvents: () => JSON.parse(getSession().drainEvents()) as unknown[],
   renderItemThumbnail: (item: number, tick: number, width: number) => {

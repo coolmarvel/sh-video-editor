@@ -404,3 +404,163 @@ describe('엔진 이벤트 구독', () => {
     expect(engine.calls.length).toBe(n);
   });
 });
+
+/** 읽어 두기 호스트 흉내: status 의 ready 는 테스트가 정한다. 부른 순서를 남긴다 */
+function withPlayback(engine: FakeEngine, opts: { threaded?: boolean } = {}) {
+  const calls: string[] = [];
+  const st = { ready: 0, target: 1, active: false };
+  const host = {
+    start: vi.fn(async (tick: number, rate: number, scale: number) => {
+      calls.push(`start ${tick} ${rate} ${scale}`);
+      st.active = true;
+    }),
+    prepare: vi.fn(async (tick: number, scale: number) => {
+      calls.push(`prepare ${tick} ${scale}`);
+    }),
+    stop: vi.fn(async () => {
+      calls.push('stop');
+      st.active = false;
+    }),
+    status: vi.fn(async () => ({
+      active: st.active,
+      playing: st.active,
+      ready: st.ready,
+      target: st.target,
+      bytes: 0,
+      hits: 0,
+      misses: 0,
+      rendered: 0,
+      warmed: 0,
+      threaded: opts.threaded ?? true,
+    })),
+    pump: vi.fn(async () => false),
+  };
+  engine.bridge.playback = host;
+  return { host, calls, st };
+}
+
+describe('프리롤·읽어 두기', () => {
+  it('재생을 누르면 첫 프레임이 준비될 때까지 시계를 출발시키지 않는다', async () => {
+    const { engine } = engineWithClips();
+    const { host, st } = withPlayback(engine);
+    const c = make(engine);
+    await c.refreshSequence();
+    c.play();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(host.start).toHaveBeenCalledTimes(1);
+    expect(mon().playing).toBe(false);
+    expect(mon().preparing).toBe(false);
+    st.ready = 1;
+    await vi.advanceTimersByTimeAsync(10);
+    expect(mon().playing).toBe(true);
+    expect(c.isPlaying()).toBe(true);
+  });
+
+  it('300ms 를 넘으면 준비 중을 보이고, 1초가 지나면 그냥 출발한다', async () => {
+    const { engine } = engineWithClips();
+    withPlayback(engine);
+    const c = make(engine);
+    await c.refreshSequence();
+    c.play();
+    await vi.advanceTimersByTimeAsync(320);
+    expect(mon().preparing).toBe(true);
+    expect(mon().playing).toBe(false);
+    await vi.advanceTimersByTimeAsync(800);
+    expect(mon().playing).toBe(true);
+    expect(mon().preparing).toBe(false);
+  });
+
+  it('프리롤 중 정지(Space)는 재생을 취소하고 읽어 두기를 멈춘다', async () => {
+    const { engine } = engineWithClips();
+    const { host, st } = withPlayback(engine);
+    const c = make(engine);
+    await c.refreshSequence();
+    c.toggle();
+    await vi.advanceTimersByTimeAsync(20);
+    c.toggle();
+    st.ready = 1;
+    await vi.advanceTimersByTimeAsync(50);
+    expect(mon().playing).toBe(false);
+    expect(host.stop).toHaveBeenCalled();
+  });
+
+  it('정지하면 잠시 뒤 다음 재생을 준비하고, 연달아 움직이면 마지막 자리만 준비한다', async () => {
+    const { engine } = engineWithClips();
+    const { host, st } = withPlayback(engine);
+    const c = make(engine);
+    await c.refreshSequence();
+    st.ready = 1;
+    c.play();
+    await vi.advanceTimersByTimeAsync(300);
+    c.pause();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(host.stop).toHaveBeenCalled();
+    expect(host.prepare).toHaveBeenCalledTimes(1);
+    expect(host.prepare.mock.calls[0]?.[0]).toBe(engine.state.playhead);
+    host.prepare.mockClear();
+    await c.seek(FT30 * 3);
+    await c.seek(FT30 * 9);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(host.prepare).toHaveBeenCalledTimes(1);
+    expect(host.prepare.mock.calls[0]?.[0]).toBe(FT30 * 9);
+  });
+
+  it('재생 중 탐색·배속·화질 변경은 그 자리에서 읽어 두기를 다시 건다', async () => {
+    const { engine } = engineWithClips();
+    const { host, st } = withPlayback(engine);
+    const c = make(engine);
+    await c.refreshSequence();
+    c.setViewport(960);
+    st.ready = 1;
+    c.play();
+    await vi.advanceTimersByTimeAsync(100);
+    host.start.mockClear();
+    await c.seek(FT30 * 30);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(host.start.mock.calls.at(-1)?.[0]).toBe(FT30 * 30);
+    c.setRate(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(host.start.mock.calls.at(-1)?.[1]).toBe(2);
+    c.setQuality('quarter');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(host.start.mock.calls.at(-1)?.[2]).toBe(0.25);
+    expect(mon().quality).toBe('quarter');
+    expect(localStorage.getItem('ve.monitor.quality')).toBe('quarter');
+    c.pause();
+    c.setQuality('auto');
+  });
+
+  it('스레드 없는 호스트(웹 wasm)는 프리롤 없이 바로 출발한다', async () => {
+    const { engine } = engineWithClips();
+    const { host } = withPlayback(engine, { threaded: false });
+    const c = make(engine);
+    c.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await c.refreshSequence();
+    c.play();
+    expect(mon().playing).toBe(true);
+    expect(host.start).not.toHaveBeenCalled();
+    c.pause();
+  });
+
+  it('고정 화질(1/2)에서는 렌더가 느려도 배율을 바꾸지 않는다', async () => {
+    const { engine } = engineWithClips();
+    const c = make(engine);
+    await c.refreshSequence();
+    const { canvas } = fakeCanvas();
+    c.attachCanvas(canvas);
+    c.setViewport(1920);
+    await vi.advanceTimersByTimeAsync(0);
+    c.setQuality('half');
+    const original = engine.bridge.renderFrame;
+    engine.bridge.renderFrame = async (tick, scale) => {
+      await new Promise((r) => setTimeout(r, 120));
+      return original(tick, scale);
+    };
+    c.play();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(mon().stats.scale).toBe(0.5);
+    c.pause();
+    c.setQuality('auto');
+  });
+});

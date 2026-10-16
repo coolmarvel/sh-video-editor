@@ -102,7 +102,15 @@ pub fn event_json(e: Event) -> serde_json::Value {
         Event::RevealInProject(item) => {
             serde_json::json!({"type": "revealInProject", "item": item.0})
         }
-        Event::JobProgress { id, kind, label, progress, done, cancelled, error } => serde_json::json!({
+        Event::JobProgress {
+            id,
+            kind,
+            label,
+            progress,
+            done,
+            cancelled,
+            error,
+        } => serde_json::json!({
             "type": "jobProgress",
             "id": id,
             "kind": kind,
@@ -222,13 +230,52 @@ impl Engine {
     /// 시퀀스가 없으면 None.
     #[napi]
     pub fn render_frame(&self, tick: i64, scale: f64) -> Option<Frame> {
-        let img = self.session.render_program_at(scale as f32, Tick(tick))?;
-        let (w, h) = (u32::try_from(img.w).ok()?, u32::try_from(img.h).ok()?);
+        // 재생 중이면 읽어 두기(playbackStart)가 준비한 프레임을 그대로 쓴다
+        let (w, h, rgba) = self
+            .session
+            .render_program_rgba8(scale as f32, Tick(tick))?;
         Some(Frame {
-            width: w,
-            height: h,
-            rgba: Buffer::from(img.over_black_rgba8()),
+            width: u32::try_from(w).ok()?,
+            height: u32::try_from(h).ok()?,
+            rgba: Buffer::from(rgba),
         })
+    }
+
+    /// 재생 읽어 두기 시작: `tick` 부터 `rate` 방향·보폭(2 = 한 프레임 건너, 음수 = 뒤로)으로 `scale` 프레임을
+    /// 백그라운드 스레드가 미리 그린다(docs/guides/playback.md). 시퀀스가 없으면 오류.
+    #[napi]
+    pub fn playback_start(&self, tick: i64, rate: f64, scale: f64) -> Result<()> {
+        self.session
+            .playback_start(Tick(tick), rate, scale as f32)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// 정지 중 미리 준비: `tick` 부터 몇 프레임을 그려 두어 다음 재생이 바로 시작한다(디코더 열기 포함).
+    #[napi]
+    pub fn playback_prepare(&self, tick: i64, scale: f64) -> Result<()> {
+        self.session
+            .playback_prepare(Tick(tick), scale as f32)
+            .map_err(|e| Error::from_reason(e.to_string()))
+    }
+
+    /// 읽어 두기 멈춤(준비한 프레임은 버린다).
+    #[napi]
+    pub fn playback_stop(&self) {
+        self.session.playback_stop();
+    }
+
+    /// 읽어 두기 상태 JSON `{active, playing, ready, target, bytes, hits, misses, rendered, warmed}`.
+    /// 재생 시작 전 `ready >= target` 까지 기다리면 프리롤이다.
+    #[napi]
+    pub fn playback_status(&self) -> String {
+        self.session.playback_status().to_string()
+    }
+
+    /// wasm 과 같은 모양. 네이티브는 스레드가 일하므로 항상 false.
+    #[napi]
+    pub fn playback_pump(&self, budget_ms: u32) -> bool {
+        self.session
+            .playback_pump(std::time::Duration::from_millis(u64::from(budget_ms)))
     }
 
     /// 활성 시퀀스의 믹스를 `tick` 부터 `frames` 프레임, interleaved 스테레오 f32 PCM 으로(길이 `frames * 2`).

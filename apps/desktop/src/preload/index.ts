@@ -28,6 +28,12 @@ const shEngine = {
       height: number;
       rgba: Uint8Array;
     } | null>('renderFrame', tick, scale),
+  /** 재생 읽어 두기(docs/guides/playback.md). status 는 엔진 프로세스가 JSON 을 풀어 보낸다 */
+  playbackStart: (tick: number, rate: number, scale: number) => call<void>('playbackStart', tick, rate, scale),
+  playbackPrepare: (tick: number, scale: number) => call<void>('playbackPrepare', tick, scale),
+  playbackStop: () => call<void>('playbackStop'),
+  playbackStatus: () => call<unknown>('playbackStatus'),
+  playbackPump: (budgetMs: number) => call<boolean>('playbackPump', budgetMs),
   /** 엔진 이벤트 배열(`{type, ...}`). 엔진 프로세스가 JSON 을 풀어 보낸다 */
   drainEvents: () => call<unknown[]>('drainEvents'),
   renderItemThumbnail: (item: number, tick: number, width: number) =>

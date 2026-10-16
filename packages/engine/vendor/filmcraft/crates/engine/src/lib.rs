@@ -1172,7 +1172,6 @@ impl Session {
         }
         let img = self.render_program_at(scale, t)?;
         let rgba = img.over_black_rgba8();
-        self.read_ahead().remember(self.playback_target(seq, scale), t);
         Some((img.w, img.h, rgba))
     }
 

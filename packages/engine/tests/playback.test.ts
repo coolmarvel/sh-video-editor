@@ -91,18 +91,18 @@ d('napi 읽어 두기', () => {
     exec(engine, 'edit.undo');
   });
 
-  it('정지 중 준비: 보이는 프레임 다음부터 준비하고 재생은 그것을 쓴다', async () => {
+  it('정지 중 준비: 플레이헤드부터 준비하고 재생은 첫 프레임부터 큐에서 받는다', async () => {
     engine.renderFrame(0, 0.5);
     engine.playbackPrepare(0, 0.5);
-    await waitReady(1);
+    await waitReady(3);
     const st = status();
     expect(st.playing).toBe(false);
-    expect(st.ready).toBeLessThanOrEqual(3);
+    expect(st.ready).toBe(3);
     const hits = st.hits;
     engine.playbackStart(0, 1, 0.5);
     expect(engine.renderFrame(0, 0.5)).not.toBeNull();
     expect(engine.renderFrame(FT, 0.5)).not.toBeNull();
-    expect(status().hits).toBe(hits + 1);
+    expect(status().hits).toBe(hits + 2);
     engine.playbackStop();
   });
 

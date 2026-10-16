@@ -18,8 +18,9 @@
 //!   once `ready >= target` or after their own timeout.
 //! - With the queue full the worker opens decoders for clips that start within the next
 //!   [`WARM_AHEAD_SECONDS`] (renders one frame there and drops it), so crossing a cut does not pay
-//!   the decoder open during playback. [`ReadAhead::prepare`] does the same while paused: the
-//!   first frames at the playhead are ready before the user presses play.
+//!   the decoder open during playback. [`ReadAhead::prepare`] readies the first frames at the
+//!   playhead while paused (the shown frame again, in the background: the next play takes it
+//!   from the queue instead of rendering it on the host's thread).
 //!
 //! Native hosts get one background thread (`filmcraft-readahead`). wasm32 has no threads:
 //! the host calls [`ReadAhead::pump`] with a time budget when its worker is idle.
@@ -100,10 +101,6 @@ impl Plan {
 #[derive(Default)]
 struct State {
     plan: Option<Plan>,
-    /// The tick last rendered on demand while no plan was active (the paused monitor frame): its
-    /// decoders are open and the frame is decoded, so a plan from that tick starts at the next
-    /// frame and the host renders that first one on demand (cheap, from the decoder cache).
-    last: Option<(Target, Tick)>,
     ready: VecDeque<ReadyFrame>,
     bytes: usize,
     /// The frame the worker is rendering now: (plan generation, tick).
@@ -213,14 +210,6 @@ impl ReadAhead {
         self.plan(target, t, 1.0, frame, false);
     }
 
-    /// The host just rendered `t` on demand with no plan active (see `State::last`).
-    pub fn remember(&self, target: Target, t: Tick) {
-        let mut st = lock(&self.shared);
-        if st.plan.is_none() {
-            st.last = Some((target, t));
-        }
-    }
-
     fn plan(&self, target: Target, t: Tick, rate: f64, frame: Tick, playing: bool) {
         let frame = frame.0.max(1);
         let stride = if rate.is_finite() && rate.abs() >= 1.0 { rate.abs().round() as i64 } else { 1 };
@@ -241,20 +230,13 @@ impl ReadAhead {
                 st.bytes -= f.rgba.len();
                 st.ready.pop_front();
             }
-            // the queue starts at `t`, or right after it when the host showed `t` on demand (paused)
-            let contiguous = st.ready.front().is_some_and(|f| f.tick == t || f.tick.0 == t.0 + step);
+            let contiguous = st.ready.front().is_some_and(|f| f.tick == t);
             if !contiguous {
                 st.clear_ready();
             }
         }
-        // a fresh plan at the tick the host just rendered starts after it
-        let shown = st.ready.is_empty()
-            && st.last.as_ref().is_some_and(|(lt, lt_tick)| {
-                *lt_tick == t && lt.seq == target.seq && lt.revision == target.revision && lt.scale.to_bits() == target.scale.to_bits()
-            });
-        st.last = None;
         st.generation += 1;
-        let next = st.ready.back().map(|f| Tick(f.tick.0 + step)).unwrap_or(if shown { Tick(t.0 + step) } else { t });
+        let next = st.ready.back().map(|f| Tick(f.tick.0 + step)).unwrap_or(t);
         let warmed = st.plan.as_ref().filter(|_| keep).map(|p| p.warmed.clone()).unwrap_or_default();
         let ahead = if playing { AHEAD_FRAMES } else { PREPARE_FRAMES };
         st.plan = Some(Plan {

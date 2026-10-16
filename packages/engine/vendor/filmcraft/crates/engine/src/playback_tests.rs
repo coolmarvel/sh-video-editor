@@ -160,22 +160,18 @@ fn no_sequence_is_an_error_and_status_is_inactive() {
 }
 
 #[test]
-fn prepare_after_the_shown_frame_starts_at_the_next_one() {
-    let s = two_clips("ra-remember");
+fn play_after_prepare_takes_the_shown_frame_from_the_queue() {
+    let s = two_clips("ra-shown");
     let f = frame(&s);
-    // paused: the monitor renders the playhead frame on demand (decoders open), then prepares there
+    // paused: the monitor shows frame 0 on demand, then prepares from there (frame 0 again, in the background)
     let (_, _, shown) = s.render_program_rgba8(1.0, Tick::ZERO).unwrap();
     s.playback_prepare(Tick::ZERO, 1.0).unwrap();
     wait_ready(&s, PREPARE_FRAMES as u64);
-    let st = status(&s);
-    assert_eq!(st["rendered"].as_u64().unwrap(), PREPARE_FRAMES as u64, "{st}");
-    // play: the prepared queue is kept; frame 0 again on demand (the queue starts at frame 1),
-    // then frame 1 from the queue
     s.playback_start(Tick::ZERO, 1.0, 1.0).unwrap();
     assert_eq!(status(&s)["ready"].as_u64().unwrap(), PREPARE_FRAMES as u64, "play dropped the prepared frames: {}", status(&s));
-    let (_, _, again) = s.render_program_rgba8(1.0, Tick::ZERO).unwrap();
-    assert_eq!(again, shown);
+    let (_, _, first) = s.render_program_rgba8(1.0, Tick::ZERO).unwrap();
+    assert_eq!(first, shown);
     let (_, _, next) = s.render_program_rgba8(1.0, f).unwrap();
     assert_eq!(next, on_demand(&s, f));
-    assert_eq!(status(&s)["hits"].as_u64().unwrap(), 1, "{}", status(&s));
+    assert_eq!(status(&s)["hits"].as_u64().unwrap(), 2, "{}", status(&s));
 }

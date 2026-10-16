@@ -4,7 +4,7 @@ import { useEngineEvents } from '../events/store';
 import { RevisionGate, neededRevision } from '../events/revision-gate';
 import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
 import { AutoQuality, SCALES, playStartScale, saveQuality, type PlaybackQuality } from './quality';
-import { useTimeline } from '../timeline/store';
+import { SEQUENCE_READ, useTimeline } from '../timeline/store';
 import { errorMessage } from '../../errors';
 
 /** 재생 중 백그라운드 작업(pumpJobs) 호출 간격과 1회 예산 */
@@ -404,7 +404,7 @@ export class MonitorController {
       revision = shared.revision;
     } else {
       try {
-        const raw = await this.bridge.execute('sequence.inspect');
+        const raw = await this.bridge.execute('sequence.inspect', SEQUENCE_READ);
         seq = toSequenceInfo(raw);
         const r = (raw as { revision?: unknown }).revision;
         if (typeof r === 'number') revision = r;

@@ -364,6 +364,8 @@ describe('엔진 이벤트 구독', () => {
     useEngineEvents.setState({ openedSequence: engine.sequence.id, sequenceChanged: ev().sequenceChanged + 1 });
     await vi.advanceTimersByTimeAsync(0);
     expect(engine.callsOf('sequence.inspect').length).toBe(inspects + 1);
+    // 모니터의 자기 읽기도 타임라인 store 와 같은 요약 모양이라 읽기 합치기(engine/coalesce)가 하나로 묶는다
+    expect(engine.callsOf('sequence.inspect').at(-1)).toEqual({ effects: 'summary' });
   });
 
   it('정지 중 playheadChanged 는 tick 을 맞추고 그린다, 재생 중에는 무시한다', async () => {

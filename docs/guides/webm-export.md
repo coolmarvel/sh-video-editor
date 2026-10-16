@@ -1,7 +1,7 @@
 ---
 title: WebM(VP9/Opus)·HEVC·AV1 내보내기
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: engine
 ---
 
@@ -317,6 +317,11 @@ Aurora 10·20 Mbps 는 화질 상한(q 1 에서 9.5 Mbps)이라 바뀌지 않는
   CTU 열 1·2·여럿; 진입점을 1 바이트 틀리게 하면 실패하는 것을 확인했다), `wpp_stream_is_the_same_for_any_worker_count`(작업자 1개와 4개가 같은 바이트).
 - AV1 `parallel_rows_equal_one_thread`(한 스레드 풀과 네 스레드 풀이 같은 바이트, 우리 디코더와 비트 일치, 8·10비트, 상수 q·비트레이트).
 - 기존 왕복·ffmpeg 오라클 테스트 전부(VP9 11, HEVC 14, AV1 9 + 오라클 2), `packages/engine/tests/export-{webm,hevc,av1}.test.ts`.
-- `packages/engine/tests/export-parallel.test.ts`: 같은 400x240 편집본을 wasm(한 스레드)과 napi(여러 스레드) 엔진에서 1초 내보내 WebM·AV1 은 바이트가 같고,
-  세 형식 모두 ffprobe 코덱·30 프레임·ffmpeg 디코드 오류 0. HEVC 는 이 작업 전(0.1.9)에도 wasm 과 napi 의 바이트가 달라(같은 플랫폼 안에서는 작업자 수와
-  무관하게 같다) 유효성만 본다.
+- `packages/engine/tests/export-parallel.test.ts`: 같은 400x240 편집본(데모 OceanSunset, 영상만)을 wasm(한 스레드)과 napi(여러 스레드) 엔진에서 1초
+  내보내 WebM·H.264·HEVC·AV1 네 형식 모두 바이트가 같고 ffprobe 코덱·30 프레임·ffmpeg 디코드 오류 0.
+- 데스크톱과 웹이 같은 파일을 쓰는가(2026-10-16): 인코더(hevcenc, h264enc, opusenc, vp9enc, av1enc)는 같은 입력이면 네이티브와 브라우저 wasm
+  (`wasm32-unknown-unknown`)에서 같은 바이트를 낸다(실제 영상을 디코드한 YUV 와 합성 입력으로 확인). H.264 내보내기는 슬라이스 수를 프레임 높이로
+  정해(`h264_slices`) CPU 코어 수와 무관하다. 예전에 "HEVC 는 wasm 과 napi 바이트가 다르다" 로 보인 것은 입력 차이였다: 데모 생성기가 쓰는
+  sin·exp·powf·atan2 의 마지막 비트가 C 라이브러리(네이티브)와 Rust libm(브라우저)에서 가끔 달라, Aurora 화면은 30 프레임 중 3 프레임의 5 샘플이 1,
+  OceanSunset 소리는 1초에 한 샘플이 다르다. 카메라 영상처럼 정수로 디코드하는 미디어는 두 엔진에서 같은 프레임이다. 인코더의 pow·log2 를
+  libm 으로 바꾸는 것은 출력이 바뀌지 않아(같은 입력에서 이전과 같은 바이트) 넣지 않았다.

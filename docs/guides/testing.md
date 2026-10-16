@@ -11,7 +11,7 @@ domain: development
 
 테스트는 다섯 층과 워크플로 회귀 하나다. 아래로 갈수록 실제 환경에 가깝고 느리다. 빠른 층이 먼저 돌고, 느린 층은 빌드 산출물을
 전제로 한다. `npm run verify`(CLAUDE.md 변경 후 자동 규칙 2)는 lint + 엔진 빌드 + typecheck + 1~3층 + 워크플로 회귀 + 앱 빌드이고,
-e2e 두 층은 `npm run test:all` 또는 CI 가 돌린다. 층별 수·시간은 `npm run test:report` 가 표로 찍는다(session-log 에 붙인다).
+e2e 두 층은 `npm run verify:full`(verify + 데스크톱 스모크 + 웹 e2e + 데스크톱 e2e, 화면을 바꾼 변경 뒤), `npm run test:all` 또는 CI 가 돌린다. 단계별 시간은 아래 "verify 와 verify:full" 절. 층별 수·시간은 `npm run test:report` 가 표로 찍는다(session-log 에 붙인다).
 
 | 층  | 이름                 | 무엇을                                                                                                                                                                                                                     | 설정·위치                                                                   | 명령                                                                               |
 | --- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -28,6 +28,7 @@ e2e 두 층은 `npm run test:all` 또는 CI 가 돌린다. 층별 수·시간은
 | 항목                | 내용                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 엔진 산출물         | 3·4·5층과 `npm run typecheck`(napi `index.d.ts`, wasm pkg 타입)는 `npm run build:engine` 결과가 있어야 한다. 없으면 3층은 `describe.skip`, typecheck 는 실패                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 새 워크트리         | 엔진 산출물(napi `.node`·`index.d.ts`, `wasm/pkg`, `speech-wasm/pkg`)은 gitignore 라 `git worktree add` 직후 비어 있다. `npm run check:artifacts` 가 빠진 파일과 할 일(빌드 명령, 또는 산출물이 있는 다른 워크트리에서 복사하는 명령)을 찍고, `npm run typecheck` 는 타입 파일부터 같은 검사(`--types`)를 해 "알 수 없는 모듈" 대신 이 안내로 멈춘다. 복사는 같은 커밋의 엔진일 때만 맞다. 이 컴퓨터의 node(volta 심)는 0 이 아닌 종료 코드를 모두 126 으로 바꾼다                                                                                                                                                                                                                                                                                                              |
 | ffmpeg·ffprobe      | 3층의 오라클과 코퍼스 생성(`tests/corpus/gen.sh`), 워크플로 회귀의 결과 MP4 검사. 없으면 `media-compat`·내보내기 검증 일부가 skip 되고(`helpers.ts` `hasFfprobe`) 워크플로 회귀는 파일 크기만 본다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | filmcraft-cli       | 워크플로 회귀와 `.mcp.json` 의 `filmcraft` MCP 서버(`scripts/filmcraft-mcp.mjs`)가 쓰는 헤드리스 CLI. 빌드 산출물 `packages/engine/vendor/filmcraft/target/release/filmcraft-cli`(`FILMCRAFT_CLI` 로 바꿀 수 있다). 없으면 `test:workflow` 가 처음 한 번 `cargo build -p filmcraft-cli --release`(3~4분)를 하고, MCP 서버는 안내만 찍고 비활성. 실측(2026-10-14, WSL2): 1단계 0.1초, 내보내기 포함 2단계 19.7초, 총 20초라 `npm run verify` 의 test 단계에 들어 있다. 60초를 넘기면 verify 에서 빼고 CI job 으로만 돌린다(스크립트가 경고를 찍는다)                                                                                                                                                                                                                             |
 | STT 모델            | 3층 `stt.test.ts` 의 인식 테스트와 `stt-web.test.ts` 의 whisper-tiny 인식(음성 wasm)은 이 컴퓨터에 Whisper 가중치(`FILMCRAFT_DATA_DIR` 또는 `~/.local/share/filmcraft/models`)가 있을 때만 돈다. 없으면 사유와 함께 skip. CI 러너에는 없으므로 늘 skip. 다운로드 테스트는 네트워크가 없으면 오류만 확인하고 끝낸다. 웹 e2e `stt.spec.ts` 는 whisper-tiny 가 있으면(`SH_E2E_WHISPER_DIR`) Hugging Face 요청을 로컬 파일 서버로 302 돌려 내려받기·인식을 끝까지 돌리고(route.fulfill 로 수백 MB 를 넘기면 브라우저가 죽는다), `SH_E2E_SPEECH_WAV`(16 kHz 모노 말소리)와 `SH_E2E_STT_MODEL`(기본 whisper-tiny)이 있으면 말소리 인식과 시간까지. Rust 실모델 테스트 `early_ending_does_not_drop_the_rest_of_the_window`(ignored)는 `FILMCRAFT_TEST_WHISPER`·`FILMCRAFT_TEST_SPEECH` |
@@ -43,6 +44,9 @@ e2e 두 층은 `npm run test:all` 또는 CI 가 돌린다. 층별 수·시간은
 - 재시도: 두 Playwright 설정 모두 `retries: CI ? 1 : 0`. 로컬은 한 번에 통과해야 하고, CI 는 한 번 더 돌려 통과하면 리포트에 `flaky` 로 남는다(`test-report.mjs` 표의 flaky 열, CI 의 HTML 리포트). flaky 가 보이면 통과로 넘기지 말고 원인을 todo P3 에 적는다.
 - 데스크톱 복구 테스트(`apps/desktop/e2e/recovery.spec.ts`): 과거 전체 스위트에서 CPU 경합 때 120초 타임아웃(todo P3). 지금은 (1) `recovery` 프로젝트가 `app` 프로젝트 뒤에 혼자 돌고(`dependencies`), (2) `onCrashed` 리스너 등록을 끝낸 뒤에 SIGKILL 하며, (3) 알림 대기에 상한 20초를 두고 안 오면 현재 엔진 pid 를 다시 죽인다(최대 3회), (4) 단계마다 `[recovery +초]` 로그를 남긴다. 복구만 돌리기: `xvfb-run -a npx playwright test -c apps/desktop/playwright.config.ts --project recovery --no-deps`.
 - 390 폭 전환 테스트(`apps/web/e2e/transitions.spec.ts`): 좁은 뷰포트에서 드래그 목표가 가로 스크롤 밖이라 skip 이었다. 지금은 둘째 클립 선택 -> 적용 위치 "앞" -> 카드 포커스 -> Enter 로 같은 편집점에 넣는다(`TransitionGallery.tsx` 의 `onKeyDown`, 더블클릭과 같은 store 경로). skip 은 `usage.spec.ts` 의 "390 폭에서만 본다"(반대 프로젝트 제외) 하나뿐이다.
+- 하위 메뉴 클릭(`apps/web/e2e/web-files.spec.ts` 390 "최근 프로젝트에서 열면", 2026-10-16): 부하 중 20회에 1회 하위 메뉴가 안 보였다. 원인은 제품 쪽 경쟁이었다: 하위 메뉴 항목이 마우스가 들어오면 열리고(`onPointerEnter`) 클릭하면 토글이라, 들어온 뒤 React 가 다시 그린 다음 온 클릭이 방금 연 메뉴를 닫았다(사람이 "최근 프로젝트" 로 가서 누를 때도 같다). 클릭은 열기만 하게 고치고(`shell/MenuBar.tsx`, 닫기는 Esc·왼쪽 화살표·다른 항목) 들어오기 다음 클릭을 재현하는 단위 테스트를 더했다(예전 코드에서 실패). 부하(load 8~21)에서 390 20회 + 1440·390 각 10회 모두 통과.
+- 키프레임 상태 줄(`keyframes.spec.ts` 390): 부하 21 에서 10회 x 7 테스트 70 통과로 재현되지 않았다. 설정 뒤 5초 동안 상태 줄을 바꾸는 것은 사용자 동작뿐이었고(늦게 오는 엔진 토스트 없음), 예전 추정 로직을 지운 키프레임 store 재작성(2026-10-15) 뒤로 원인이 사라진 것으로 본다.
+- vendor HEVC 적합성 `draft_mode_changes_only_flagged_non_reference_pictures`(2026-10-16): 픽스처가 없는 새 체크아웃(CI, 새 워크트리)에서 같은 픽스처를 여러 테스트·프로세스가 동시에 만들면, libx265 가 실행마다 같은 바이트를 내지 않아 한 쪽의 `.hevc` 와 다른 쪽이 디코드한 `.yuv` 가 짝이 되어 "참조와 다름" 으로 실패했다(새 픽스처 라운드 4회 중 3회). 픽스처와 참조를 `filmcraft_testkit::fixture_lock`(파일 잠금, 스레드·프로세스 모두) 아래에서 만들게 했다(HEVC·H.264·VP9 의 `ensure`). 라운드마다 픽스처를 지우고 4개를 동시에 5라운드 돌려 20회 모두 통과(부하 32).
 - 시간 제한: 웹 90초/테스트, 데스크톱 120초(복구 180초), 엔진 기능 120초/테스트. 내보내기처럼 오래 걸리는 시나리오는 3층 `fileParallelism: false` 로 직렬.
 - 실패 산출물: Playwright 는 `apps/*/e2e/.results`(trace 는 실패 때만, 스크린샷은 실패 때만). CI 는 실패한 job 의 이 디렉토리를 artifact 로 올린다.
 
@@ -65,6 +69,32 @@ vendored xtask 의 `wasm` 서브커맨드는 `WEB_CRATES` 를 비워 L0~L4(`film
 ## 테스트 보고 (`scripts/test-report.mjs`)
 
 `node scripts/test-report.mjs [--layers unit,engine,web,desktop,rust] [--json out.json]`. 각 층을 JSON 리포터로 실제로 돌리고 파일 수·통과·실패·건너뜀·flaky·예상 실패·시간을 마크다운 표로 찍는다(Playwright 는 프로젝트별 줄도). 기본 층은 unit, engine, web, desktop 이고 rust 는 적어야 돈다. 데스크톱은 빌드된 `out/` 이 있어야 하며 없으면 그 줄이 실패로 표시된다. 하나라도 실패하면 종료 코드 1.
+
+## verify 와 verify:full
+
+`npm run verify` 는 커밋 전 기본 검사이고(lint, 엔진 빌드, typecheck, Rust·단위·엔진 기능 테스트, 워크플로 회귀, 앱 빌드), 바인딩은 3층 엔진 기능 테스트(`napi.test.ts`, `wasm.test.ts` 와 기능별 파일)가 Node 에서 실제로 불러 검사한다. e2e 는 시간이 커서 `npm run verify:full` 로 따로 둔다. 화면을 바꿨으면 `verify:full` 을 돌린다(CLAUDE.md 변경 후 자동 규칙 2).
+
+실측(2026-10-16, WSL2 16코어, 다른 워크트리의 Rust 빌드와 겹쳐 부하 평균 약 12, 새 워크트리라 Rust 테스트·CLI 는 처음 컴파일):
+
+| 단계                           | 초   | 비고                                                                  |
+| ------------------------------ | ---- | --------------------------------------------------------------------- |
+| lint(prettier + clippy)        | 145  |                                                                       |
+| build:engine:node              | 158  |                                                                       |
+| build:engine:wasm              | 310  |                                                                       |
+| build:engine:speech            | 136  |                                                                       |
+| typecheck                      | 25   | 산출물 검사 포함                                                      |
+| test:rust                      | 441  | 바인딩 워크스페이스 테스트를 처음 컴파일(이미 빌드된 트리는 1분 안팎) |
+| test:unit                      | 24   | 785                                                                   |
+| test:engine                    | 144  | 215                                                                   |
+| test:workflow                  | 352  | filmcraft-cli 처음 빌드(약 5분) + 회귀 자체 약 10초                   |
+| build(web·desktop)             | 12   |                                                                       |
+| **verify 합**                  | 1747 |                                                                       |
+| smoke(데스크톱)                | 2    | verify 가 만든 `out/` 을 쓴다                                         |
+| test:e2e:web(1440·390)         | 666  | 163 통과, skip 5                                                      |
+| 데스크톱 e2e(xvfb)             | 12   | 8 통과                                                                |
+| **verify:full 이 더하는 시간** | 680  | 약 11분                                                               |
+
+e2e 를 verify 에 넣으면 이미 빌드된 트리의 verify(10분 안팎)가 두 배가 되어 커밋 전 기본 검사에서 빼고 `verify:full` 로 묶었다.
 
 ## 관련 코드
 

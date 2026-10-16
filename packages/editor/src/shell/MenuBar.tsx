@@ -181,7 +181,9 @@ export function MenuBar({ host }: { host: HostKind }) {
             aria-expanded={isOpen}
             data-state={highlighted || isOpen ? 'hover' : undefined}
             onPointerEnter={() => openSub(i, false)}
-            onClick={() => (isOpen ? setSub(null) : openSub(i, false))}
+            // 누르면 열기만 한다(토글하지 않음): 마우스가 들어오며 이미 연 하위 메뉴를 같은 동작의 클릭이 닫아 버리던 것.
+            // 닫기는 Esc, 왼쪽 화살표, 다른 항목으로 옮기기(Windows 메뉴와 같다)
+            onClick={() => openSub(i, false)}
           >
             <span className="sh-menu__check" />
             <span className="sh-menu__label">{e.label}</span>

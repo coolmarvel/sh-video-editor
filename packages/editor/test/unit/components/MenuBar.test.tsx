@@ -37,6 +37,32 @@ describe('MenuBar', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
+  it('하위 메뉴 항목은 마우스가 들어와 열린 뒤 눌러도 닫히지 않는다(열기만, 닫기는 Esc)', async () => {
+    await connect();
+    render(<MenuBar host="web" />);
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
+    const demo = screen.getByRole('menuitem', { name: '데모 영상 넣기' });
+    // 실제 포인터 순서: 들어오기(열림, 다시 그려짐) 다음 클릭. 예전에는 이 클릭이 토글로 닫았다(390 e2e 가 가끔 실패)
+    fireEvent.pointerEnter(demo);
+    await flush();
+    expect(demo).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(demo);
+    await flush();
+    expect(demo).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('menu', { name: '데모 영상 넣기' })).toBeInTheDocument();
+    // Esc 는 하위 메뉴만 닫는다
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await flush();
+    expect(screen.queryByRole('menu', { name: '데모 영상 넣기' })).toBeNull();
+    // 터치(들어오기 없이 클릭만)도 연다: 메뉴를 닫았다 다시 열어 새 항목으로
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
+    fireEvent.click(screen.getByRole('button', { name: '파일' }));
+    const demo2 = screen.getByRole('menuitem', { name: '데모 영상 넣기' });
+    fireEvent.click(demo2);
+    await flush();
+    expect(demo2).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('데스크톱 메뉴는 새 프로젝트를 Ctrl+N 으로 보이고, 두 조합 모두 같은 동작이다', async () => {
     await connect();
     render(<MenuBar host="desktop" />);

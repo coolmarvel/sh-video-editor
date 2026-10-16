@@ -4,6 +4,7 @@ import { useEngineEvents } from '../events/store';
 import { RevisionGate, neededRevision } from '../events/revision-gate';
 import { SHUTTLE_RATES, snapTick, toSequenceInfo, useMonitor, type RenderScale, type SequenceInfo } from './store';
 import { AutoQuality, SCALES, playStartScale, saveQuality, type PlaybackQuality } from './quality';
+import { useTimeline } from '../timeline/store';
 import { errorMessage } from '../../errors';
 
 /** 재생 중 백그라운드 작업(pumpJobs) 호출 간격과 1회 예산 */
@@ -395,13 +396,21 @@ export class MonitorController {
     let seq: SequenceInfo | null = null;
     // 결과에 revision 이 없으면(실패, 오래된 바인딩) 이벤트가 준 값, 그것도 없으면 모름(-1: 다음 이벤트에 다시 읽는다)
     let revision = need ?? -1;
-    try {
-      const raw = await this.bridge.execute('sequence.inspect');
-      seq = toSequenceInfo(raw);
-      const r = (raw as { revision?: unknown }).revision;
-      if (typeof r === 'number') revision = r;
-    } catch {
-      seq = null; // "no active sequence"
+    const shared = need !== undefined ? useTimeline.getState() : null;
+    if (shared && need !== undefined && shared.revision >= need && shared.revision >= 0) {
+      // 타임라인 store 가 이미 그 revision 이상을 읽었다: 같은 sequence.inspect 를 다시 보내지 않는다
+      // (편집마다 한 번 줄어든다, docs/guides/performance-audit.md R4)
+      seq = shared.sequence ? toSequenceInfo(shared.sequence) : null;
+      revision = shared.revision;
+    } else {
+      try {
+        const raw = await this.bridge.execute('sequence.inspect');
+        seq = toSequenceInfo(raw);
+        const r = (raw as { revision?: unknown }).revision;
+        if (typeof r === 'number') revision = r;
+      } catch {
+        seq = null; // "no active sequence"
+      }
     }
     if (this.disposed) return;
     this.readRevision = revision;

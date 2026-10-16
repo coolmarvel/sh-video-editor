@@ -564,3 +564,27 @@ describe('프리롤·읽어 두기', () => {
     c.setQuality('auto');
   });
 });
+
+describe('시퀀스 읽기 나누기 (R4)', () => {
+  it('타임라인 store 가 그 revision 을 읽었으면 모니터는 sequence.inspect 를 다시 보내지 않는다', async () => {
+    const { engine } = engineWithClips();
+    const { useTimeline } = await import('@editor/features/timeline/store');
+    const { useEditor } = await import('@editor/store');
+    useEditor.setState({ bridge: engine.bridge });
+    const c = make(engine);
+    await c.refreshSequence();
+    const exec = vi.spyOn(engine.bridge, 'execute');
+    const count = () => exec.mock.calls.filter(([id]) => id === 'sequence.inspect').length;
+    engine.addItem({ name: 'x.mp4' });
+    const need = engine.state.revision;
+    // 순서상 따로: 타임라인이 먼저 읽고 끝난 뒤 모니터가 같은 revision 을 원한다
+    await useTimeline.getState().refresh(need);
+    expect(count()).toBe(1);
+    await c.refreshSequence(need);
+    expect(count()).toBe(1);
+    expect(mon().sequence?.duration).toBe(useTimeline.getState().sequence?.duration);
+    // revision 을 모르면(커맨드 직후 refreshNow) 예전처럼 읽는다
+    await c.refreshSequence();
+    expect(count()).toBe(2);
+  });
+});

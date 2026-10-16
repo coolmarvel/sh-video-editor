@@ -28,11 +28,11 @@ import { errorMessage } from '../../errors';
 type Params = Record<string, unknown>;
 
 /** 엔진 상태가 바뀐 뒤 모든 패널이 다시 읽게 한다. status 변경은 타임라인·미디어 패널의 구독을 깨운다 */
-export async function refreshAll(status?: string): Promise<void> {
+export async function refreshAll(status?: string, opts: { timeline?: boolean } = {}): Promise<void> {
   if (status !== undefined) useEditor.setState({ status, error: null });
   const c = monitorController();
   await Promise.all([
-    useTimeline.getState().refresh(),
+    opts.timeline === false ? Promise.resolve() : useTimeline.getState().refresh(),
     useMedia.getState().refresh(),
     useProject.getState().refresh(),
     c ? c.refreshSequence().then(() => c.syncPlayhead()) : Promise.resolve(),
@@ -55,13 +55,14 @@ export async function execCommand(id: string, params: Params | undefined, done: 
 }
 
 async function undo(): Promise<void> {
+  // 타임라인 undo 가 sequence.inspect 를 이미 다시 읽으므로 나머지만 갱신한다(같은 revision 을 두 번 읽지 않게)
   await useTimeline.getState().undo();
-  await refreshAll();
+  await refreshAll(undefined, { timeline: false });
 }
 
 async function redo(): Promise<void> {
   await useTimeline.getState().redo();
-  await refreshAll();
+  await refreshAll(undefined, { timeline: false });
 }
 
 /** 미디어 가져오기. 데스크톱은 OS 파일 대화상자, 웹은 브라우저 파일 선택으로 등록한 뒤 file.import */

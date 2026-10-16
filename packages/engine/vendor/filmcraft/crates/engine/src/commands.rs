@@ -2608,10 +2608,15 @@ fn build() -> Vec<CommandSpec> {
         }),
         query!("project.inspect", "Inspect Project", "{}", |s, _| Ok(crate::commands::inspect_project(s))),
         query!("project.thumbnail", "Item Thumbnail", r#"{"item":id,"time":ticks?,"width":px?}"#, item_thumbnail),
-        query!("sequence.inspect", "Inspect Sequence", r#"{"item":id?}"#, |s, p| {
+        query!("sequence.inspect", "Inspect Sequence", r#"{"item":id?,"effects":"full"|"summary"?}"#, |s, p| {
             let id = item_p(p, "item").or(s.state.active_sequence).ok_or(EngineError::NoSequence)?;
             let q = s.project.sequence(id).ok_or(EngineError::NoSequence)?;
-            Ok(inspect_sequence(s, id, q))
+            let summary = match str_p(p, "effects") {
+                None | Some("full") => false,
+                Some("summary") => true,
+                Some(other) => return Err(bad("sequence.inspect", format!("unknown `effects` value `{other}` (full or summary)"))),
+            };
+            Ok(inspect_sequence_with(s, id, q, summary))
         }),
         query!("state.inspect", "Inspect Editor State", "{}", |s, _| Ok(serde_json::to_value(&s.state).unwrap_or_default())),
         query!(
@@ -3295,7 +3300,19 @@ pub fn inspect_project(s: &Session) -> Value {
 }
 
 pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence) -> Value {
+    inspect_sequence_with(s, id, q, false)
+}
+
+/// sh-video-editor: [`inspect_sequence`] with an `effects: "summary"` mode for frontends that read
+/// the sequence after every edit. Every effect entry stays (with `effect`, `enabled`, `masks`), but
+/// an intrinsic effect (motion, opacity, time remap, volume, channel volume, panner: present on
+/// every clip) of a clip that is not selected lists only its animated parameters and carries
+/// `"summary": true`. Selected clips and non-intrinsic effects keep every parameter, so an
+/// inspector showing the selection reads the same values as in the full shape. At 200 clips this
+/// cuts the reply from about 429 KB to about 130 KB.
+pub fn inspect_sequence_with(s: &Session, id: ItemId, q: &filmcraft_project::Sequence, summary: bool) -> Value {
     let rate = q.settings.frame_rate;
+    let selected: std::collections::HashSet<ClipId> = if summary { s.state.selection.iter().copied().collect() } else { Default::default() };
     let playhead = s.state.playheads.get(&id).copied().unwrap_or_default();
     // an animated parameter reports its value at the playhead (clamped into the clip), a
     // static one its value
@@ -3315,7 +3332,15 @@ pub fn inspect_sequence(s: &Session, id: ItemId, q: &filmcraft_project::Sequence
                 "startFrame": rate.frame_at(i.start), "durationFrames": rate.frame_at(i.duration), "sourceIn": i.source_in.0, "speed": i.speed, "reverse": i.reverse, "maintainPitch": i.maintain_pitch,
                 "end": i.end().0, "endFrame": rate.frame_at(i.end()), "sourceOut": i.source_out().0, "gainDb": i.gain_db,
                 "enabled": i.enabled, "link": i.link, "label": i.label.name(),
-                "effects": i.effects.iter().map(|e| json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": e.params.iter().map(|(k, p)| (k.clone(), param_json(i, p))).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
+                "effects": i.effects.iter().map(|e| {
+                    let brief = summary && !selected.contains(&i.id) && e.def().is_some_and(|d| d.intrinsic);
+                    let params = e.params.iter().filter(|(_, p)| !brief || p.is_animated()).map(|(k, p)| (k.clone(), param_json(i, p))).collect::<serde_json::Map<_, _>>();
+                    if brief {
+                        json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": params, "summary": true})
+                    } else {
+                        json!({"effect": e.effect, "enabled": e.enabled, "masks": e.masks.len(), "params": params})
+                    }
+                }).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
             "transitions": t.transitions.iter().map(|x| json!({"id": x.id.0, "effect": x.effect.effect, "start": x.start.0, "duration": x.duration.0, "from": x.from.map(|c| c.0), "to": x.to.map(|c| c.0), "reverse": x.reverse, "params": x.effect.params.iter().map(|(k, v)| (k.clone(), param_to_json(&v.value).1)).collect::<serde_json::Map<_, _>>()})).collect::<Vec<_>>(),
         })

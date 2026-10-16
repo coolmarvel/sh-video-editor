@@ -1,7 +1,7 @@
 ---
 title: 사용법 (첫 영상, 화면 구성, 작업별 절차, 단축키, 막힐 때)
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: editor
 ---
 

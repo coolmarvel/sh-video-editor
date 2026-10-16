@@ -1,7 +1,7 @@
 ---
 title: 엔진 커맨드 보강 (vendor filmcraft 에 우리가 더한 것)
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 domain: engine
 ---
 

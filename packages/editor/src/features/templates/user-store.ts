@@ -12,6 +12,7 @@ import { useMedia } from '../media/store';
 import { useProject } from '../project/store';
 import { downloadBytes } from '../project/web-files';
 import { useTimeline } from '../timeline/store';
+import type { SequenceInfo } from '../timeline/types';
 import { needsMedia, templateRecipe, type TemplateRecipeResult } from './apply';
 import { parseTemplateFile, stringifyTemplate, templateFileName, newTemplateId, type TemplateFile } from './format';
 import { MemoryTemplateStore } from './memory-store';
@@ -132,9 +133,11 @@ export const useUserTemplates = create<UserTemplatesState>((set, get) => {
     async saveCurrent(name, description) {
       const bridge = useEditor.getState().bridge;
       if (!bridge) return null;
-      const tl = useTimeline.getState();
-      await tl.refresh();
-      const seq = useTimeline.getState().sequence;
+      // 모든 클립의 효과 값이 필요하다: 타임라인 store 의 가벼운 읽기(summary)가 아니라 전체 모양으로 읽는다
+      const seq = await bridge
+        .execute('sequence.inspect', { effects: 'full' })
+        .then((r) => r as SequenceInfo)
+        .catch(() => null);
       if (!seq) {
         notify('warning', '저장할 편집본이 없습니다. 먼저 타임라인에 미디어를 넣으세요.');
         return null;

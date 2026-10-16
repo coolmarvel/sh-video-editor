@@ -87,3 +87,67 @@ fn sequence_inspect_reports_a_reversed_clip() {
     let js = s.execute("sequence.inspect", json!({})).unwrap();
     assert!(all(&js).iter().all(|(_, reversed)| !reversed));
 }
+
+/// sh-video-editor: `effects: "summary"` drops the static parameters of intrinsic effects on clips
+/// that are not selected, and nothing else: every clip, effect entry, animated parameter, selected
+/// clip and non-intrinsic effect reads the same as in the full shape.
+#[test]
+fn sequence_inspect_summary_keeps_what_the_editor_reads() {
+    let mut s = Session::default();
+    s.execute("file.openDemoProject", json!({})).unwrap();
+    let (a, b) = {
+        let q = s.active_sequence().unwrap();
+        (q.video_tracks[0].items[0].id, q.video_tracks[0].items[1].id)
+    };
+    // b: an animated opacity and a non-intrinsic effect; a: selected
+    s.execute("effects.addKeyframe", json!({"clip": b.0, "effect": "opacity", "param": "opacity", "time": 0})).unwrap();
+    s.execute("effects.apply", json!({"clips": [b.0], "effect": "gaussian_blur"})).unwrap();
+    s.execute("timeline.select", json!({"clips": [a.0]})).unwrap();
+
+    let full = s.execute("sequence.inspect", json!({})).unwrap();
+    assert_eq!(full, s.execute("sequence.inspect", json!({"effects": "full"})).unwrap(), "default is the full shape");
+    let brief = s.execute("sequence.inspect", json!({"effects": "summary"})).unwrap();
+    assert!(serde_json::to_string(&brief).unwrap().len() < serde_json::to_string(&full).unwrap().len());
+
+    let clip = |js: &serde_json::Value, id: crate::ClipId| -> serde_json::Value {
+        ["video", "audio"]
+            .iter()
+            .flat_map(|k| js[*k].as_array().unwrap().iter())
+            .flat_map(|t| t["items"].as_array().unwrap().iter())
+            .find(|c| c["clip"] == id.0)
+            .cloned()
+            .unwrap()
+    };
+    // the selected clip is the same in both shapes
+    assert_eq!(clip(&full, a), clip(&brief, a));
+    // everything but the effects is the same for every clip, and the effect list keeps its order
+    for (key, _) in [("video", 0), ("audio", 0)] {
+        for (ft, bt) in full[key].as_array().unwrap().iter().zip(brief[key].as_array().unwrap()) {
+            assert_eq!(ft["transitions"], bt["transitions"]);
+            for (fc, bc) in ft["items"].as_array().unwrap().iter().zip(bt["items"].as_array().unwrap()) {
+                let (mut f2, mut b2) = (fc.clone(), bc.clone());
+                f2["effects"] = json!(null);
+                b2["effects"] = json!(null);
+                assert_eq!(f2, b2);
+                let names = |c: &serde_json::Value| c["effects"].as_array().unwrap().iter().map(|e| e["effect"].clone()).collect::<Vec<_>>();
+                assert_eq!(names(fc), names(bc));
+            }
+        }
+    }
+    let (fb, bb) = (clip(&full, b), clip(&brief, b));
+    let fx = |c: &serde_json::Value, id: &str| c["effects"].as_array().unwrap().iter().find(|e| e["effect"] == id).cloned().unwrap();
+    // intrinsic, not selected: only the animated parameter, marked as a summary
+    let op = fx(&bb, "opacity");
+    assert_eq!(op["summary"], true);
+    assert_eq!(op["params"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["opacity"]);
+    assert_eq!(op["params"]["opacity"], fx(&fb, "opacity")["params"]["opacity"]);
+    let motion = fx(&bb, "motion");
+    assert_eq!(motion["summary"], true);
+    assert!(motion["params"].as_object().unwrap().is_empty());
+    // non-intrinsic: full
+    assert_eq!(fx(&bb, "gaussian_blur"), fx(&fb, "gaussian_blur"));
+    assert!(fx(&bb, "gaussian_blur").get("summary").is_none());
+
+    let err = s.execute("sequence.inspect", json!({"effects": "some"})).unwrap_err().to_string();
+    assert!(err.contains("full or summary"), "{err}");
+}

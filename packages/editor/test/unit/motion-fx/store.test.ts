@@ -181,6 +181,8 @@ describe('배경 지우기(크로마키)', () => {
 
 describe('작은 화면', () => {
   it('모서리 프리셋은 motion scale·position 을 트랜잭션 한 단계로 바꾼다', async () => {
+    // 효과 탭처럼 선택한 클립(고정 효과 값은 선택 클립에만 온다, sequence.inspect summary)
+    await useTimeline.getState().selectClip(a.clip);
     fx().setPipSize(33);
     expect(fx().pipSize).toBe(33);
     fx().setPipSize(99);

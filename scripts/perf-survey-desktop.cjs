@@ -43,7 +43,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
           const r = orig.apply(b, a);
           if (r && typeof r.then === 'function')
             r.then(
-              () => window.__calls.push({ m: m === 'execute' ? `execute:${a[0]}` : m, ms: performance.now() - t }),
+              () =>
+                window.__calls.push({
+                  m: m === 'execute' ? `execute:${a[0]}${a[0] === 'sequence.inspect' && a[1] ? JSON.stringify(a[1]) : ''}` : m,
+                  ms: performance.now() - t,
+                  at: performance.now(),
+                }),
               () => undefined,
             );
           return r;
@@ -84,17 +89,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       ms.sort((a, b) => a - b);
       return { median: +ms[10].toFixed(1), max: +ms[19].toFixed(1) };
     }, TPS);
+    // 기본 모양과 타임라인 store 가 쓰는 effects: summary 를 번갈아(performance-audit R1)
     out.inspectRtt = await page.evaluate(async () => {
-      const ms = [];
-      let bytes = 0;
+      const ms = { full: [], summary: [] };
+      const bytes = {};
       for (let i = 0; i < 10; i++) {
-        const t = performance.now();
-        const s = await window.shBridge.execute('sequence.inspect', {});
-        ms.push(performance.now() - t);
-        bytes = JSON.stringify(s).length;
+        for (const [name, params] of [
+          ['full', {}],
+          ['summary', { effects: 'summary' }],
+        ]) {
+          const t = performance.now();
+          const s = await window.shBridge.execute('sequence.inspect', params);
+          ms[name].push(performance.now() - t);
+          bytes[name] = JSON.stringify(s).length;
+        }
       }
-      ms.sort((a, b) => a - b);
-      return { median: +ms[5].toFixed(1), kb: Math.round(bytes / 1024) };
+      const med = (v) => +v.sort((a, b) => a - b)[5].toFixed(1);
+      return { median: med(ms.full), kb: Math.round(bytes.full / 1024), summaryMedian: med(ms.summary), summaryKb: Math.round(bytes.summary / 1024) };
     });
     await take();
 
@@ -124,6 +135,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
     const burst = (await take()).filter((c) => c.m.startsWith('execute:') || c.m === 'undo' || c.m === 'redo');
     out.burst = { settleMs: Date.now() - burst0 - 750, calls: burst.length };
+    // settleMs 는 250ms 폴링 세 번을 기다려 250ms 단위로 튄다. 첫 호출 시작부터 마지막 엔진 응답까지가 정확한 값이다
+    if (burst.length > 0) out.burst.lastReplyMs = Math.round(Math.max(...burst.map((c) => c.at)) - Math.min(...burst.map((c) => c.at - c.ms)));
+    if (process.env.SH_PERF_TRACE) out.burstTrace = burst.map((c) => [c.m.replace('execute:', ''), Math.round(c.at), Math.round(c.ms)]);
+
+    // 편집 하나(실행 취소·다시 실행을 번갈아, 사이에 쉼)에서 마지막 sequence.inspect 응답까지(performance-audit R1)
+    const edits = [];
+    for (let i = 0; i < 8; i++) {
+      await sleep(600);
+      await take();
+      const t0 = await page.evaluate(() => performance.now());
+      await page.keyboard.press(i % 2 ? 'Control+y' : 'Control+z');
+      await sleep(900);
+      const reads = (await take()).filter((c) => c.m.startsWith('execute:sequence.inspect') && c.at > t0);
+      if (reads.length > 0) edits.push(Math.round(Math.max(...reads.map((c) => c.at)) - t0));
+    }
+    edits.sort((a, b) => a - b);
+    out.editToReadMs = { median: edits[Math.floor(edits.length / 2)] ?? null, all: edits };
 
     // 줌 클릭에서 다음 페인트까지
     const tl = page.getByRole('toolbar', { name: '타임라인 도구' });

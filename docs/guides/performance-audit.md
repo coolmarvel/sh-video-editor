@@ -47,7 +47,7 @@ xvfb-run -a node scripts/perf-survey-desktop.cjs /path/to/other/checkout/apps/de
 | 1   | 실행 취소·다시 실행 연타(200 클립)              | 데스크톱 10+10 번이 가라앉기까지 2310ms·엔진 호출 161~162, 웹 요청 174~192. 그 뒤 한 번 누른 실행 취소가 밀린 읽기 44~47개를 같이 기다렸다 | 누를 때마다 모든 store 가 처음부터 다시 읽었다(밀린 읽기를 합치지 않음)                                                                                                            | 고침: `RevisionGate` 가 읽는 중에 들어온 need 없는 요청을 "뒤의 읽기 하나" 로 합친다(최신 한 번)                                                                             | 데스크톱 529~725ms·호출 41~42, 웹 요청 81~95, 실행 취소 한 번의 읽기 5개                   |
 | 2   | 줌(200 클립)                                    | 클릭에서 페인트까지 웹 1440 37~81ms·390 48~88ms(긴 작업 75~83ms), 데스크톱 42~84ms. trace: 클릭 6번에 JS 570ms·Layout 87ms                 | 레인이 클립 400개를 전부 다시 그리고 소리 클립 200개의 파형 경로를 새 폭으로 다시 만든다(화면 밖 포함). 플레이헤드·스크롤로 Timeline 이 다시 그려질 때도 모든 클립이 다시 그려졌다 | 고침: 클립이 48개를 넘는 레인은 화면 폭 단위로 끊은 보이는 구간(앞뒤 한 화면)만 DOM 에 둔다(`Lane` window). `Lane`·`ClipBlock` 을 memo 하고 Timeline 이 넘기는 핸들러를 고정 | 웹 1440 11~27ms·390 25~29ms(긴 작업 0), 데스크톱 23~27ms. 200 클립 DOM 클립 400 에서 24~76 |
 | 3   | 편집 하나 뒤 같은 읽기 중복                     | 실행 취소 한 번: `sequence.inspect` 3(타임라인 2 + 모니터 1), `project.inspect` 2(미디어·프로젝트 store 각각)                              | 실행 취소 동작이 타임라인 undo(안에서 이미 다시 읽음) 뒤 `refreshAll` 로 타임라인을 또 읽고, 동시에 나간 같은 읽기를 각자 보냈다                                                   | 고침: 실행 취소·다시 실행은 타임라인을 빼고 나머지만 갱신. `engine/coalesce.ts` 가 진행 중인 같은 읽기에 붙인다(사이에 상태를 바꾸는 호출이 없을 때만, 붙은 쪽은 복사본)     | `sequence.inspect` 2, `project.inspect` 1(웹·데스크톱)                                     |
-| 4   | `sequence.inspect` 크기(엔진, 보고)             | 200 클립 429KB(클립당 약 2KB), napi 11.8ms, wasm 약 17ms, 데스크톱 왕복 33~46ms(프로세스 사이 복사 + JSON.parse). 편집마다 2번             | 클립마다 고유 효과(motion·opacity 등)의 파라미터까지 다 싣는다                                                                                                                     | 보고(3절 R1)                                                                                                                                                                 |                                                                                            |
+| 4   | `sequence.inspect` 크기(엔진, 보고)             | 200 클립 429KB(클립당 약 2KB), napi 11.8ms, wasm 약 17ms, 데스크톱 왕복 33~46ms(프로세스 사이 복사 + JSON.parse). 편집마다 2번             | 클립마다 고유 효과(motion·opacity 등)의 파라미터까지 다 싣는다                                                                                                                     | 고침(3절 R1, summary 219KB, 편집 하나 51~55 에서 37~40ms)                                                                                                                    |                                                                                            |
 | 5   | 첫 재생 끊김(재생, 보고)                        | Windows HW 디코드 첫 프레임 653ms(H.264)·122ms(HEVC), 리눅스 69ms. 첫 재생 90장 중 33ms 넘는 프레임 1~7장, 다시 재생 0~2장                 | 디코더를 처음 여는 비용 + 미리 읽기 없음 + 한 프레임이 4배를 넘으면 그 재생 내내 배율을 내림                                                                                       | 보고(feat/playback 이 맡음)                                                                                                                                                  |                                                                                            |
 | 6   | 모니터의 별도 `sequence.inspect`(재생 쪽, 보고) | 편집마다 모니터가 타임라인과 따로 `sequence.inspect` 를 읽는다(200 클립 약 17ms 더)                                                        | `monitor/controller.ts` 의 readSequence                                                                                                                                            | 보고: 동시에 나가면 3번 고침이 이미 합친다. 순서상 따로 나갈 때는 타임라인 store 결과를 구독하면 하나로 된다(3절 R4)                                                         |                                                                                            |
 | 7   | 스티커 탭 처음 열기                             | 클릭에서 페인트까지 47~85ms, 5번 중 2번 긴 작업 53~75ms. trace: `IsolatedSVGDocumentHost` 약 54ms                                          | `<img src="data:image/svg+xml">` 30장이 그림마다 따로 SVG 문서를 만든다                                                                                                            | 고침: 저장소의 SVG 원문을 그대로 문서에 넣는다(스크립트·이벤트 속성·foreignObject 없음을 테스트가 강제)                                                                      | 23~29ms, 긴 작업 0(5번)                                                                    |
@@ -62,9 +62,28 @@ xvfb-run -a node scripts/perf-survey-desktop.cjs /path/to/other/checkout/apps/de
 
 ## 3. 엔진·재생 쪽 제안 (이 작업에서 고치지 않음)
 
-- **R1 `sequence.inspect` 를 가볍게**: 클립마다 고유 효과 파라미터를 다 싣지 말고 화면이 쓰는 것(위치·길이·이름·링크·효과 id 목록·키프레임
-  수)만 기본으로, 파라미터는 `{params: true}` 또는 클립 하나를 읽는 커맨드로. 200 클립 429KB·napi 11.8ms 에서 크기 1/5 이하가 목표. 편집마다
-  2번 읽으므로 데스크톱 왕복 33~46ms 가 절반 이하로. 다음 단계는 revision 사이 바뀐 클립만 주는 증분 읽기.
+- **R1 `sequence.inspect` 를 가볍게 (2026-10-16 완료, feat/inspect-slim)**: `sequence.inspect {effects: "summary"}`. 기본 모양(파라미터 없음,
+  `effects: "full"`)은 그대로다. summary 는 모든 클립·효과 항목과 순서를 그대로 두고, 선택하지 않은 클립의 고정 효과(motion, opacity,
+  time_remap, volume, channel_volume, panner)에서 키프레임 없는 파라미터만 빼고 `summary: true` 를 붙인다. 선택 클립(인스펙터·변형 상자가
+  보는 것)과 사용자 효과는 전체다. 타임라인 store 가 이것으로 읽고(`SEQUENCE_READ`), 선택하지 않은 클립의 값이 필요한 템플릿 저장은 full 로
+  따로 읽는다. 처음 목표(크기 1/5)는 "효과 항목을 빼면 키프레임 store 가 효과를 순서 번호로 가리키는 것이 깨진다" 는 이유로 항목을 남겨 51%
+  에서 멈췄다. 측정(`node scripts/bench-inspect.mjs` 는 full 과 summary 를 같은 실행에서 번갈아 30회, `xvfb-run -a node
+scripts/perf-survey-desktop.cjs <앱>` 은 같은 브랜치에서 `SEQUENCE_READ` 만 full 로 바꾼 빌드와 번갈아 5회, 부하 약 1):
+
+  | 측정(200 클립)                                        | 전(full)            | 후(summary)         |
+  | ----------------------------------------------------- | ------------------- | ------------------- |
+  | 응답 크기                                             | 429KB               | 219KB               |
+  | napi / wasm `sequence.inspect`(부하 15, 번갈아)       | 25.5ms / 26.7ms     | 8.5ms / 9.8ms       |
+  | 데스크톱 왕복(QA 훅에서 직접)                         | 22~24ms(412KB)      | 9~9.4ms(213KB)      |
+  | 데스크톱 편집 하나에서 마지막 `sequence.inspect` 응답 | 51~55ms             | 37~40ms             |
+  | 데스크톱 실행 취소·다시 실행 10+10, 마지막 엔진 응답  | 352~422ms(중앙 356) | 309~344ms(중앙 327) |
+  | 웹 클립 선택 / 실행 취소·다시 실행 10+10              | 353~412 / 574~593ms | 329~337 / 568~575ms |
+
+  증분(바뀐 클립만)은 하지 않았다: summary 만으로 데스크톱 직접 왕복이 10ms 아래다. 남은 것: 모니터(`features/monitor/controller.ts`)가 타임라인
+  store 의 읽기를 다시 쓰지 못할 때 보내는 자기 읽기가 아직 full 이다(실행 취소마다 한 번). 그 한 줄을 `SEQUENCE_READ` 로 바꾸면 coalesce 가
+  두 읽기를 합쳐 편집 하나가 24~25ms 가 된다(같은 조건 실측, 이 작업에서는 그 파일을 바꾸지 않았다). 실행 취소 연타의 `settleMs` 는 250ms
+  폴링 세 번으로 정하므로 250ms 단위로 튄다: 비교는 `lastReplyMs`(첫 호출부터 마지막 엔진 응답까지)로 한다.
+
 - **R2 `drainEvents` 에 플레이헤드 변화**: 지금은 폴링마다 `playhead()` 를 따로 부른다(유휴 10초에 41번). 엔진이 `playheadChanged {tick}`
   이벤트를 내면 화면은 `playhead()` 를 뺄 수 있다(유휴 메시지 절반).
 - **R3 데스크톱 프레임 전달**: 2MB 프레임을 엔진 프로세스에서 렌더러로 복사한다(왕복 29ms 중 약 15ms). 렌더러가 표시 크기만큼만 요청하고

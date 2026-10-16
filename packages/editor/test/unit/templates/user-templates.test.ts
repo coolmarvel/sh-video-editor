@@ -14,6 +14,7 @@ import { useInspectorRegistry } from '@editor/features/inspector/registry';
 import { useMedia } from '@editor/features/media/store';
 import { useProject } from '@editor/features/project/store';
 import { useTimeline } from '@editor/features/timeline/store';
+import { findClip } from '@editor/features/timeline/types';
 import { T, FakeEngine, type FakeBridgeOptions, type FakeItem } from '../../fake-bridge';
 import { connect, resetStores } from '../../stores';
 
@@ -285,6 +286,24 @@ describe('저장소와 적용', () => {
     expect(await s.saveCurrent('x', '')).toBeNull();
     expect(host.rows.size).toBe(0);
     expect(useProject.getState().notices.at(-1)).toMatchObject({ kind: 'warning' });
+  });
+
+  it('saveCurrent 는 전체 모양(effects: full)으로 읽어 선택하지 않은 클립의 고정 효과 값도 저장한다', async () => {
+    const { movieClip } = await buildSequence();
+    await exec('effects.setParam', { clip: movieClip, effect: 'opacity', param: 'opacity', value: 40 });
+    await exec('effects.setParam', { clip: movieClip, effect: 'motion', param: 'rotation', value: 15 });
+    await exec('edit.deselectAll');
+    await useTimeline.getState().refresh();
+    // 타임라인 store 의 가벼운 읽기에는 이 클립의 고정 효과 값이 없다
+    const light = findClip(useTimeline.getState().sequence!, movieClip)!.clip.effects!.find((e) => e.effect === 'opacity')!;
+    expect(light.summary).toBe(true);
+    expect(light.params['opacity']).toBeUndefined();
+    const id = (await useUserTemplates.getState().saveCurrent('값 보존', ''))!;
+    expect(engine.callsOf('sequence.inspect')).toContainEqual({ effects: 'full' });
+    const saved = useUserTemplates.getState().items.find((t) => t.template.id === id)!.template;
+    const effects = [...saved.video, ...saved.audio].flatMap((t) => t.clips).flatMap((c) => ('effects' in c ? (c.effects ?? []) : []));
+    expect(effects).toContainEqual(expect.objectContaining({ effect: 'opacity', params: { opacity: 40 } }));
+    expect(effects).toContainEqual(expect.objectContaining({ effect: 'motion', params: { rotation: 15 } }));
   });
 
   it('저장한 템플릿을 고른 미디어로 적용하면 같은 구조의 새 편집본이 생긴다', async () => {

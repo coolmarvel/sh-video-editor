@@ -16,25 +16,19 @@ domain: development
 
 ## P2 - 가까운 로드맵
 
+- [ ] sequence.inspect 가 200 클립에서 429KB·napi 11.8ms·데스크톱 왕복 33~46ms. 클립별 기본 효과 파라미터를 요청할 때만, 나중에는 바뀐 클립만 (performance-audit.md R1)
 - [ ] 웹 decode 캐시가 탐색 뒤 474MB 까지 남음. 예산을 줄이면 긴 GOP 뒤로 문지르기가 느려져(V1 표) 되돌렸다. 디코더 상태 스냅샷 같은 다른 방법이 필요 (`crates/codecs/src/gop.rs`)
-- [ ] HEVC 내보내기 바이트가 wasm 과 napi 에서 다름(0.1.9 부터, 같은 플랫폼 안에서는 작업자 수와 무관하게 같음). lambda·레이트 컨트롤의 `powf`·`log` 부동소수 의심 (`crates/hevcenc`)
 - [ ] 상류 기본 단축키가 Windows 의미에서 충돌(Ctrl+T trim.toggleType/graphics.newText, Ctrl+9, Ctrl+Shift+M). 화면 키맵은 별도라 사용자 영향 없음 (`vendor/.../shortcut_presets.rs`)
 - [ ] wasm 13.99MB 에서 12MB 로: 남은 후보(webp·gif 이미지, symphonia 음악 가져오기, MPEG-2·AV1 코덱)는 웹 기능을 빼야 해 결정 필요 (`docs/guides/wasm-performance.md`)
 
 ## P3 - 품질
 
-- [ ] AV1 슈퍼블록 band 할당이 매번 약 380KB. 작업자마다 band 버퍼 재사용 (`crates/av1enc`)
-- [ ] 새 워크트리는 `speech-wasm/pkg` 가 없어 typecheck·웹 빌드 전에 `npm run build:engine:speech` 또는 main 에서 복사가 필요. 워크트리 안내에 적기 (`docs/guides/testing.md`)
-- [ ] 웹 e2e `web-files.spec` 390 의 최근 프로젝트 메뉴 테스트가 부하(load 10~15) 중 1회 실패(단독 5회 통과). flaky 관찰
-- [ ] Windows 스냅 레이아웃(최대화 버튼 hover)이 투명 titleBarOverlay 에서도 뜨는지 눈으로 확인 (`apps/desktop/src/main/index.ts`)
-- [ ] vendor hevc conformance `draft_mode_changes_only_flagged_non_reference_pictures` 가 부하 중 1회 실패(단독 5회·스위트 5회 통과). flaky 관찰 (`crates/hevc`)
 - [ ] 웹 자동 자막이 한 스레드. wasm-bindgen-rayon 은 빌드 플래그·헤더가 더 필요 (`packages/engine/bindings/speech-wasm`)
 - [ ] 웹 큰 파일 e2e 는 임시 컨텍스트 OPFS 한도(약 500MB) 때문에 복사 성공 실측 불가. 영속 컨텍스트로 (`apps/web/e2e/web-files.spec.ts`)
 - [ ] windows-installer dispatch job(wine 패키지명)은 아직 미실행 (`.github/workflows/ci.yml`)
-- [ ] 웹 e2e `keyframes.spec.ts` 모바일에서 부하(load 13) 때 상태 줄 기대가 1회 어긋남(재실행 통과). flaky 후보로 관찰
-- [ ] 바인딩 단위 테스트(napi: Node 스크립트, wasm: wasm-bindgen-test)와 Playwright e2e 를 `npm run verify` 에 포함
 
 ## P4 - 아이디어
 
+- [ ] 데모 생성기 부동소수 결과가 데스크톱(C 라이브러리)과 웹(Rust libm)에서 마지막 비트가 가끔 다름. 플랫폼 사이 바이트 비교에만 영향, libm 으로 바꾸면 데모 렌더가 느려짐 (`crates/media/src/generators.rs`)
 - [ ] 템플릿 갤러리(인트로·세로 SNS·슬라이드쇼)
 - [ ] 웹 자동 자막·OPFS 보관을 Safari·Firefox 에서 확인 (Chromium 만 검증)

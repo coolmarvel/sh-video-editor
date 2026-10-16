@@ -72,6 +72,8 @@ describe('스티커 카탈로그', () => {
       expect(s.svg).toBe(file);
       expect(file).toContain('viewBox="0 0 128 128"');
       expect(file).not.toMatch(/<text|font-family|<image|href=|url\(/);
+      // 갤러리가 SVG 를 문서에 그대로 넣으므로(StickerGallery) 스크립트·이벤트 속성·foreignObject 는 금지
+      expect(file).not.toMatch(/<script|<foreignObject|\son[a-z]+=/i);
       expect(stickerDataUrl(s.svg).startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true);
     }
   });

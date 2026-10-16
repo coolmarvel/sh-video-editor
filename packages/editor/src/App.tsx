@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import type { EngineBridge } from './engine/bridge';
+import { coalesceReads } from './engine/coalesce';
 import { useEditor } from './store';
 import { MenuBar } from './shell/MenuBar';
 import { TitleBar } from './shell/TitleBar';
@@ -50,7 +51,8 @@ export function App({ bridge, host, appIcon }: AppProps) {
   const version = useEditor((s) => s.version);
 
   useEffect(() => {
-    void init(bridge);
+    // 커맨드 뒤 여러 store 가 한꺼번에 보내는 같은 읽기(sequence.inspect 등)를 하나로 합친다(engine/coalesce.ts)
+    void init(coalesceReads(bridge));
   }, [bridge, init]);
 
   useShortcuts();

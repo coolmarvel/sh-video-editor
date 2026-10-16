@@ -9,7 +9,7 @@ import { hasMediaItem, readMediaItemIds } from './dnd';
 import { DRAG_THRESHOLD_PX, TAIL_SECONDS, clampZoom, fpsOf, frameTicks, pxToTick, snapDelta, snapToFrame, tickToPx, timecodeAt } from './geometry';
 import { Ruler } from './Ruler';
 import { useTimeline } from './store';
-import { Lane, TrackHeader, type ClipPart, type ClipPreview } from './Track';
+import { LANE_WINDOW_MIN_CLIPS, Lane, TrackHeader, type ClipPart, type ClipPreview } from './Track';
 import { allClips, findClip, trackRows, type ClipInfo, type SequenceInfo, type TrackKind, type TrackRow } from './types';
 import './timeline.css';
 
@@ -383,9 +383,31 @@ export function Timeline() {
     if (fitRequest > 0) fitToSequence();
   }, [fitRequest, fitToSequence]);
 
+  // 레인에 넘기는 핸들러는 한 번만 만든다(가장 최근 렌더의 함수를 부른다). 그래야 플레이헤드·스크롤로 다시 그려질 때 Lane·ClipBlock
+  // memo 가 건너뛴다
+  const laneHandlerRef = useRef({ onClipPointerDown, onLanePointerDown, onDragOver, onDragLeave, onDrop });
+  laneHandlerRef.current = { onClipPointerDown, onLanePointerDown, onDragOver, onDragLeave, onDrop };
+  const laneHandlers = useMemo(
+    () => ({
+      onClipPointerDown: (e: React.PointerEvent<HTMLDivElement>, clip: ClipInfo, part: ClipPart) => laneHandlerRef.current.onClipPointerDown(e, clip, part),
+      onLanePointerDown: (e: React.PointerEvent<HTMLDivElement>, row: TrackRow) => laneHandlerRef.current.onLanePointerDown(e, row),
+      onDragOver: (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => laneHandlerRef.current.onDragOver(e, row),
+      onDragLeave: (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => laneHandlerRef.current.onDragLeave(e, row),
+      onDrop: (e: React.DragEvent<HTMLDivElement>, row: TrackRow) => laneHandlerRef.current.onDrop(e, row),
+    }),
+    [],
+  );
+
   const contentPx = seq ? tickToPx(seq.duration, pxPerSec) + TAIL_SECONDS * pxPerSec : 0;
   const visibleFrom = pxToTick(Math.max(0, view.scrollLeft - 120), pxPerSec);
   const visibleTo = pxToTick(view.scrollLeft + view.width + 120, pxPerSec);
+  // 클립이 많은 레인이 그릴 구간: 화면 폭 단위로 끊어(스크롤 중에는 페이지를 넘을 때만 바뀐다) 앞뒤로 한 화면씩 더
+  const page = Math.max(200, view.width);
+  const pageIndex = Math.floor(view.scrollLeft / page);
+  const laneSpan = useMemo(
+    () => ({ from: pxToTick(Math.max(0, (pageIndex - 1) * page), pxPerSec), to: pxToTick((pageIndex + 2) * page, pxPerSec) }),
+    [pageIndex, page, pxPerSec],
+  );
   const timecode = timecodeAt(playhead, frameRate);
 
   return (
@@ -488,11 +510,8 @@ export function Timeline() {
                   selection={selection}
                   preview={preview}
                   dropTick={dropHint && dropHint.trackId === row.track.id ? dropHint.tick : null}
-                  onClipPointerDown={onClipPointerDown}
-                  onLanePointerDown={onLanePointerDown}
-                  onDragOver={onDragOver}
-                  onDragLeave={onDragLeave}
-                  onDrop={onDrop}
+                  window={row.track.items.length > LANE_WINDOW_MIN_CLIPS ? laneSpan : undefined}
+                  {...laneHandlers}
                 />
               </div>
             ))}

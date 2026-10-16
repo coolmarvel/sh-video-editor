@@ -28,6 +28,7 @@ export default defineConfig({
       // 순수 모듈·store 만 측정한다. 컴포넌트는 e2e 가 실제 브라우저에서 본다
       include: [
         'src/engine/time.ts',
+        'src/engine/coalesce.ts',
         'src/store.ts',
         'src/features/timeline/geometry.ts',
         'src/features/timeline/types.ts',

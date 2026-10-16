@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { TransitionBlocks } from '../transitions/TransitionBlocks';
 import { useEditor } from '../../store';
 import { hasPicture, useThumbnail } from '../media/thumbs';
@@ -93,11 +94,35 @@ interface LaneProps {
   onDragOver(e: React.DragEvent<HTMLDivElement>, row: TrackRow): void;
   onDragLeave(e: React.DragEvent<HTMLDivElement>, row: TrackRow): void;
   onDrop(e: React.DragEvent<HTMLDivElement>, row: TrackRow): void;
+  /**
+   * 그릴 구간 [from, to](tick). 클립이 많은 레인만 Timeline 이 넘긴다: 그 구간에 걸친 클립(과 선택·끌기 중인 클립)만 DOM 에 둔다.
+   * 줌·스크롤 때 화면 밖 클립 수백 개와 그 파형을 다시 그리지 않게(docs/guides/performance-audit.md). 없으면 전부 그린다
+   */
+  window?: { from: number; to: number };
 }
 
-/** 트랙 한 줄의 클립 영역. 클립은 시작·길이를 px 로 바꿔 절대 위치로 놓는다 */
-export function Lane({ row, pxPerSec, selection, preview, dropTick, onClipPointerDown, onLanePointerDown, onDragOver, onDragLeave, onDrop }: LaneProps) {
+/** 이 수보다 클립이 많은 레인만 보이는 구간만 그린다(작은 편집본은 지금처럼 전부 DOM 에 둔다) */
+export const LANE_WINDOW_MIN_CLIPS = 48;
+
+/** 트랙 한 줄의 클립 영역. 클립은 시작·길이를 px 로 바꿔 절대 위치로 놓는다. 플레이헤드·스크롤로 Timeline 이 다시 그려져도
+ * props 가 같으면 건너뛴다(memo) */
+export const Lane = memo(function Lane({
+  row,
+  pxPerSec,
+  selection,
+  preview,
+  dropTick,
+  onClipPointerDown,
+  onLanePointerDown,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  window: span,
+}: LaneProps) {
   const { track, kind } = row;
+  const items = span
+    ? track.items.filter((c) => (c.end >= span.from && c.start <= span.to) || selection.includes(c.clip) || preview?.clip === c.clip)
+    : track.items;
   const classes = ['tl-lane', `tl-lane--${kind}`];
   if (track.locked) classes.push('is-locked');
   if (preview && preview.targetTrack === track.id) classes.push('is-target');
@@ -112,7 +137,7 @@ export function Lane({ row, pxPerSec, selection, preview, dropTick, onClipPointe
       onDragLeave={(e) => onDragLeave(e, row)}
       onDrop={(e) => onDrop(e, row)}
     >
-      {track.items.map((clip) => (
+      {items.map((clip) => (
         <ClipBlock
           key={clip.clip}
           clip={clip}
@@ -128,7 +153,7 @@ export function Lane({ row, pxPerSec, selection, preview, dropTick, onClipPointe
       {dropTick !== null && <div className="tl-drop" style={{ left: `${tickToPx(dropTick, pxPerSec)}px` }} />}
     </div>
   );
-}
+});
 
 interface ClipBlockProps {
   clip: ClipInfo;
@@ -151,7 +176,8 @@ function LinkIcon() {
 
 const HANDLE_TITLE = '끌어서 길이 조절. Alt 를 누르면 소리/영상만';
 
-function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPointerDown }: ClipBlockProps) {
+/** 클립 하나. 같은 props 면 다시 그리지 않는다(선택·끌기는 바뀐 클립만) */
+const ClipBlock = memo(function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPointerDown }: ClipBlockProps) {
   const left = tickToPx(clip.start, pxPerSec) + (preview?.dxStart ?? 0);
   const width = Math.max(1, tickToPx(clip.end - clip.start, pxPerSec) + (preview?.dxEnd ?? 0) - (preview?.dxStart ?? 0));
   const classes = ['tl-clip', audio ? 'tl-clip--audio' : 'tl-clip--video'];
@@ -180,4 +206,4 @@ function ClipBlock({ clip, audio, pxPerSec, selected, disabled, preview, onPoint
       <div className="tl-clip__handle tl-clip__handle--out" title={HANDLE_TITLE} onPointerDown={(e) => part(e, 'out')} />
     </div>
   );
-}
+});

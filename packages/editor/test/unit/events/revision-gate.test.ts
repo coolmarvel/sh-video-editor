@@ -107,3 +107,82 @@ describe('RevisionGate', () => {
     expect(neededRevision(4, 4)).toBeUndefined();
   });
 });
+
+describe('RevisionGate 몰린 요청(최신 한 번)', () => {
+  it('읽는 중에 need 없는 요청이 여러 번 오면 뒤의 읽기 하나로 합친다', async () => {
+    let reads = 0;
+    let have = -1;
+    const g = new RevisionGate(() => have);
+    const gates = [deferred(), deferred()];
+    const read = async () => {
+      const i = reads;
+      reads += 1;
+      await gates[i]?.promise;
+      have = 10 + i;
+    };
+    const first = g.run(undefined, read);
+    const queued = [g.run(undefined, read), g.run(undefined, read), g.run(undefined, read)];
+    expect(g.busy).toBe(true);
+    gates[0]!.resolve();
+    await first;
+    gates[1]!.resolve();
+    await Promise.all(queued);
+    expect(reads).toBe(2);
+    expect(have).toBe(11);
+    expect(g.busy).toBe(false);
+  });
+
+  it('뒤의 읽기는 모든 요청보다 늦게 시작한다(요청 뒤의 상태를 읽는다)', async () => {
+    let state = 0;
+    let seen = -1;
+    const g = new RevisionGate(() => -1);
+    const d = deferred();
+    const read = async () => {
+      const at = state;
+      await d.promise;
+      seen = at;
+    };
+    const first = g.run(undefined, read);
+    state = 1;
+    const late = g.run(undefined, read);
+    state = 2;
+    const later = g.run(undefined, read);
+    d.resolve();
+    await Promise.all([first, late, later]);
+    expect(seen).toBe(2);
+  });
+
+  it('need 를 가진 구독자는 예약된 읽기까지 기다렸다가 판단한다', async () => {
+    let reads = 0;
+    let have = -1;
+    const g = new RevisionGate(() => have);
+    const d = deferred();
+    const read = async () => {
+      reads += 1;
+      if (reads === 1) await d.promise;
+      have = reads === 1 ? 3 : 9;
+    };
+    const first = g.run(undefined, read);
+    const queued = g.run(undefined, read);
+    const subscriber = g.run(9, read);
+    d.resolve();
+    await Promise.all([first, queued, subscriber]);
+    expect(reads).toBe(2);
+    expect(have).toBe(9);
+  });
+
+  it('앞 읽기가 실패해도 뒤 읽기는 돈다', async () => {
+    let reads = 0;
+    const g = new RevisionGate(() => -1);
+    const first = g.run(undefined, async () => {
+      reads += 1;
+      throw new Error('boom');
+    });
+    const queued = g.run(undefined, async () => {
+      reads += 1;
+    });
+    await expect(first).rejects.toThrow('boom');
+    await queued;
+    expect(reads).toBe(2);
+  });
+});

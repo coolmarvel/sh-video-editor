@@ -16,7 +16,8 @@
     "build:engine:speech": "wasm-pack build packages/engine/bindings/speech-wasm --target web --out-dir pkg --profile wasm-release",
     "build:engine": "npm run build:engine:node && npm run build:engine:wasm && npm run build:engine:speech",
     "check:engine": "cargo check --manifest-path packages/engine/Cargo.toml --workspace",
-    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:tests",
+    "check:artifacts": "node scripts/check-engine-artifacts.mjs",
+    "typecheck": "node scripts/check-engine-artifacts.mjs --types && npm run typecheck --workspaces --if-present && npm run typecheck:tests",
     "typecheck:tests": "tsc -p packages/editor/test/tsconfig.json --noEmit && tsc -p packages/engine/tests/tsconfig.json --noEmit && tsc -p apps/web/e2e/tsconfig.json --noEmit && tsc -p apps/desktop/e2e/tsconfig.json --noEmit",
     "lint": "prettier --check . && cargo clippy --manifest-path packages/engine/Cargo.toml --workspace --all-targets -- -D warnings",
     "format": "prettier --write . && cargo fmt --manifest-path packages/engine/Cargo.toml",
@@ -33,6 +34,7 @@
     "test:report": "node scripts/test-report.mjs",
     "build": "npm run build -w apps/web -w apps/desktop",
     "verify": "npm run lint && npm run build:engine && npm run typecheck && npm run test && npm run build",
+    "verify:full": "npm run verify && npm run smoke -w apps/desktop && npm run test:e2e:web && xvfb-run -a playwright test -c apps/desktop/playwright.config.ts",
     "dev:desktop": "npm run dev -w apps/desktop",
     "dev:web": "npm run dev -w apps/web",
     "dist:win": "npm run dist:win -w apps/desktop"

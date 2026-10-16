@@ -86,6 +86,8 @@ npm run build:engine              # napi .node + wasm pkg. 엔진(Rust)을 고�
 npm run dev:desktop               # Electron 개발 실행 (엔진은 utility process 의 .node, 렌더러와 MessagePort 직결)
 npm run dev:web                   # http://localhost:5174 (엔진은 Worker 의 wasm)
 npm run verify                    # 전체 검증 (변경 후 자동 규칙 2)
+npm run verify:full               # verify + 데스크톱 스모크 + 웹 e2e + 데스크톱 e2e (화면을 바꿨을 때)
+npm run check:artifacts           # 엔진 산출물이 있는지(새 워크트리), 없으면 빌드·복사 명령 안내
 npm run check:engine              # cargo check (빠른 엔진 확인)
 npm run smoke -w apps/desktop     # 빌드된 Electron 을 xvfb 로 띄워 엔진 응답 확인
 npm run test:unit                 # 화면 단위 테스트(vitest, jsdom). 커버리지 임계는 test:unit:coverage

@@ -230,6 +230,11 @@ pub fn ensure(f: &Fixture) -> Option<(PathBuf, PathBuf)> {
         return None;
     };
     let dir = fixtures_dir();
+    // one writer at a time per fixture (threads and processes), so the stream and its reference decode
+    // always come from the same encode (see filmcraft_testkit::fixture_lock)
+    let lock_path = dir.join(format!("{}.lock", f.name));
+    let _lock = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path).expect("fixture lock file");
+    _lock.lock().expect("fixture lock");
     let ivf = dir.join(format!("{}.ivf", f.name));
     let yuv = dir.join(format!("{}.yuv", f.name));
     if !ivf.exists() {

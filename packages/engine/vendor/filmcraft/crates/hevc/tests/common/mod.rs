@@ -117,6 +117,7 @@ pub fn pix_fmt(bd: u32) -> &'static str {
 pub fn ensure(f: &Fixture) -> Option<(PathBuf, PathBuf)> {
     let ff = filmcraft_testkit::ffmpeg_or_skip(f.name)?;
     let dir = fixtures_dir();
+    let _lock = filmcraft_testkit::fixture_lock(&dir, f.name);
     let hevc = dir.join(format!("{}.hevc", f.name));
     let yuv = dir.join(format!("{}.yuv", f.name));
     if !hevc.exists() {

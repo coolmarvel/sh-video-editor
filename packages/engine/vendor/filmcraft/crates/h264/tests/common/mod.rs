@@ -335,6 +335,7 @@ fn run(cmd: &mut Command) -> bool {
 pub fn ensure(f: &Fixture) -> Option<(PathBuf, PathBuf)> {
     let ff = filmcraft_testkit::ffmpeg_or_skip(f.name)?;
     let dir = fixtures_dir();
+    let _lock = filmcraft_testkit::fixture_lock(&dir, f.name);
     let h264 = dir.join(format!("{}.h264", f.name));
     let yuv = dir.join(format!("{}.yuv", f.name));
     if !h264.exists() {

@@ -99,6 +99,17 @@ pub fn generate_and_report<T>(name: &str, outputs: &[PathBuf], generate: impl Fn
     r
 }
 
+/// Holds an exclusive lock on `<dir>/<name>.lock` until dropped (sh-video-editor): generate a fixture
+/// and its reference decode under it so that tests in other threads or processes never pair one
+/// writer's stream with another writer's reference (encoders such as libx265 do not produce the same
+/// bytes on every run, so two writers racing on a fresh checkout used to leave a mismatched pair).
+pub fn fixture_lock(dir: &Path, name: &str) -> std::fs::File {
+    let path = dir.join(format!("{name}.lock"));
+    let f = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(&path).unwrap_or_else(|e| panic!("open {}: {e}", path.display()));
+    f.lock().unwrap_or_else(|e| panic!("lock {}: {e}", path.display()));
+    f
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

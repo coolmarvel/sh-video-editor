@@ -776,14 +776,11 @@ impl Engine {
     /// 쌓인 엔진 이벤트(프로젝트 변경·토스트·시퀀스 열기)를 비워 JSON 배열 문자열 `[{type, ...}]` 로. 모양은 `event_json`.
     #[wasm_bindgen(js_name = drainEvents)]
     pub fn drain_events(&mut self) -> String {
-        serde_json::Value::Array(
-            self.session
-                .drain_events()
-                .into_iter()
-                .map(event_json)
-                .collect(),
-        )
-        .to_string()
+        // 끝에 지금 플레이헤드를 하나 붙인다: 화면의 폴링이 playhead() 를 따로 부르지 않게(메시지 반감,
+        // docs/guides/performance-audit.md R2)
+        let mut events: Vec<serde_json::Value> = self.session.drain_events().into_iter().map(event_json).collect();
+        events.push(serde_json::json!({"type": "playhead", "tick": self.session.playhead().0}));
+        serde_json::Value::Array(events).to_string()
     }
 
     /// 미디어 항목(영상·사진·시퀀스)의 썸네일을 `renderFrame` 과 같은 포장으로. `tick` 은 미디어 시간이고 음수면

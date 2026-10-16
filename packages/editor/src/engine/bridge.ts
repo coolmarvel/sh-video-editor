@@ -31,6 +31,8 @@ export type EngineEvent =
   | { type: 'openSequence'; item: number }
   | { type: 'openSource'; item: number }
   | { type: 'revealInProject'; item: number }
+  /** 바인딩이 drainEvents 끝에 붙이는 지금 플레이헤드(tick). 폴링이 playhead() 를 따로 부르지 않는다 */
+  | { type: 'playhead'; tick: number }
   | JobProgressEvent;
 
 /**

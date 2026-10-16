@@ -74,8 +74,10 @@ test.describe('엔진 이벤트 통합', () => {
     // 위에서 테스트가 이벤트를 가로챘을 수 있으니, 다시 한 번 바꾸고 이번에는 폴링이 받게 둔다
     await app.evaluate(() => window.shBridge.execute('file.newSequence', { name: 'ev2', width: 640, height: 360, fps: 30 }));
     await expect(ui.timeline(app).locator('.sh-panel__title')).toContainText('타임라인 - ev2', { timeout: 1000 });
-    // 폴링이 비운 뒤에는 빈 배열
-    await expect.poll(() => app.evaluate(() => window.shBridge.drainEvents!().then((v) => v.length))).toBe(0);
+    // 폴링이 비운 뒤에는 바인딩이 끝에 붙이는 지금 플레이헤드 하나만 남는다(R2, docs/guides/playback.md)
+    await expect
+      .poll(() => app.evaluate(() => window.shBridge.drainEvents!().then((v) => v.map((e) => (e as { type: string }).type).join(','))))
+      .toBe('playhead');
   });
 
   test('엔진 토스트는 알림과 상태 줄로 온다', async ({ app }) => {

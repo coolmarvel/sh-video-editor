@@ -14,7 +14,17 @@ interface Ev {
   error?: boolean;
 }
 
-const drain = (engine: { drainEvents(): string }): Ev[] => JSON.parse(engine.drainEvents()) as Ev[];
+/**
+ * 쌓인 이벤트. 바인딩은 끝에 늘 지금 플레이헤드 `{type: 'playhead', tick}` 를 하나 붙인다(화면 폴링이 playhead() 를 따로 부르지
+ * 않게, docs/guides/performance-audit.md R2). 그것을 확인하고 떼어 낸 나머지를 돌려준다.
+ */
+function drain(engine: { drainEvents(): string }): Ev[] {
+  const all = JSON.parse(engine.drainEvents()) as Array<Ev & { tick?: number }>;
+  const last = all.at(-1);
+  expect(last?.type).toBe('playhead');
+  expect(typeof last?.tick).toBe('number');
+  return all.slice(0, -1);
+}
 
 /** wasm 의 [w, h] LE u32 + RGBA8 포장을 푼다 */
 function unpack(bytes: Uint8Array): { width: number; height: number; rgba: Uint8Array } {

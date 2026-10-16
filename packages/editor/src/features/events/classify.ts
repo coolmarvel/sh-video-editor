@@ -30,6 +30,8 @@ export interface Classified {
   toasts: EngineToast[];
   /** 잡 진행률(순서대로 전부. features/jobs 가 접는다) */
   jobs: JobProgressEvent[];
+  /** 바인딩이 붙인 지금 플레이헤드. 없으면(오래된 바인딩, drainEvents 없는 호스트) null 이고 폴링이 playhead() 를 부른다 */
+  playhead: number | null;
   /** 모양을 모르는 이벤트 수(바인딩과 화면의 버전이 어긋났을 때) */
   unknown: number;
 }
@@ -39,7 +41,7 @@ function isEvent(v: unknown): v is EngineEvent {
 }
 
 export function classify(events: unknown[]): Classified {
-  const out: Classified = { revision: null, openSequence: null, openSource: null, reveal: null, toasts: [], jobs: [], unknown: 0 };
+  const out: Classified = { revision: null, openSequence: null, openSource: null, reveal: null, toasts: [], jobs: [], playhead: null, unknown: 0 };
   for (const raw of events) {
     if (!isEvent(raw)) {
       out.unknown += 1;
@@ -79,6 +81,10 @@ export function classify(events: unknown[]): Classified {
             error: typeof raw.error === 'string' ? raw.error : null,
           });
         } else out.unknown += 1;
+        break;
+      case 'playhead':
+        if (typeof raw.tick === 'number') out.playhead = raw.tick;
+        else out.unknown += 1;
         break;
       default:
         out.unknown += 1;

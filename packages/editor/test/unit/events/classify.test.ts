@@ -4,7 +4,7 @@ import { POLL_HIDDEN_MS, POLL_PAUSED_MS, POLL_PLAYING_MS, classify, pollInterval
 
 describe('classify', () => {
   it('빈 묶음은 아무 신호도 없다', () => {
-    expect(classify([])).toEqual({ revision: null, openSequence: null, openSource: null, reveal: null, toasts: [], jobs: [], unknown: 0 });
+    expect(classify([])).toEqual({ revision: null, openSequence: null, openSource: null, reveal: null, toasts: [], jobs: [], playhead: null, unknown: 0 });
   });
 
   it('같은 종류가 여러 개면 마지막 값만, 토스트는 순서대로 전부', () => {
@@ -63,5 +63,19 @@ describe('pollInterval', () => {
     expect(POLL_PLAYING_MS).toBe(100);
     expect(POLL_PAUSED_MS).toBe(250);
     expect(POLL_HIDDEN_MS).toBe(1000);
+  });
+});
+
+describe('playhead (바인딩이 drainEvents 끝에 붙임, R2)', () => {
+  it('마지막 playhead 를 남기고, 모양이 틀리면 unknown', () => {
+    expect(
+      classify([
+        { type: 'playhead', tick: 5 },
+        { type: 'playhead', tick: 9 },
+      ]).playhead,
+    ).toBe(9);
+    const bad = classify([{ type: 'playhead', tick: 'x' }]);
+    expect(bad.playhead).toBeNull();
+    expect(bad.unknown).toBe(1);
   });
 });

@@ -42,7 +42,6 @@ fn wait_for(s: &mut Session, job: u64) -> Vec<Event> {
 
 #[test]
 fn analysis_job_reports_progress_applies_the_effect_and_fills_the_render_cache() {
-    filmcraft_render::vfx::clear_stabilizer_cache();
     let dir = tmp_dir("stab-job");
     let path = dir.join("shaky.mov");
     make_movie(&path, DemoScene::Plasma, 96, 54, 24);
@@ -81,7 +80,6 @@ fn analysis_job_reports_progress_applies_the_effect_and_fills_the_render_cache()
 
 #[test]
 fn cancel_stops_the_job_with_cancelled_and_leaves_no_analysis() {
-    filmcraft_render::vfx::clear_stabilizer_cache();
     let dir = tmp_dir("stab-cancel");
     let path = dir.join("long.mov");
     make_movie(&path, DemoScene::Aurora, 96, 54, 240);
@@ -108,7 +106,6 @@ fn cancel_stops_the_job_with_cancelled_and_leaves_no_analysis() {
 
 #[test]
 fn wait_runs_on_this_thread_and_refuses_audio_clips() {
-    filmcraft_render::vfx::clear_stabilizer_cache();
     let dir = tmp_dir("stab-wait");
     let path = dir.join("short.mov");
     make_movie(&path, DemoScene::Forest, 96, 54, 12);
@@ -149,4 +146,29 @@ fn relinking_the_footage_analyses_again_instead_of_reusing_the_old_path() {
     s.execute("edit.undo", json!({})).unwrap();
     let r = s.execute("effects.analyzeStabilizer", json!({"clip": clip})).unwrap();
     assert_eq!(r["cached"], true, "back to the first footage: its analysis is reused");
+}
+
+#[test]
+fn a_new_project_with_the_same_ids_but_other_footage_is_analysed_again() {
+    // sh-video-editor: projects no longer clear the process-wide analysis cache (parallel sessions
+    // raced on it); the key's media reference keeps another project's clip with the same item and
+    // clip ids from picking up this footage's path, and the same footage is reused
+    let dir = tmp_dir("stab-newproj");
+    let a = dir.join("a.mov");
+    let b = dir.join("b.mov");
+    make_movie(&a, DemoScene::Plasma, 96, 54, 24);
+    make_movie(&b, DemoScene::Dunes, 96, 54, 24);
+    let (mut first, _, _) = session_with(&[&a]);
+    let clip_a = v1_clip(&first);
+    let r = first.execute("effects.analyzeStabilizer", json!({"clip": clip_a, "wait": true})).unwrap();
+    assert_eq!(r["cached"], false);
+    let (mut other, _, _) = session_with(&[&b]);
+    let clip_b = v1_clip(&other);
+    assert_eq!(clip_a, clip_b, "the second project reuses the clip id");
+    let r = other.execute("effects.analyzeStabilizer", json!({"clip": clip_b, "wait": true})).unwrap();
+    assert_eq!(r["cached"], false, "other footage under the same ids: analysed again");
+    let (mut same, _, _) = session_with(&[&a]);
+    let clip = v1_clip(&same);
+    let r = same.execute("effects.analyzeStabilizer", json!({"clip": clip})).unwrap();
+    assert_eq!(r["cached"], true, "the same footage in a new project: the analysis is reused");
 }

@@ -721,8 +721,9 @@ fn build() -> Vec<CommandSpec> {
         cmd!("file.newProject", "Project…", ["File", "New"], Some("Cmd+Alt+N"), r#"{"name":str}"#, always, |s, p| {
             let name = str_p(p, "name").unwrap_or("Untitled").to_string();
             s.project = std::sync::Arc::new(filmcraft_project::Project::new(&name));
-            // sh-video-editor: per-clip analyses are keyed by item / clip ids, which a new project reuses
-            filmcraft_render::vfx::clear_stabilizer_cache();
+            // sh-video-editor: the stabilizer analysis cache is not cleared here: its key holds the clip's
+            // timing, speed and media reference (`clip_analysis_key`), so an equal key in another project is
+            // the same input and the same analysis; the cache is capped at 64 entries
             s.stabilizer_jobs.clear();
             s.history = Default::default();
             s.history.limit = 200;
@@ -738,7 +739,6 @@ fn build() -> Vec<CommandSpec> {
         cmd!("file.openDemoProject", "Demo Project", ["File", "New"], None, "{}", always, |s, _| {
             let (p, seq) = crate::demo::demo_project(&s.media);
             s.project = std::sync::Arc::new(p);
-            filmcraft_render::vfx::clear_stabilizer_cache();
             s.stabilizer_jobs.clear();
             s.history = Default::default();
             s.history.limit = 200;
@@ -3433,8 +3433,7 @@ fn install_project(s: &mut Session, proj: filmcraft_project::Project, path: Opti
     s.offline = Default::default();
     let first = proj.sequences().next().map(|i| i.id);
     s.project = std::sync::Arc::new(proj);
-    // sh-video-editor: analyses of the previous project's clips must not match the new ids
-    filmcraft_render::vfx::clear_stabilizer_cache();
+    // sh-video-editor: the analysis cache stays (keyed by timing and media reference, see file.newProject)
     s.stabilizer_jobs.clear();
     s.history = Default::default();
     s.history.limit = 200;

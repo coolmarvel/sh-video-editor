@@ -45,6 +45,9 @@ domain: editor
 - `timeline.move` 는 연결된 클립을 함께 옮기고 `{moved, overwritten}` 를 돌려준다. `insert:true` 면 모든 트랙이 밀린다.
 - `edit.rippleDelete` 는 sync-lock 된 다른 트랙에 클립이 걸리면 실패한다. 메시지를 상태 줄에 그대로 보여 준다.
 - `sequence.inspect` 는 시퀀스가 없으면 "no active sequence" 로 실패한다. 그때 빈 상태를 그린다.
+- 타임라인 store 는 `sequence.inspect {effects: "summary"}` 로 읽는다(`SEQUENCE_READ`). 선택하지 않은 클립의 고정 효과(motion, opacity,
+  time_remap, volume 등)는 키프레임 있는 파라미터만 오고 `summary: true` 다. 인스펙터·변형 상자는 선택 클립만 보므로 같은 값을 읽는다. 선택하지
+  않은 클립의 고정 효과 값이 필요하면 `{effects: "full"}` 로 따로 읽는다(템플릿 저장 `features/templates/user-store.ts`).
 - 시간 단위는 tick (1초 = 254,016,000,000). 1프레임 = `TICKS_PER_SECOND * den / num`, 정수.
 
 ## 갱신 시점

@@ -135,6 +135,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     }
     const burst = (await take()).filter((c) => c.m.startsWith('execute:') || c.m === 'undo' || c.m === 'redo');
     out.burst = { settleMs: Date.now() - burst0 - 750, calls: burst.length };
+    // settleMs 는 250ms 폴링 세 번을 기다려 250ms 단위로 튄다. 첫 호출 시작부터 마지막 엔진 응답까지가 정확한 값이다
+    if (burst.length > 0) out.burst.lastReplyMs = Math.round(Math.max(...burst.map((c) => c.at)) - Math.min(...burst.map((c) => c.at - c.ms)));
+    if (process.env.SH_PERF_TRACE) out.burstTrace = burst.map((c) => [c.m.replace('execute:', ''), Math.round(c.at), Math.round(c.ms)]);
 
     // 편집 하나(실행 취소·다시 실행을 번갈아, 사이에 쉼)에서 마지막 sequence.inspect 응답까지(performance-audit R1)
     const edits = [];
